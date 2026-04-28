@@ -1,63 +1,54 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Admin Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
+@extends('layouts.admin')
 
-<body class="bg-gray-100 min-h-screen">
+@section('content')
 
-<div class="p-8">
-    <h1 class="text-3xl font-bold mb-1">Dashboard Overview</h1>
-    <p class="text-gray-500 mb-6">Welcome back! Here is today’s restaurant summary.</p>
+<h1 class="text-3xl font-bold mb-1">Dashboard Overview</h1>
+<p class="text-gray-500 mb-6">Welcome back! Here is today’s restaurant summary.</p>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div class="bg-white p-5 rounded shadow">
-            <p class="text-gray-500">Total Sales Today</p>
-            <h2 id="sales" class="text-2xl font-bold mt-2">₱0</h2>
-        </div>
-
-        <div class="bg-white p-5 rounded shadow">
-            <p class="text-gray-500">Total Orders Today</p>
-            <h2 id="orders" class="text-2xl font-bold mt-2">0</h2>
-        </div>
-
-        <div class="bg-white p-5 rounded shadow">
-            <p class="text-gray-500">Low Stock Items</p>
-            <h2 id="low-count" class="text-2xl font-bold mt-2">0</h2>
-        </div>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div class="bg-white p-5 rounded shadow">
-            <h2 class="text-lg font-bold mb-3">Top Selling Items</h2>
-            <div id="top-items"></div>
-        </div>
-
-        <div class="bg-white p-5 rounded shadow">
-            <h2 class="text-lg font-bold mb-3">Ingredient Usage Today</h2>
-            <div id="usage"></div>
-        </div>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div class="bg-white p-5 rounded shadow">
-            <h2 class="text-lg font-bold mb-3">Low Stock Alerts</h2>
-            <div id="low-stock"></div>
-        </div>
-
-        <div class="bg-white p-5 rounded shadow">
-            <h2 class="text-lg font-bold mb-3">Restock Suggestions</h2>
-            <div id="restock"></div>
-        </div>
-    </div>
-
-    <!-- 🔥 ONLY PROPHET FORECAST -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
     <div class="bg-white p-5 rounded shadow">
-        <h2 class="text-lg font-bold mb-3">AI Demand Forecast (Facebook Prophet)</h2>
-        <div id="forecast"></div>
+        <p class="text-gray-500">Total Sales Today</p>
+        <h2 id="sales" class="text-2xl font-bold mt-2">₱0</h2>
     </div>
 
+    <div class="bg-white p-5 rounded shadow">
+        <p class="text-gray-500">Total Orders Today</p>
+        <h2 id="orders" class="text-2xl font-bold mt-2">0</h2>
+    </div>
+
+    <div class="bg-white p-5 rounded shadow">
+        <p class="text-gray-500">Low Stock Items</p>
+        <h2 id="low-count" class="text-2xl font-bold mt-2">0</h2>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <div class="bg-white p-5 rounded shadow">
+        <h2 class="text-lg font-bold mb-3">Top Selling Items</h2>
+        <div id="top-items"></div>
+    </div>
+
+    <div class="bg-white p-5 rounded shadow">
+        <h2 class="text-lg font-bold mb-3">Ingredient Usage Today</h2>
+        <div id="usage"></div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <div class="bg-white p-5 rounded shadow">
+        <h2 class="text-lg font-bold mb-3">Low Stock Alerts</h2>
+        <div id="low-stock"></div>
+    </div>
+
+    <div class="bg-white p-5 rounded shadow">
+        <h2 class="text-lg font-bold mb-3">Restock Suggestions</h2>
+        <div id="restock"></div>
+    </div>
+</div>
+
+<div class="bg-white p-5 rounded shadow">
+    <h2 class="text-lg font-bold mb-3">AI Demand Forecast (Facebook Prophet)</h2>
+    <div id="forecast"></div>
 </div>
 
 <script>
@@ -65,16 +56,10 @@ async function loadDashboard() {
     const res = await fetch('/api/admin/dashboard');
     const data = await res.json();
 
-    document.getElementById('sales').innerText =
-        '₱' + Number(data.total_sales_today).toLocaleString();
+    document.getElementById('sales').innerText = '₱' + Number(data.total_sales_today).toLocaleString();
+    document.getElementById('orders').innerText = data.total_orders_today;
+    document.getElementById('low-count').innerText = data.low_stock_items.length;
 
-    document.getElementById('orders').innerText =
-        data.total_orders_today;
-
-    document.getElementById('low-count').innerText =
-        data.low_stock_items.length;
-
-    // TOP ITEMS
     let topHtml = '';
     data.top_selling_items.forEach(item => {
         topHtml += `
@@ -84,10 +69,8 @@ async function loadDashboard() {
             </div>
         `;
     });
-    document.getElementById('top-items').innerHTML =
-        topHtml || '<p class="text-gray-500">No orders yet.</p>';
+    document.getElementById('top-items').innerHTML = topHtml || '<p class="text-gray-500">No orders yet.</p>';
 
-    // INGREDIENT USAGE
     let usageHtml = '';
     data.ingredient_usage_today.forEach(item => {
         usageHtml += `
@@ -97,10 +80,8 @@ async function loadDashboard() {
             </div>
         `;
     });
-    document.getElementById('usage').innerHTML =
-        usageHtml || '<p class="text-gray-500">No usage yet.</p>';
+    document.getElementById('usage').innerHTML = usageHtml || '<p class="text-gray-500">No usage yet.</p>';
 
-    // LOW STOCK
     let lowHtml = '';
     data.low_stock_items.forEach(item => {
         lowHtml += `
@@ -109,10 +90,8 @@ async function loadDashboard() {
             </div>
         `;
     });
-    document.getElementById('low-stock').innerHTML =
-        lowHtml || '<p class="text-green-600">No low stock items.</p>';
+    document.getElementById('low-stock').innerHTML = lowHtml || '<p class="text-green-600">No low stock items.</p>';
 
-    // RESTOCK
     let restockHtml = '';
     data.restock_suggestions.forEach(item => {
         restockHtml += `
@@ -121,10 +100,8 @@ async function loadDashboard() {
             </div>
         `;
     });
-    document.getElementById('restock').innerHTML =
-        restockHtml || '<p class="text-gray-500">No suggestion yet.</p>';
+    document.getElementById('restock').innerHTML = restockHtml || '<p class="text-gray-500">No suggestion yet.</p>';
 
-    // 🔥 PROPHET ONLY
     let forecastHtml = '';
 
     if (data.prophet_forecast && !data.prophet_forecast.error) {
@@ -139,7 +116,7 @@ async function loadDashboard() {
     } else {
         forecastHtml = `
             <p class="text-gray-500">
-                Not enough data yet for AI prediction (need at least 7 days).
+                Not enough data yet for AI prediction.
             </p>
         `;
     }
@@ -150,5 +127,4 @@ async function loadDashboard() {
 loadDashboard();
 </script>
 
-</body>
-</html>
+@endsection

@@ -1,36 +1,61 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Menu Items</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="p-10 bg-gray-100">
+@extends('layouts.admin')
 
-<h1 class="text-2xl font-bold mb-5">Menu Management</h1>
+@section('content')
 
-<form id="form" class="mb-5 flex gap-2">
-    <input class="border p-2" placeholder="Item Name" id="name">
-    <input class="border p-2" placeholder="Category" id="category">
-    <input class="border p-2" placeholder="Price" id="price">
-    <button class="bg-orange-500 text-white px-4 py-2">Add</button>
-</form>
+<h1 class="text-3xl font-bold mb-1">Menu Management</h1>
+<p class="text-gray-500 mb-6">Manage menu items and prices.</p>
 
-<div id="list"></div>
+<div class="bg-white p-5 rounded shadow mb-6">
+    <form id="form" class="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <input class="border p-2 rounded" placeholder="Item Name" id="name">
+        <input class="border p-2 rounded" placeholder="Category" id="category">
+        <input class="border p-2 rounded" placeholder="Price" id="price" type="number" step="0.01">
+        <button class="bg-orange-500 text-white rounded px-4 py-2">Add Menu Item</button>
+    </form>
+</div>
+
+<div class="bg-white p-5 rounded shadow">
+    <h2 class="text-lg font-bold mb-3">Menu Items</h2>
+    <div id="list"></div>
+</div>
 
 <script>
-async function load() {
-    let res = await fetch('/api/admin/menu-items');
-    let data = await res.json();
+async function loadMenuItems() {
+    const res = await fetch('/api/admin/menu-items');
+    const data = await res.json();
 
     let html = '';
+
     data.forEach(item => {
-        html += `<div class="bg-white p-3 mb-2 flex justify-between">
-            <span>${item.name} - ${item.category ?? 'No category'} - ₱${item.price}</span>
-            <span>${item.is_available ? 'Available' : 'Unavailable'}</span>
-        </div>`;
+        let ingredients = '';
+
+        if (item.ingredients && item.ingredients.length > 0) {
+            item.ingredients.forEach(ing => {
+                ingredients += `<span class="text-xs bg-gray-100 px-2 py-1 rounded mr-1">
+                    ${ing.name} (${ing.pivot.quantity_required} ${ing.unit})
+                </span>`;
+            });
+        } else {
+            ingredients = '<span class="text-xs text-gray-400">No ingredients linked</span>';
+        }
+
+        html += `
+            <div class="border-b py-4">
+                <div class="flex justify-between">
+                    <div>
+                        <p class="font-semibold">${item.name}</p>
+                        <p class="text-sm text-gray-500">${item.category || 'No category'} | ₱${item.price}</p>
+                    </div>
+                    <span class="${item.is_available ? 'text-green-600' : 'text-red-600'} font-bold">
+                        ${item.is_available ? 'Available' : 'Unavailable'}
+                    </span>
+                </div>
+                <div class="mt-2">${ingredients}</div>
+            </div>
+        `;
     });
 
-    document.getElementById('list').innerHTML = html;
+    document.getElementById('list').innerHTML = html || '<p class="text-gray-500">No menu items yet.</p>';
 }
 
 document.getElementById('form').onsubmit = async (e) => {
@@ -48,11 +73,10 @@ document.getElementById('form').onsubmit = async (e) => {
     });
 
     document.getElementById('form').reset();
-    load();
+    loadMenuItems();
 };
 
-load();
+loadMenuItems();
 </script>
 
-</body>
-</html>
+@endsection

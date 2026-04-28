@@ -1,34 +1,51 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Ingredients</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="p-10 bg-gray-100">
+@extends('layouts.admin')
 
-<h1 class="text-2xl font-bold mb-5">Inventory</h1>
+@section('content')
 
-<form id="form" class="mb-5">
-    <input class="border p-2" placeholder="Name" id="name">
-    <input class="border p-2" placeholder="Stock" id="stock">
-    <button class="bg-blue-500 text-white px-4 py-2">Add</button>
-</form>
+<h1 class="text-3xl font-bold mb-1">Inventory Management</h1>
+<p class="text-gray-500 mb-6">Manage ingredients, stock levels, units, and thresholds.</p>
 
-<div id="list"></div>
+<div class="bg-white p-5 rounded shadow mb-6">
+    <form id="form" class="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <input class="border p-2 rounded" placeholder="Ingredient Name" id="name">
+        <input class="border p-2 rounded" placeholder="Stock" id="stock" type="number" step="0.01">
+        <input class="border p-2 rounded" placeholder="Unit" id="unit" value="kg">
+        <input class="border p-2 rounded" placeholder="Threshold" id="threshold" type="number" step="0.01">
+        <button class="bg-orange-500 text-white rounded px-4 py-2">Add Ingredient</button>
+    </form>
+</div>
+
+<div class="bg-white p-5 rounded shadow">
+    <h2 class="text-lg font-bold mb-3">Ingredient List</h2>
+    <div id="list"></div>
+</div>
 
 <script>
-async function load() {
-    let res = await fetch('/api/admin/ingredients');
-    let data = await res.json();
+async function loadIngredients() {
+    const res = await fetch('/api/admin/ingredients');
+    const data = await res.json();
 
     let html = '';
-    data.forEach(i => {
-        html += `<div class="bg-white p-3 mb-2">
-            ${i.name} - ${i.current_stock} ${i.unit}
-        </div>`;
+
+    data.forEach(item => {
+        const status = Number(item.current_stock) <= Number(item.threshold)
+            ? '<span class="text-red-600 font-bold">Low Stock</span>'
+            : '<span class="text-green-600 font-bold">Normal</span>';
+
+        html += `
+            <div class="flex justify-between items-center border-b py-3">
+                <div>
+                    <p class="font-semibold">${item.name}</p>
+                    <p class="text-sm text-gray-500">
+                        Stock: ${item.current_stock} ${item.unit} | Threshold: ${item.threshold} ${item.unit}
+                    </p>
+                </div>
+                <div>${status}</div>
+            </div>
+        `;
     });
 
-    document.getElementById('list').innerHTML = html;
+    document.getElementById('list').innerHTML = html || '<p class="text-gray-500">No ingredients yet.</p>';
 }
 
 document.getElementById('form').onsubmit = async (e) => {
@@ -40,16 +57,16 @@ document.getElementById('form').onsubmit = async (e) => {
         body: JSON.stringify({
             name: document.getElementById('name').value,
             current_stock: document.getElementById('stock').value,
-            unit: 'kg',
-            threshold: 5
+            unit: document.getElementById('unit').value,
+            threshold: document.getElementById('threshold').value
         })
     });
 
-    load();
+    document.getElementById('form').reset();
+    loadIngredients();
 };
 
-load();
+loadIngredients();
 </script>
 
-</body>
-</html>
+@endsection
