@@ -9,13 +9,23 @@ class IngredientController extends Controller
 {
     public function index()
     {
-        return response()->json(Ingredient::all());
+        return response()->json(
+            Ingredient::orderBy('name')->get()
+        );
     }
 
     public function store(Request $request)
     {
-        $ingredient = Ingredient::create($request->all());
-        return response()->json($ingredient);
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'current_stock' => 'required|numeric|min:0',
+            'unit' => 'required|string|max:50',
+            'threshold' => 'required|numeric|min:0',
+        ]);
+
+        $ingredient = Ingredient::create($validated);
+
+        return response()->json($ingredient, 201);
     }
 
     public function show(Ingredient $ingredient)
@@ -25,13 +35,22 @@ class IngredientController extends Controller
 
     public function update(Request $request, Ingredient $ingredient)
     {
-        $ingredient->update($request->all());
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'current_stock' => 'required|numeric|min:0',
+            'unit' => 'required|string|max:50',
+            'threshold' => 'required|numeric|min:0',
+        ]);
+
+        $ingredient->update($validated);
+
         return response()->json($ingredient);
     }
 
     public function destroy(Ingredient $ingredient)
     {
         $ingredient->delete();
-        return response()->json(['message' => 'Deleted']);
+
+        return response()->json(['message' => 'Ingredient deleted successfully.']);
     }
 }

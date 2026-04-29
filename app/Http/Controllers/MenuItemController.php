@@ -10,32 +10,23 @@ class MenuItemController extends Controller
     public function index()
     {
         return response()->json(
-            MenuItem::with('ingredients')->get()
+            MenuItem::with('ingredients')->orderBy('name')->get()
         );
     }
 
     public function store(Request $request)
     {
-        // Create menu item
-        $menuItem = MenuItem::create($request->only([
-            'name',
-            'category',
-            'price',
-            'image',
-            'is_available'
-        ]));
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'category' => 'nullable|string|max:255',
+            'price' => 'required|numeric|min:0',
+            'image' => 'nullable|string',
+            'is_available' => 'boolean',
+        ]);
 
-        // Attach ingredients (NEW)
-        if ($request->has('ingredients')) {
-            foreach ($request->ingredients as $ingredient) {
-                $menuItem->ingredients()->attach(
-                    $ingredient['id'],
-                    ['quantity_required' => $ingredient['quantity_required']]
-                );
-            }
-        }
+        $menuItem = MenuItem::create($validated);
 
-        return response()->json($menuItem->load('ingredients'));
+        return response()->json($menuItem->load('ingredients'), 201);
     }
 
     public function show(MenuItem $menuItem)
@@ -53,19 +44,6 @@ class MenuItemController extends Controller
             'is_available'
         ]));
 
-        // Sync ingredients (NEW)
-        if ($request->has('ingredients')) {
-            $syncData = [];
-
-            foreach ($request->ingredients as $ingredient) {
-                $syncData[$ingredient['id']] = [
-                    'quantity_required' => $ingredient['quantity_required']
-                ];
-            }
-
-            $menuItem->ingredients()->sync($syncData);
-        }
-
         return response()->json($menuItem->load('ingredients'));
     }
 
@@ -73,7 +51,7 @@ class MenuItemController extends Controller
     {
         $menuItem->delete();
 
-        return response()->json(['message' => 'Deleted']);
+        return response()->json(['message' => 'Menu item deleted successfully.']);
     }
 
     public function attachIngredient(Request $request, MenuItem $menuItem)
@@ -89,9 +67,13 @@ class MenuItemController extends Controller
             ]
         ]);
 
-        return response()->json([
-            'message' => 'Ingredient linked successfully.',
-            'menu_item' => $menuItem->load('ingredients')
-        ]);
+        return response()->json($menuItem->load('ingredients'));
+    }
+
+    public function detachIngredient(MenuItem $menuItem, $ingredientId)
+    {
+        $menuItem->ingredients()->detach($ingredientId);
+
+        return response()->json($menuItem->load('ingredients'));
     }
 }

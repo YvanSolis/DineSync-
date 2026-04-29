@@ -7,59 +7,57 @@ use Illuminate\Http\Request;
 
 class PaymentController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        //
+        return response()->json(
+            Payment::with('order')
+                ->latest()
+                ->get()
+        );
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
     public function show(Payment $payment)
     {
-        //
+        return response()->json(
+            $payment->load('order')
+        );
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Payment $payment)
+    public function store(Request $request)
     {
-        //
+        $validated = $request->validate([
+            'order_id' => 'required|exists:orders,id',
+            'payment_method' => 'required|string|max:255',
+            'amount' => 'required|numeric|min:0',
+            'status' => 'required|string|max:255',
+            'reference_number' => 'nullable|string|max:255',
+        ]);
+
+        $payment = Payment::create($validated);
+
+        return response()->json($payment, 201);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, Payment $payment)
     {
-        //
+        $validated = $request->validate([
+            'payment_method' => 'sometimes|string|max:255',
+            'amount' => 'sometimes|numeric|min:0',
+            'status' => 'sometimes|string|max:255',
+            'reference_number' => 'nullable|string|max:255',
+        ]);
+
+        $payment->update($validated);
+
+        return response()->json($payment);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Payment $payment)
     {
-        //
+        $payment->delete();
+
+        return response()->json([
+            'message' => 'Payment deleted successfully.'
+        ]);
     }
 }
