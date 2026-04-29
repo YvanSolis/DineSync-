@@ -75,4 +75,23 @@ class MenuItemController extends Controller
 
         return response()->json(['message' => 'Deleted']);
     }
+
+    public function attachIngredient(Request $request, MenuItem $menuItem)
+    {
+        $validated = $request->validate([
+            'ingredient_id' => 'required|exists:ingredients,id',
+            'quantity_required' => 'required|numeric|min:0.01',
+        ]);
+
+        $menuItem->ingredients()->syncWithoutDetaching([
+            $validated['ingredient_id'] => [
+                'quantity_required' => $validated['quantity_required']
+            ]
+        ]);
+
+        return response()->json([
+            'message' => 'Ingredient linked successfully.',
+            'menu_item' => $menuItem->load('ingredients')
+        ]);
+    }
 }

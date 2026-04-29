@@ -4,21 +4,21 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class IngredientUsage extends Model
+class MenuItemIngredient extends Model
 {
     protected $fillable = [
+        'menu_item_id',
         'ingredient_id',
-        'order_id',
-        'quantity_used',
+        'quantity_required',
     ];
+
+    public function menuItem()
+    {
+        return $this->belongsTo(MenuItem::class);
+    }
 
     public function ingredient()
     {
         return $this->belongsTo(Ingredient::class);
-    }
-
-    public function order()
-    {
-        return $this->belongsTo(Order::class);
     }
 }

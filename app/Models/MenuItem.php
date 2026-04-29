@@ -20,9 +20,4 @@ class MenuItem extends Model
             ->withPivot('quantity_required')
             ->withTimestamps();
     }
-
-    public function orderItems()
-    {
-        return $this->hasMany(OrderItem::class);
-    }
 }

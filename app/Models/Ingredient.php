@@ -19,9 +19,4 @@ class Ingredient extends Model
             ->withPivot('quantity_required')
             ->withTimestamps();
     }
-
-    public function usages()
-    {
-        return $this->hasMany(IngredientUsage::class);
-    }
 }
