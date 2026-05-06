@@ -525,6 +525,10 @@ async function loadDashboard() {
 }
 
 loadDashboard();
+
+setInterval(() => {
+    loadDashboard();
+}, 10000);
 </script>
 
 @endsection

@@ -5,9 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\MenuItem;
-use App\Models\IngredientUsage;
+use App\Services\InventoryDeductionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
@@ -15,78 +16,83 @@ class OrderController extends Controller
     public function index()
     {
         return response()->json(
-            Order::with('items.menuItem', 'ingredientUsages.ingredient')
-                ->latest()
-                ->get()
+            Order::with('items.menuItem')->latest()->get()
         );
     }
 
-    public function store(Request $request)
+    public function store(Request $request, InventoryDeductionService $inventoryDeductionService)
     {
-        $request->validate([
-            'items' => 'required|array|min:1',
-            'items.*.menu_item_id' => 'required|exists:menu_items,id',
-            'items.*.quantity' => 'required|integer|min:1',
+        $validated = $request->validate([
+            'items' => 'required_without:order_items|array',
+            'items.*.menu_item_id' => 'required_with:items|exists:menu_items,id',
+            'items.*.quantity' => 'required_with:items|integer|min:1',
+
+            'order_items' => 'required_without:items|array',
+            'order_items.*.menu_item_id' => 'required_with:order_items|exists:menu_items,id',
+            'order_items.*.quantity' => 'required_with:order_items|integer|min:1',
+
+            'status' => 'nullable|string|max:50',
+            'customer_name' => 'nullable|string|max:255',
+            'table_number' => 'nullable|string|max:50',
+            'remarks' => 'nullable|string',
         ]);
 
-        return DB::transaction(function () use ($request) {
+        $items = $request->input('items', $request->input('order_items', []));
+
+        return DB::transaction(function () use ($request, $items, $inventoryDeductionService) {
+            $order = new Order();
+
+            $this->setIfColumn($order, 'status', $request->input('status', 'pending'));
+            $this->setIfColumn($order, 'customer_name', $request->input('customer_name'));
+            $this->setIfColumn($order, 'table_number', $request->input('table_number'));
+            $this->setIfColumn($order, 'remarks', $request->input('remarks'));
+            $this->setIfColumn($order, 'total_amount', 0);
+
+            $order->save();
+
             $totalAmount = 0;
 
-            $order = Order::create([
-                'order_number' => 'ORD-' . now()->format('YmdHis'),
-                'status' => 'pending',
-                'total_amount' => 0,
-            ]);
+            foreach ($items as $itemData) {
+                $menuItem = MenuItem::with('ingredients')->findOrFail($itemData['menu_item_id']);
 
-            foreach ($request->items as $item) {
-                $menuItem = MenuItem::with('ingredients')->findOrFail($item['menu_item_id']);
-                $quantity = $item['quantity'];
-
-                if ($menuItem->ingredients->isEmpty()) {
+                if (isset($menuItem->is_available) && !$menuItem->is_available) {
                     throw ValidationException::withMessages([
-                        'ingredients' => "{$menuItem->name} has no linked ingredients yet."
+                        'menu_item_id' => "{$menuItem->name} is currently unavailable.",
                     ]);
                 }
 
-                foreach ($menuItem->ingredients as $ingredient) {
-                    $requiredQty = $ingredient->pivot->quantity_required * $quantity;
+                $quantity = (int) $itemData['quantity'];
+                $price = (float) $menuItem->price;
+                $subtotal = $price * $quantity;
 
-                    if ($ingredient->current_stock < $requiredQty) {
-                        throw ValidationException::withMessages([
-                            'stock' => "{$ingredient->name} is not enough for {$menuItem->name}."
-                        ]);
-                    }
-                }
+                $orderItem = new OrderItem();
 
-                $totalAmount += $menuItem->price * $quantity;
+                $this->setIfColumn($orderItem, 'order_id', $order->id);
+                $this->setIfColumn($orderItem, 'menu_item_id', $menuItem->id);
+                $this->setIfColumn($orderItem, 'quantity', $quantity);
+                $this->setIfColumn($orderItem, 'price', $price);
+                $this->setIfColumn($orderItem, 'subtotal', $subtotal);
+                $this->setIfColumn($orderItem, 'total_price', $subtotal);
 
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'menu_item_id' => $menuItem->id,
-                    'quantity' => $quantity,
-                    'price' => $menuItem->price,
-                ]);
+                $orderItem->save();
 
-                foreach ($menuItem->ingredients as $ingredient) {
-                    $usedQuantity = $ingredient->pivot->quantity_required * $quantity;
-
-                    $ingredient->decrement('current_stock', $usedQuantity);
-
-                    IngredientUsage::create([
-                        'ingredient_id' => $ingredient->id,
-                        'order_id' => $order->id,
-                        'quantity_used' => $usedQuantity,
-                    ]);
-                }
+                $totalAmount += $subtotal;
             }
 
-            $order->update([
-                'total_amount' => $totalAmount,
-                'status' => 'completed',
-            ]);
+            $this->setIfColumn($order, 'total_amount', $totalAmount);
+            $order->save();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Important:
+            |--------------------------------------------------------------------------
+            | This is the part that deducts ingredients.
+            | Order created from mobile/API should pass through this controller.
+            */
+            $inventoryDeductionService->deductForOrder($order);
 
             return response()->json(
-                $order->load('items.menuItem', 'ingredientUsages.ingredient'),
+                $order->fresh()->load('items.menuItem'),
                 201
             );
         });
@@ -95,22 +101,33 @@ class OrderController extends Controller
     public function show(Order $order)
     {
         return response()->json(
-            $order->load('items.menuItem', 'ingredientUsages.ingredient')
+            $order->load('items.menuItem')
         );
     }
 
-    public function update(Request $request, Order $order)
+    public function update(Request $request, Order $order, InventoryDeductionService $inventoryDeductionService)
     {
-        $request->validate([
-            'status' => 'required|string',
+        $validated = $request->validate([
+            'status' => 'nullable|string|max:50',
+            'customer_name' => 'nullable|string|max:255',
+            'table_number' => 'nullable|string|max:50',
+            'remarks' => 'nullable|string',
         ]);
 
-        $order->update([
-            'status' => $request->status,
-        ]);
+        foreach ($validated as $key => $value) {
+            $this->setIfColumn($order, $key, $value);
+        }
+
+        $order->save();
+
+        $status = strtolower((string) $request->input('status', ''));
+
+        if (in_array($status, ['paid', 'completed', 'served', 'done'])) {
+            $inventoryDeductionService->deductForOrder($order);
+        }
 
         return response()->json(
-            $order->load('items.menuItem', 'ingredientUsages.ingredient')
+            $order->fresh()->load('items.menuItem'),
         );
     }
 
@@ -119,7 +136,14 @@ class OrderController extends Controller
         $order->delete();
 
         return response()->json([
-            'message' => 'Deleted'
+            'message' => 'Order deleted successfully.',
         ]);
+    }
+
+    private function setIfColumn($model, string $column, $value): void
+    {
+        if (Schema::hasColumn($model->getTable(), $column)) {
+            $model->{$column} = $value;
+        }
     }
 }

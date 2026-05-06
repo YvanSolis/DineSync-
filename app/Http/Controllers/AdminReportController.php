@@ -92,35 +92,27 @@ class AdminReportController extends Controller
 
         $ingredientUsageToday = collect();
 
-        if (
-            Schema::hasTable('order_items') &&
-            Schema::hasTable('menu_item_ingredients') &&
-            Schema::hasTable('ingredients')
-        ) {
-            $query = DB::table('order_items')
-                ->join('menu_item_ingredients', 'order_items.menu_item_id', '=', 'menu_item_ingredients.menu_item_id')
-                ->join('ingredients', 'menu_item_ingredients.ingredient_id', '=', 'ingredients.id')
+        if (Schema::hasTable('ingredient_usages')) {
+            $ingredientUsageToday = DB::table('ingredient_usages')
+                ->join('ingredients', 'ingredient_usages.ingredient_id', '=', 'ingredients.id')
                 ->select(
-                    'ingredients.id as ingredient_id',
                     'ingredients.name as ingredient_name',
                     'ingredients.unit as unit',
-                    DB::raw('SUM(order_items.quantity * menu_item_ingredients.quantity_required) as quantity_used')
+                    DB::raw('SUM(ingredient_usages.quantity_used) as quantity_used')
                 )
-                ->groupBy('ingredients.id', 'ingredients.name', 'ingredients.unit');
-
-            if (Schema::hasColumn('order_items', 'created_at')) {
-                $query->whereDate('order_items.created_at', $today);
-            }
-
-            $ingredientUsageToday = $query->get()->map(function ($usage) {
-                return [
-                    'name' => $usage->ingredient_name,
-                    'ingredient_name' => $usage->ingredient_name,
-                    'unit' => $usage->unit,
-                    'quantity_used' => (float) $usage->quantity_used,
-                    'used' => (float) $usage->quantity_used,
-                ];
-            });
+                ->whereDate('ingredient_usages.created_at', $today)
+                ->groupBy('ingredients.name', 'ingredients.unit')
+                ->orderByDesc('quantity_used')
+                ->get()
+                ->map(function ($usage) {
+                    return [
+                        'name' => $usage->ingredient_name,
+                        'ingredient_name' => $usage->ingredient_name,
+                        'unit' => $usage->unit,
+                        'quantity_used' => (float) $usage->quantity_used,
+                        'used' => (float) $usage->quantity_used,
+                    ];
+                });
         }
 
         $restockSuggestions = $lowStockItems->map(function ($ingredient) {
