@@ -10,6 +10,9 @@ use App\Http\Controllers\UserController;
 
 Route::prefix('admin')->group(function () {
     Route::apiResource('ingredients', IngredientController::class);
+    Route::post('ingredients/{ingredient}/stock', [IngredientController::class, 'addStock']);
+    Route::put('ingredients/{ingredient}/batches/{batch}', [IngredientController::class, 'updateBatch']);
+    Route::delete('ingredients/{ingredient}/batches/{batch}', [IngredientController::class, 'deleteBatch']);
 
     Route::apiResource('menu-items', MenuItemController::class);
     Route::post('menu-items/{menuItem}/ingredients', [MenuItemController::class, 'attachIngredient']);
@@ -20,4 +23,5 @@ Route::prefix('admin')->group(function () {
     Route::apiResource('users', UserController::class);
 
     Route::get('dashboard', [AdminReportController::class, 'dashboard']);
+    Route::get('reports-forecast', [AdminReportController::class, 'reportsForecast']);
 });
