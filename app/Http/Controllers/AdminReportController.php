@@ -8,6 +8,7 @@ use App\Models\Ingredient;
 use App\Models\Payment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use App\Services\OpenAIForecastService;
 
 class AdminReportController extends Controller
 {
@@ -226,7 +227,7 @@ class AdminReportController extends Controller
         ]);
     }
 
-    public function reportsForecast()
+    public function reportsForecast(OpenAIForecastService $openAIForecastService)
     {
         $startDate = now()->subDays(6)->startOfDay();
         $endDate = now()->endOfDay();
@@ -388,6 +389,19 @@ class AdminReportController extends Controller
                 });
         }
 
+        $businessDataForAI = [
+            'total_revenue_7d' => round((float) $totalRevenue7d, 2),
+            'avg_order_value' => round((float) $avgOrderValue, 2),
+            'total_orders_7d' => (int) $totalOrders7d,
+            'basic_forecasted_revenue' => round((float) $forecastedRevenue, 2),
+            'sales_order_trends' => $salesOrderTrends,
+            'revenue_by_category' => $revenueByCategory,
+            'inventory_usage_forecast' => $inventoryUsageForecast,
+            'forecast_details' => $forecastDetails,
+        ];
+
+        $aiForecast = $openAIForecastService->generateForecast($businessDataForAI);
+
         return response()->json([
             'total_revenue_7d' => round((float) $totalRevenue7d, 2),
             'avg_order_value' => round((float) $avgOrderValue, 2),
@@ -399,7 +413,14 @@ class AdminReportController extends Controller
             'inventory_usage_forecast' => $inventoryUsageForecast,
             'forecast_details' => $forecastDetails,
 
-            'forecast_mode' => 'Smart estimate based on recent activity',
+            'ai_summary' => $aiForecast['summary'] ?? null,
+            'ai_forecasted_revenue_next_day' => $aiForecast['forecasted_revenue_next_day'] ?? 0,
+            'ai_forecast_confidence' => $aiForecast['forecast_confidence'] ?? 'Low',
+            'ai_menu_forecast' => $aiForecast['menu_forecast'] ?? [],
+            'ai_ingredient_forecast' => $aiForecast['ingredient_forecast'] ?? [],
+            'ai_recommendations' => $aiForecast['recommendations'] ?? [],
+
+            'forecast_mode' => 'OpenAI-powered forecast using ' . config('services.openai.model', 'gpt-5-nano'),
         ]);
     }
 }
