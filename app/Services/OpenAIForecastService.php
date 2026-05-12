@@ -12,7 +12,7 @@ class OpenAIForecastService
         set_time_limit(90);
 
         $apiKey = config('services.openai.key');
-        $model = config('services.openai.model', 'gpt-5-nano');
+        $model = config('services.openai.model', 'gpt-5.4-nano');
 
         if (!$apiKey) {
             return $this->fallbackForecast('OpenAI API key is missing.');

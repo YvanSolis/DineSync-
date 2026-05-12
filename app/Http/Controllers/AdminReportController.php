@@ -8,6 +8,7 @@ use App\Models\Ingredient;
 use App\Models\Payment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Cache;
 use App\Services\OpenAIForecastService;
 
 class AdminReportController extends Controller
@@ -400,7 +401,15 @@ class AdminReportController extends Controller
             'forecast_details' => $forecastDetails,
         ];
 
-        $aiForecast = $openAIForecastService->generateForecast($businessDataForAI);
+        $shouldRefreshAI = request()->boolean('refresh_ai');
+
+        if ($shouldRefreshAI) {
+            Cache::forget('reports_ai_forecast');
+        }
+
+        $aiForecast = Cache::remember('reports_ai_forecast', now()->addMinutes(30), function () use ($openAIForecastService, $businessDataForAI) {
+            return $openAIForecastService->generateForecast($businessDataForAI);
+        });
 
         return response()->json([
             'total_revenue_7d' => round((float) $totalRevenue7d, 2),

@@ -133,7 +133,7 @@
 
                     <input id="quantityRequired" type="number" step="0.01" placeholder="Quantity Required" class="border rounded px-3 py-2" required>
 
-                    <button class="bg-gray-800 text-white rounded px-4 py-2">
+                    <button type="submit" class="bg-gray-800 text-white rounded px-4 py-2">
                         Link Ingredient
                     </button>
                 </form>
@@ -200,6 +200,87 @@ function formatMoney(value) {
     return `₱${Number(value || 0).toFixed(2)}`;
 }
 
+function setButtonLoading(button, isLoading, loadingText = 'Loading...') {
+    if (!button) return;
+
+    if (isLoading) {
+        button.dataset.originalText = button.textContent;
+        button.textContent = loadingText;
+        button.disabled = true;
+        button.classList.add('opacity-70', 'cursor-not-allowed');
+    } else {
+        button.textContent = button.dataset.originalText || button.textContent;
+        button.disabled = false;
+        button.classList.remove('opacity-70', 'cursor-not-allowed');
+    }
+}
+
+function findMenuItemFromResponse(data) {
+    if (!data) return null;
+
+    if (data.menu_item && data.menu_item.id) return data.menu_item;
+    if (data.menuItem && data.menuItem.id) return data.menuItem;
+    if (data.data && data.data.id) return data.data;
+    if (data.id && data.name) return data;
+
+    return null;
+}
+
+function replaceMenuItemInMemory(updatedItem) {
+    if (!updatedItem || !updatedItem.id) return false;
+
+    const index = menuItems.findIndex(item => Number(item.id) === Number(updatedItem.id));
+
+    if (index >= 0) {
+        menuItems[index] = updatedItem;
+    } else {
+        menuItems.push(updatedItem);
+    }
+
+    populateCategoryFilters();
+    applyFilters();
+
+    return true;
+}
+
+function removeMenuItemFromMemory(id) {
+    menuItems = menuItems.filter(item => Number(item.id) !== Number(id));
+    applyFilters();
+}
+
+async function silentReloadMenuItems() {
+    try {
+        const res = await fetch('/api/admin/menu-items', {
+            headers: {
+                'Accept': 'application/json',
+            }
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+
+        if (Array.isArray(data)) {
+            menuItems = data;
+        } else {
+            menuItems = data.menu_items ?? [];
+            if (data.categories) {
+                categories = data.categories;
+            }
+        }
+
+        populateCategoryFilters();
+        applyFilters();
+
+        if (currentIngredientMenuItemId) {
+            const item = menuItems.find(menuItem => Number(menuItem.id) === Number(currentIngredientMenuItemId));
+            if (item) renderLinkedIngredients(item);
+        }
+    } catch (error) {
+        console.error('Silent menu reload failed:', error);
+    }
+}
+
 function getImageHtml(item) {
     if (item.image) {
         return `
@@ -225,31 +306,78 @@ function availabilityBadge(item) {
 }
 
 async function loadIngredients() {
-    const res = await fetch('/api/admin/ingredients');
-    ingredients = await res.json();
-    populateIngredientDropdown();
+    try {
+        const res = await fetch('/api/admin/ingredients', {
+            headers: {
+                'Accept': 'application/json',
+            }
+        });
+
+        if (!res.ok) {
+            console.error('Failed to load ingredients.');
+            return;
+        }
+
+        ingredients = await res.json();
+        populateIngredientDropdown();
+    } catch (error) {
+        console.error('Load ingredients failed:', error);
+    }
 }
 
 async function loadMenuItems() {
-    const res = await fetch('/api/admin/menu-items');
-    const data = await res.json();
+    const tbody = document.getElementById('menuTableBody');
 
-    if (Array.isArray(data)) {
-        menuItems = data;
-    } else {
-        menuItems = data.menu_items ?? [];
-        if (data.categories) {
-            categories = data.categories;
+    try {
+        const res = await fetch('/api/admin/menu-items', {
+            headers: {
+                'Accept': 'application/json',
+            }
+        });
+
+        if (!res.ok) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-red-500">
+                        Failed to load menu items. API returned ${res.status}.
+                    </td>
+                </tr>
+            `;
+            return;
         }
-    }
 
-    populateCategoryFilters();
-    applyFilters();
+        const data = await res.json();
+
+        if (Array.isArray(data)) {
+            menuItems = data;
+        } else {
+            menuItems = data.menu_items ?? [];
+            if (data.categories) {
+                categories = data.categories;
+            }
+        }
+
+        populateCategoryFilters();
+        applyFilters();
+    } catch (error) {
+        console.error('Load menu items failed:', error);
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="px-6 py-8 text-center text-red-500">
+                    Failed to load menu items. Please check your connection.
+                </td>
+            </tr>
+        `;
+    }
 }
 
 function populateCategoryFilters() {
     const filter = document.getElementById('categoryFilter');
     const itemCategory = document.getElementById('itemCategory');
+
+    const selectedFilter = filter.value || 'all';
+    const selectedCategory = itemCategory.value || '';
 
     filter.innerHTML = '<option value="all">All Categories</option>';
     itemCategory.innerHTML = '<option value="">Select Category</option>';
@@ -258,6 +386,9 @@ function populateCategoryFilters() {
         filter.innerHTML += `<option value="${safeText(category)}">${safeText(category)}</option>`;
         itemCategory.innerHTML += `<option value="${safeText(category)}">${safeText(category)}</option>`;
     });
+
+    filter.value = selectedFilter;
+    itemCategory.value = selectedCategory;
 }
 
 function populateIngredientDropdown() {
@@ -323,7 +454,7 @@ function renderMenuTable() {
             </td>
 
             <td class="px-6 py-4">
-                <button onclick="toggleAvailability(${item.id}, ${item.is_available})">
+                <button onclick="toggleAvailability(${item.id}, ${item.is_available}, this)">
                     ${availabilityBadge(item)}
                 </button>
             </td>
@@ -340,7 +471,7 @@ function renderMenuTable() {
                         Ingredients
                     </button>
 
-                    <button onclick="deleteMenuItem(${item.id})"
+                    <button onclick="deleteMenuItem(${item.id}, this)"
                         class="px-3 py-2 rounded border border-red-200 text-red-600 hover:bg-red-50 text-xs">
                         Delete
                     </button>
@@ -354,7 +485,7 @@ function openMenuModal(id = null) {
     editingMenuItemId = id;
 
     if (id) {
-        const item = menuItems.find(menuItem => menuItem.id === id);
+        const item = menuItems.find(menuItem => Number(menuItem.id) === Number(id));
         if (!item) return;
 
         document.getElementById('menuModalTitle').textContent = 'Edit Menu Item';
@@ -388,6 +519,8 @@ function closeMenuModal() {
 document.getElementById('menuForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
+    const saveBtn = document.getElementById('menuSaveBtn');
+
     const payload = {
         name: document.getElementById('itemName').value,
         category: document.getElementById('itemCategory').value,
@@ -402,68 +535,111 @@ document.getElementById('menuForm').addEventListener('submit', async function(e)
 
     const method = editingMenuItemId ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
-        method,
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-        },
-        body: JSON.stringify(payload)
-    });
+    setButtonLoading(saveBtn, true, editingMenuItemId ? 'Updating...' : 'Saving...');
 
-    const data = await res.json();
+    try {
+        const res = await fetch(url, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify(payload)
+        });
 
-    if (!res.ok) {
-        alert(data.message || 'Failed to save menu item.');
-        return;
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert(data.message || 'Failed to save menu item.');
+            return;
+        }
+
+        const updatedItem = findMenuItemFromResponse(data);
+
+        if (updatedItem) {
+            replaceMenuItemInMemory(updatedItem);
+        } else {
+            silentReloadMenuItems();
+        }
+
+        closeMenuModal();
+    } catch (error) {
+        console.error('Save menu item failed:', error);
+        alert('Failed to save menu item. Please check your connection.');
+    } finally {
+        setButtonLoading(saveBtn, false);
     }
-
-    closeMenuModal();
-    loadMenuItems();
 });
 
-async function toggleAvailability(id, currentStatus) {
-    const res = await fetch(`/api/admin/menu-items/${id}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-            is_available: !currentStatus
-        })
-    });
+async function toggleAvailability(id, currentStatus, button) {
+    setButtonLoading(button, true, 'Updating...');
 
-    if (!res.ok) {
-        alert('Failed to update availability.');
-        return;
+    try {
+        const res = await fetch(`/api/admin/menu-items/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+                is_available: !currentStatus
+            })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert(data.message || 'Failed to update availability.');
+            return;
+        }
+
+        const updatedItem = findMenuItemFromResponse(data);
+
+        if (updatedItem) {
+            replaceMenuItemInMemory(updatedItem);
+        } else {
+            silentReloadMenuItems();
+        }
+    } catch (error) {
+        console.error('Availability update failed:', error);
+        alert('Failed to update availability. Please check your connection.');
+    } finally {
+        setButtonLoading(button, false);
     }
-
-    loadMenuItems();
 }
 
-async function deleteMenuItem(id) {
+async function deleteMenuItem(id, button) {
     if (!confirm('Delete this menu item?')) return;
 
-    const res = await fetch(`/api/admin/menu-items/${id}`, {
-        method: 'DELETE',
-        headers: {
-            'Accept': 'application/json',
+    setButtonLoading(button, true, 'Deleting...');
+
+    try {
+        const res = await fetch(`/api/admin/menu-items/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json',
+            }
+        });
+
+        if (!res.ok) {
+            alert('Failed to delete menu item.');
+            return;
         }
-    });
 
-    if (!res.ok) {
-        alert('Failed to delete menu item.');
-        return;
+        removeMenuItemFromMemory(id);
+        silentReloadMenuItems();
+    } catch (error) {
+        console.error('Delete menu item failed:', error);
+        alert('Failed to delete menu item. Please check your connection.');
+    } finally {
+        setButtonLoading(button, false);
     }
-
-    loadMenuItems();
 }
 
 function openIngredientsModal(menuItemId) {
     currentIngredientMenuItemId = menuItemId;
 
-    const item = menuItems.find(menuItem => menuItem.id === menuItemId);
+    const item = menuItems.find(menuItem => Number(menuItem.id) === Number(menuItemId));
     if (!item) return;
 
     document.getElementById('ingredientsModalTitle').textContent = `Ingredients - ${item.name}`;
@@ -508,7 +684,7 @@ function renderLinkedIngredients(item) {
             <td class="px-4 py-3">${safeText(ingredient.unit || 'unit')}</td>
             <td class="px-4 py-3">${safeText(ingredient.pivot?.quantity_required || 0)}</td>
             <td class="px-4 py-3">
-                <button onclick="removeIngredient(${item.id}, ${ingredient.id})"
+                <button onclick="removeIngredient(${item.id}, ${ingredient.id}, this)"
                     class="px-3 py-2 rounded border border-red-200 text-red-600 hover:bg-red-50 text-xs">
                     Remove
                 </button>
@@ -522,56 +698,84 @@ document.getElementById('ingredientLinkForm').addEventListener('submit', async f
 
     if (!currentIngredientMenuItemId) return;
 
+    const form = e.target;
+    const linkBtn = form.querySelector('button[type="submit"], button:not([type])');
+
     const payload = {
         ingredient_id: document.getElementById('ingredientSelect').value,
         quantity_required: document.getElementById('quantityRequired').value
     };
 
-    const res = await fetch(`/api/admin/menu-items/${currentIngredientMenuItemId}/ingredients`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-        },
-        body: JSON.stringify(payload)
-    });
+    setButtonLoading(linkBtn, true, 'Linking...');
 
-    const data = await res.json();
+    try {
+        const res = await fetch(`/api/admin/menu-items/${currentIngredientMenuItemId}/ingredients`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify(payload)
+        });
 
-    if (!res.ok) {
-        alert(data.message || 'Failed to link ingredient.');
-        return;
-    }
+        const data = await res.json();
 
-    await loadMenuItems();
+        if (!res.ok) {
+            alert(data.message || 'Failed to link ingredient.');
+            return;
+        }
 
-    const item = menuItems.find(menuItem => menuItem.id === currentIngredientMenuItemId);
-    if (item) {
-        document.getElementById('ingredientLinkForm').reset();
-        renderLinkedIngredients(item);
+        const updatedItem = findMenuItemFromResponse(data);
+
+        if (updatedItem) {
+            replaceMenuItemInMemory(updatedItem);
+            document.getElementById('ingredientLinkForm').reset();
+            renderLinkedIngredients(updatedItem);
+        } else {
+            document.getElementById('ingredientLinkForm').reset();
+            silentReloadMenuItems();
+        }
+    } catch (error) {
+        console.error('Link ingredient failed:', error);
+        alert('Failed to link ingredient. Please check your connection.');
+    } finally {
+        setButtonLoading(linkBtn, false);
     }
 });
 
-async function removeIngredient(menuItemId, ingredientId) {
+async function removeIngredient(menuItemId, ingredientId, button) {
     if (!confirm('Remove this linked ingredient?')) return;
 
-    const res = await fetch(`/api/admin/menu-items/${menuItemId}/ingredients/${ingredientId}`, {
-        method: 'DELETE',
-        headers: {
-            'Accept': 'application/json',
+    setButtonLoading(button, true, 'Removing...');
+
+    try {
+        const res = await fetch(`/api/admin/menu-items/${menuItemId}/ingredients/${ingredientId}`, {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json',
+            }
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert(data.message || 'Failed to remove ingredient.');
+            return;
         }
-    });
 
-    if (!res.ok) {
-        alert('Failed to remove ingredient.');
-        return;
-    }
+        const updatedItem = findMenuItemFromResponse(data);
 
-    await loadMenuItems();
-
-    const item = menuItems.find(menuItem => menuItem.id === menuItemId);
-    if (item) {
-        renderLinkedIngredients(item);
+        if (updatedItem) {
+            replaceMenuItemInMemory(updatedItem);
+            renderLinkedIngredients(updatedItem);
+        } else {
+            silentReloadMenuItems();
+        }
+    } catch (error) {
+        console.error('Remove ingredient failed:', error);
+        alert('Failed to remove ingredient. Please check your connection.');
+    } finally {
+        setButtonLoading(button, false);
     }
 }
 

@@ -9,6 +9,10 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 
+@php
+    $pendingReservationsCount = \App\Models\Reservation::where('status', 'pending')->count();
+@endphp
+
 <body class="bg-[#f7f7f7] text-gray-800 min-h-screen">
 
 <div class="flex min-h-screen">
@@ -23,6 +27,7 @@
 
         <!-- Navigation -->
         <nav class="flex-1 px-4 py-5 space-y-1 text-[13px]">
+
             <a href="{{ url('/admin/dashboard') }}"
                class="flex items-center gap-3 px-3 py-2 rounded-lg transition
                {{ request()->is('admin/dashboard') ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600' }}">
@@ -51,6 +56,23 @@
                 <span>Payments</span>
             </a>
 
+            <a href="{{ url('/admin/reservations') }}"
+               class="flex items-center justify-between px-3 py-2 rounded-lg transition
+               {{ request()->is('admin/reservations') ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600' }}">
+
+                <div class="flex items-center gap-3">
+                    <span>◷</span>
+                    <span>Reservations</span>
+                </div>
+
+                @if ($pendingReservationsCount > 0)
+                    <span class="min-w-[22px] h-[22px] px-2 rounded-full flex items-center justify-center text-[11px] font-bold
+                        {{ request()->is('admin/reservations') ? 'bg-white text-orange-500' : 'bg-red-500 text-white' }}">
+                        {{ $pendingReservationsCount > 99 ? '99+' : $pendingReservationsCount }}
+                    </span>
+                @endif
+            </a>
+
             <a href="{{ url('/admin/reports') }}"
                class="flex items-center gap-3 px-3 py-2 rounded-lg transition
                {{ request()->is('admin/reports') ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600' }}">
@@ -63,6 +85,13 @@
                {{ request()->is('admin/users') ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600' }}">
                 <span>♙</span>
                 <span>User Management</span>
+            </a>
+
+            <a href="{{ url('/admin/settings') }}"
+               class="flex items-center gap-3 px-3 py-2 rounded-lg transition
+               {{ request()->is('admin/settings') ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600' }}">
+                <span>⚙</span>
+                <span>Settings</span>
             </a>
         </nav>
     </aside>
@@ -99,10 +128,15 @@
                 <div class="flex items-center gap-4">
 
                     <!-- Notification -->
-                    <button type="button" class="relative text-gray-500 hover:text-orange-500 transition">
+                    <a href="{{ url('/admin/reservations') }}" class="relative text-gray-500 hover:text-orange-500 transition">
                         <span class="text-lg">🔔</span>
-                        <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                    </button>
+
+                        @if ($pendingReservationsCount > 0)
+                            <span class="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                                {{ $pendingReservationsCount > 99 ? '99+' : $pendingReservationsCount }}
+                            </span>
+                        @endif
+                    </a>
 
                     <!-- Admin Dropdown -->
                     <div class="relative" id="adminDropdownWrapper">

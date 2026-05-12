@@ -270,6 +270,91 @@ function formatDate(value) {
     return String(value).substring(0, 10);
 }
 
+function setButtonLoading(button, isLoading, loadingText = 'Saving...') {
+    if (!button) return;
+
+    if (isLoading) {
+        button.dataset.originalText = button.textContent;
+        button.textContent = loadingText;
+        button.disabled = true;
+        button.classList.add('opacity-70', 'cursor-not-allowed');
+    } else {
+        button.textContent = button.dataset.originalText || button.textContent;
+        button.disabled = false;
+        button.classList.remove('opacity-70', 'cursor-not-allowed');
+    }
+}
+
+function findIngredientFromResponse(data) {
+    if (!data) return null;
+
+    if (data.ingredient && data.ingredient.id) return data.ingredient;
+    if (data.data && data.data.id) return data.data;
+    if (data.id && data.name) return data;
+
+    return null;
+}
+
+function replaceIngredientInMemory(updatedIngredient) {
+    if (!updatedIngredient || !updatedIngredient.id) return false;
+
+    const index = ingredients.findIndex(item => Number(item.id) === Number(updatedIngredient.id));
+
+    if (index >= 0) {
+        ingredients[index] = updatedIngredient;
+    } else {
+        ingredients.push(updatedIngredient);
+    }
+
+    applyFilters();
+    renderSummary();
+    return true;
+}
+
+async function silentReloadIngredients() {
+    try {
+        const res = await fetch('/api/admin/ingredients', {
+            headers: {
+                'Accept': 'application/json',
+            }
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+
+        ingredients = data;
+        applyFilters();
+        renderSummary();
+
+        if (currentIngredientId) {
+            const item = ingredients.find(i => Number(i.id) === Number(currentIngredientId));
+            if (item) {
+                refreshStockModalInfo(item);
+            }
+        }
+    } catch (error) {
+        console.error('Silent inventory reload failed:', error);
+    }
+}
+
+function refreshStockModalInfo(item) {
+    if (!item) return;
+
+    document.getElementById('stockModalTitle').textContent = `Manage Stock - ${item.name}`;
+    document.getElementById('stockModalSubtitle').textContent = `Monitor batches, prices, suppliers, and expiry dates for ${item.name}.`;
+
+    document.getElementById('stockInfoCurrent').textContent = `${formatNumber(item.total_stock)} ${item.unit || 'unit'}`;
+    document.getElementById('stockInfoThreshold').textContent = `${formatNumber(item.threshold)} ${item.unit || 'unit'}`;
+    document.getElementById('stockInfoValue').textContent = formatMoney(item.stock_value);
+    document.getElementById('stockInfoExpiry').textContent = formatDate(item.nearest_expiry_date);
+
+    const batchUnit = document.getElementById('batchUnit');
+    batchUnit.value = item.unit || '';
+
+    renderBatchHistory(item.batches || []);
+}
+
 function getStatusLabel(status) {
     switch (status) {
         case 'out_of_stock': return 'Critical';
@@ -320,12 +405,42 @@ function getBatchStatusClass(batch) {
 }
 
 async function loadIngredients() {
-    const res = await fetch('/api/admin/ingredients');
-    const data = await res.json();
+    const tbody = document.getElementById('inventoryTableBody');
 
-    ingredients = data;
-    applyFilters();
-    renderSummary();
+    try {
+        const res = await fetch('/api/admin/ingredients', {
+            headers: {
+                'Accept': 'application/json',
+            }
+        });
+
+        if (!res.ok) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-red-500">
+                        Failed to load inventory. API returned ${res.status}.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        const data = await res.json();
+
+        ingredients = data;
+        applyFilters();
+        renderSummary();
+    } catch (error) {
+        console.error('Load ingredients failed:', error);
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="px-6 py-8 text-center text-red-500">
+                    Failed to load inventory. Please check your connection.
+                </td>
+            </tr>
+        `;
+    }
 }
 
 function applyFilters() {
@@ -398,7 +513,9 @@ function openIngredientModal(id = null) {
     editingIngredientId = id;
 
     if (id) {
-        const item = ingredients.find(i => i.id === id);
+        const item = ingredients.find(i => Number(i.id) === Number(id));
+        if (!item) return;
+
         document.getElementById('ingredientModalTitle').textContent = 'Edit Ingredient';
         document.getElementById('ingredientSaveBtn').textContent = 'Update Ingredient';
         document.getElementById('ingredientName').value = item.name;
@@ -424,6 +541,8 @@ function closeIngredientModal() {
 document.getElementById('ingredientForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
+    const saveBtn = document.getElementById('ingredientSaveBtn');
+
     const payload = {
         name: document.getElementById('ingredientName').value,
         threshold: document.getElementById('ingredientThreshold').value
@@ -435,45 +554,50 @@ document.getElementById('ingredientForm').addEventListener('submit', async funct
 
     const method = editingIngredientId ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
-        method,
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-        },
-        body: JSON.stringify(payload)
-    });
+    setButtonLoading(saveBtn, true, editingIngredientId ? 'Updating...' : 'Saving...');
 
-    const data = await res.json();
+    try {
+        const res = await fetch(url, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify(payload)
+        });
 
-    if (!res.ok) {
-        alert(data.message || 'Failed to save ingredient.');
-        return;
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert(data.message || 'Failed to save ingredient.');
+            return;
+        }
+
+        const updatedIngredient = findIngredientFromResponse(data);
+
+        if (updatedIngredient) {
+            replaceIngredientInMemory(updatedIngredient);
+        } else {
+            silentReloadIngredients();
+        }
+
+        closeIngredientModal();
+    } catch (error) {
+        console.error('Save ingredient failed:', error);
+        alert('Failed to save ingredient. Please check your connection.');
+    } finally {
+        setButtonLoading(saveBtn, false);
     }
-
-    closeIngredientModal();
-    loadIngredients();
 });
 
 function openStockModal(id) {
     currentIngredientId = id;
     editingBatchId = null;
 
-    const item = ingredients.find(i => i.id === id);
+    const item = ingredients.find(i => Number(i.id) === Number(id));
     if (!item) return;
 
-    document.getElementById('stockModalTitle').textContent = `Manage Stock - ${item.name}`;
-    document.getElementById('stockModalSubtitle').textContent = `Monitor batches, prices, suppliers, and expiry dates for ${item.name}.`;
-
-    document.getElementById('stockInfoCurrent').textContent = `${formatNumber(item.total_stock)} ${item.unit || 'unit'}`;
-    document.getElementById('stockInfoThreshold').textContent = `${formatNumber(item.threshold)} ${item.unit || 'unit'}`;
-    document.getElementById('stockInfoValue').textContent = formatMoney(item.stock_value);
-    document.getElementById('stockInfoExpiry').textContent = formatDate(item.nearest_expiry_date);
-
-    const batchUnit = document.getElementById('batchUnit');
-    batchUnit.value = item.unit || '';
-
-    renderBatchHistory(item.batches || []);
+    refreshStockModalInfo(item);
     resetBatchForm();
 
     const modal = document.getElementById('stockModal');
@@ -484,6 +608,7 @@ function openStockModal(id) {
 function closeStockModal() {
     currentIngredientId = null;
     editingBatchId = null;
+
     const modal = document.getElementById('stockModal');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
@@ -523,6 +648,7 @@ function renderBatchHistory(batches) {
 
 function resetBatchForm() {
     editingBatchId = null;
+
     document.getElementById('batchFormTitle').textContent = 'Add Stock Batch';
     document.getElementById('batchQuantity').value = '';
     document.getElementById('batchUnitCost').value = '';
@@ -535,10 +661,10 @@ function resetBatchForm() {
 }
 
 function selectBatchForEdit(batchId) {
-    const item = ingredients.find(i => i.id === currentIngredientId);
+    const item = ingredients.find(i => Number(i.id) === Number(currentIngredientId));
     if (!item) return;
 
-    const batch = (item.batches || []).find(b => b.id === batchId);
+    const batch = (item.batches || []).find(b => Number(b.id) === Number(batchId));
     if (!batch) return;
 
     editingBatchId = batch.id;
@@ -562,6 +688,8 @@ function cancelBatchEdit() {
 async function saveBatch() {
     if (!currentIngredientId) return;
 
+    const saveBtn = document.getElementById('batchSaveBtn');
+
     const payload = {
         quantity_received: document.getElementById('batchQuantity').value,
         unit: document.getElementById('batchUnit').value,
@@ -576,24 +704,41 @@ async function saveBatch() {
 
     const method = editingBatchId ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
-        method,
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-        },
-        body: JSON.stringify(payload)
-    });
+    setButtonLoading(saveBtn, true, editingBatchId ? 'Updating...' : 'Saving...');
 
-    const data = await res.json();
+    try {
+        const res = await fetch(url, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify(payload)
+        });
 
-    if (!res.ok) {
-        alert(data.message || 'Failed to save batch.');
-        return;
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert(data.message || 'Failed to save batch.');
+            return;
+        }
+
+        const updatedIngredient = findIngredientFromResponse(data);
+
+        if (updatedIngredient) {
+            replaceIngredientInMemory(updatedIngredient);
+            refreshStockModalInfo(updatedIngredient);
+            resetBatchForm();
+        } else {
+            resetBatchForm();
+            silentReloadIngredients();
+        }
+    } catch (error) {
+        console.error('Save batch failed:', error);
+        alert('Failed to save batch. Please check your connection.');
+    } finally {
+        setButtonLoading(saveBtn, false);
     }
-
-    await loadIngredients();
-    openStockModal(currentIngredientId);
 }
 
 async function deleteSelectedBatch() {
@@ -601,28 +746,52 @@ async function deleteSelectedBatch() {
 
     if (!confirm('Delete this stock batch?')) return;
 
-    const res = await fetch(`/api/admin/ingredients/${currentIngredientId}/batches/${editingBatchId}`, {
-        method: 'DELETE',
-        headers: {
-            'Accept': 'application/json',
+    const deleteBtn = document.getElementById('batchDeleteBtn');
+    setButtonLoading(deleteBtn, true, 'Deleting...');
+
+    try {
+        const res = await fetch(`/api/admin/ingredients/${currentIngredientId}/batches/${editingBatchId}`, {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json',
+            }
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert(data.message || 'Failed to delete batch.');
+            return;
         }
-    });
 
-    const data = await res.json();
+        const updatedIngredient = findIngredientFromResponse(data);
 
-    if (!res.ok) {
-        alert(data.message || 'Failed to delete batch.');
-        return;
+        if (updatedIngredient) {
+            replaceIngredientInMemory(updatedIngredient);
+            refreshStockModalInfo(updatedIngredient);
+            resetBatchForm();
+        } else {
+            resetBatchForm();
+            silentReloadIngredients();
+        }
+    } catch (error) {
+        console.error('Delete batch failed:', error);
+        alert('Failed to delete batch. Please check your connection.');
+    } finally {
+        setButtonLoading(deleteBtn, false);
     }
-
-    await loadIngredients();
-    openStockModal(currentIngredientId);
 }
 
 function editCurrentIngredient() {
     if (!currentIngredientId) return;
+
+    const ingredientId = currentIngredientId;
+
     closeStockModal();
-    openIngredientModal(currentIngredientId);
+
+    setTimeout(() => {
+        openIngredientModal(ingredientId);
+    }, 100);
 }
 
 async function deleteCurrentIngredient() {
@@ -630,22 +799,31 @@ async function deleteCurrentIngredient() {
 
     if (!confirm('Delete this ingredient? This will also delete its stock history.')) return;
 
-    const res = await fetch(`/api/admin/ingredients/${currentIngredientId}`, {
-        method: 'DELETE',
-        headers: {
-            'Accept': 'application/json',
+    try {
+        const res = await fetch(`/api/admin/ingredients/${currentIngredientId}`, {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json',
+            }
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert(data.message || 'Failed to delete ingredient.');
+            return;
         }
-    });
 
-    const data = await res.json();
+        ingredients = ingredients.filter(item => Number(item.id) !== Number(currentIngredientId));
+        applyFilters();
+        renderSummary();
 
-    if (!res.ok) {
-        alert(data.message || 'Failed to delete ingredient.');
-        return;
+        closeStockModal();
+        silentReloadIngredients();
+    } catch (error) {
+        console.error('Delete ingredient failed:', error);
+        alert('Failed to delete ingredient. Please check your connection.');
     }
-
-    closeStockModal();
-    loadIngredients();
 }
 
 document.getElementById('inventorySearch').addEventListener('input', applyFilters);

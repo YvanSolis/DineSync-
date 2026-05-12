@@ -15,6 +15,11 @@
                 Last 7 Days
             </button>
 
+            <button onclick="refreshAIForecast(event)"
+                class="border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 px-4 py-2 rounded font-medium text-sm">
+                Generate AI Forecast
+            </button>
+
             <button onclick="downloadReportsCsv()"
                 class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded font-medium text-sm">
                 Download Report
@@ -567,6 +572,21 @@ function downloadReportsCsv() {
     document.body.removeChild(link);
 }
 
+function renderAllReports(data) {
+    reportsData = data;
+
+    renderSummaryCards(data);
+
+    try { renderAIForecast(data); } catch (e) { console.error('AI forecast render error:', e); }
+    try { renderAIMenuForecast(data); } catch (e) { console.error('AI menu forecast render error:', e); }
+    try { renderAIIngredientForecast(data); } catch (e) { console.error('AI ingredient forecast render error:', e); }
+
+    try { renderSalesOrdersTrend(data); } catch (e) { console.error('Trend chart error:', e); }
+    try { renderRevenueByCategory(data); } catch (e) { console.error('Category chart error:', e); }
+    try { renderInventoryForecast(data); } catch (e) { console.error('Inventory forecast chart error:', e); }
+    try { renderForecastTable(data); } catch (e) { console.error('Forecast table error:', e); }
+}
+
 async function loadReportsForecast() {
     try {
         const res = await fetch('/api/admin/reports-forecast', {
@@ -583,18 +603,7 @@ async function loadReportsForecast() {
 
         console.log('Reports & Forecast API:', data);
 
-        reportsData = data;
-
-        renderSummaryCards(data);
-
-        try { renderAIForecast(data); } catch (e) { console.error('AI forecast render error:', e); }
-        try { renderAIMenuForecast(data); } catch (e) { console.error('AI menu forecast render error:', e); }
-        try { renderAIIngredientForecast(data); } catch (e) { console.error('AI ingredient forecast render error:', e); }
-
-        try { renderSalesOrdersTrend(data); } catch (e) { console.error('Trend chart error:', e); }
-        try { renderRevenueByCategory(data); } catch (e) { console.error('Category chart error:', e); }
-        try { renderInventoryForecast(data); } catch (e) { console.error('Inventory forecast chart error:', e); }
-        try { renderForecastTable(data); } catch (e) { console.error('Forecast table error:', e); }
+        renderAllReports(data);
 
     } catch (error) {
         console.error('Failed to load reports & forecast:', error);
@@ -607,6 +616,45 @@ async function loadReportsForecast() {
                 </td>
             </tr>
         `;
+    }
+}
+
+async function refreshAIForecast(event) {
+    const button = event?.target;
+    const originalText = button ? button.textContent : 'Generate AI Forecast';
+
+    if (button) {
+        button.textContent = 'Generating...';
+        button.disabled = true;
+        button.classList.add('opacity-60', 'cursor-not-allowed');
+    }
+
+    try {
+        const res = await fetch('/api/admin/reports-forecast?refresh_ai=1', {
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+
+        if (!res.ok) {
+            throw new Error(`API returned ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        console.log('Reports & Forecast refreshed API:', data);
+
+        renderAllReports(data);
+
+    } catch (error) {
+        console.error('Failed to refresh AI forecast:', error);
+        alert('Failed to generate AI forecast. Please check Laravel logs.');
+    } finally {
+        if (button) {
+            button.textContent = originalText;
+            button.disabled = false;
+            button.classList.remove('opacity-60', 'cursor-not-allowed');
+        }
     }
 }
 
