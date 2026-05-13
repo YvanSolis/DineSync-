@@ -7,7 +7,7 @@
     <div class="flex items-start justify-between gap-4 flex-wrap">
         <div>
             <h1 class="text-3xl font-bold mb-1">User Management</h1>
-            <p class="text-gray-500">Manage staff accounts and permissions.</p>
+            <p class="text-gray-500">Manage admin, service staff, kitchen staff, and customer accounts.</p>
         </div>
 
         <button onclick="openUserModal()"
@@ -24,18 +24,18 @@
         </div>
 
         <div class="bg-white rounded-xl border shadow-sm p-5">
-            <p class="text-sm text-gray-500 mb-2">Active</p>
-            <h2 id="cardActiveUsers" class="text-3xl font-bold text-green-500">0</h2>
+            <p class="text-sm text-gray-500 mb-2">Admins</p>
+            <h2 id="cardAdmins" class="text-3xl font-bold text-orange-500">0</h2>
         </div>
 
         <div class="bg-white rounded-xl border shadow-sm p-5">
-            <p class="text-sm text-gray-500 mb-2">Inactive</p>
-            <h2 id="cardInactiveUsers" class="text-3xl font-bold text-red-500">0</h2>
+            <p class="text-sm text-gray-500 mb-2">Service Staff</p>
+            <h2 id="cardServiceStaff" class="text-3xl font-bold text-blue-500">0</h2>
         </div>
 
         <div class="bg-white rounded-xl border shadow-sm p-5">
-            <p class="text-sm text-gray-500 mb-2">Roles</p>
-            <h2 id="cardRoles" class="text-3xl font-bold">0</h2>
+            <p class="text-sm text-gray-500 mb-2">Kitchen Staff</p>
+            <h2 id="cardKitchenStaff" class="text-3xl font-bold text-purple-500">0</h2>
         </div>
     </div>
 
@@ -44,8 +44,8 @@
         <div class="p-5 border-b">
             <div class="flex items-center justify-between gap-4 flex-wrap">
                 <div>
-                    <h2 class="text-lg font-bold">Staff Directory</h2>
-                    <p class="text-sm text-gray-500">View, search, and manage staff accounts.</p>
+                    <h2 class="text-lg font-bold">User Directory</h2>
+                    <p class="text-sm text-gray-500">View, search, add, edit, and delete system accounts.</p>
                 </div>
 
                 <div class="flex items-center gap-3 flex-wrap">
@@ -70,7 +70,7 @@
                         <th class="text-left px-6 py-4 font-semibold">Name</th>
                         <th class="text-left px-6 py-4 font-semibold">Role</th>
                         <th class="text-left px-6 py-4 font-semibold">Email</th>
-                        <th class="text-left px-6 py-4 font-semibold">Status</th>
+                        <th class="text-left px-6 py-4 font-semibold">Created</th>
                         <th class="text-left px-6 py-4 font-semibold">Actions</th>
                     </tr>
                 </thead>
@@ -110,11 +110,13 @@
                 <select id="userRole" class="w-full border rounded px-3 py-2" required>
                     <option value="">Select Role</option>
                     <option value="admin">Admin</option>
-                    <option value="manager">Manager</option>
-                    <option value="cashier">Cashier</option>
-                    <option value="kitchen_staff">Kitchen Staff</option>
-                    <option value="service_staff">Service Staff</option>
+                    <option value="staff">Service Staff</option>
+                    <option value="kitchen">Kitchen Staff</option>
+                    <option value="customer">Customer</option>
                 </select>
+                <p class="text-xs text-gray-400 mt-1">
+                    Public registration is for customers only. Employee accounts should be created here.
+                </p>
             </div>
 
             <div>
@@ -123,14 +125,6 @@
                     <span id="passwordNote" class="text-gray-400">(required for new user)</span>
                 </label>
                 <input id="userPassword" type="password" class="w-full border rounded px-3 py-2">
-            </div>
-
-            <div>
-                <label class="block text-sm font-medium mb-1">Status</label>
-                <select id="userStatus" class="w-full border rounded px-3 py-2">
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                </select>
             </div>
 
             <div class="flex justify-end gap-2 pt-2">
@@ -150,6 +144,8 @@ let users = [];
 let filteredUsers = [];
 let editingUserId = null;
 
+const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
 function safeText(value) {
     return String(value ?? '')
         .replaceAll('&', '&amp;')
@@ -160,10 +156,10 @@ function safeText(value) {
 }
 
 function normalizeRole(role) {
-    const value = String(role ?? 'staff').toLowerCase();
+    const value = String(role ?? 'customer').toLowerCase();
 
-    if (value === 'kitchen staff') return 'kitchen_staff';
-    if (value === 'service staff') return 'service_staff';
+    if (value === 'service_staff' || value === 'service staff') return 'staff';
+    if (value === 'kitchen_staff' || value === 'kitchen staff') return 'kitchen';
 
     return value;
 }
@@ -173,14 +169,12 @@ function formatRole(role) {
 
     const labels = {
         admin: 'Admin',
-        manager: 'Manager',
-        cashier: 'Cashier',
-        kitchen_staff: 'Kitchen Staff',
-        service_staff: 'Service Staff',
-        staff: 'Staff'
+        staff: 'Service Staff',
+        kitchen: 'Kitchen Staff',
+        customer: 'Customer'
     };
 
-    return labels[value] || safeText(role || 'Staff');
+    return labels[value] || safeText(role || 'Customer');
 }
 
 function initials(name) {
@@ -197,54 +191,42 @@ function roleBadge(role) {
         return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-600">Admin</span>';
     }
 
-    if (value === 'manager') {
-        return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">Manager</span>';
+    if (value === 'staff') {
+        return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-600">Service Staff</span>';
     }
 
-    if (value === 'cashier') {
-        return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-600">Cashier</span>';
-    }
-
-    if (value === 'kitchen_staff') {
+    if (value === 'kitchen') {
         return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-600">Kitchen Staff</span>';
     }
 
-    if (value === 'service_staff') {
-        return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-pink-100 text-pink-600">Service Staff</span>';
+    if (value === 'customer') {
+        return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-600">Customer</span>';
     }
 
-    return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">Staff</span>';
+    return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">User</span>';
 }
 
-function normalizeStatus(user) {
-    const value = String(user.status ?? '').toLowerCase();
+function formatDate(dateValue) {
+    if (!dateValue) return 'No date';
 
-    if (value === 'inactive' || value === 'disabled' || value === 'blocked') {
-        return 'inactive';
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) {
+        return 'Invalid date';
     }
 
-    if (user.is_active === false || user.active === false) {
-        return 'inactive';
-    }
-
-    return 'active';
-}
-
-function statusBadge(user) {
-    const status = normalizeStatus(user);
-
-    if (status === 'active') {
-        return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-600">Active</span>';
-    }
-
-    return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-600">Inactive</span>';
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric'
+    });
 }
 
 async function loadUsers() {
     const tbody = document.getElementById('usersTableBody');
 
     try {
-        const res = await fetch('/api/admin/users', {
+        const res = await fetch('/admin/users/list', {
             headers: {
                 'Accept': 'application/json'
             }
@@ -254,7 +236,7 @@ async function loadUsers() {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="5" class="px-6 py-8 text-center text-red-500">
-                        Failed to load users. API returned ${res.status}.
+                        Failed to load users. Request returned ${res.status}.
                     </td>
                 </tr>
             `;
@@ -302,14 +284,14 @@ function populateRoleFilter() {
 
 function renderCards() {
     const totalUsers = users.length;
-    const activeUsers = users.filter(user => normalizeStatus(user) === 'active').length;
-    const inactiveUsers = users.filter(user => normalizeStatus(user) === 'inactive').length;
-    const roles = [...new Set(users.map(user => normalizeRole(user.role)))].filter(Boolean).length;
+    const admins = users.filter(user => normalizeRole(user.role) === 'admin').length;
+    const serviceStaff = users.filter(user => normalizeRole(user.role) === 'staff').length;
+    const kitchenStaff = users.filter(user => normalizeRole(user.role) === 'kitchen').length;
 
     document.getElementById('cardTotalUsers').textContent = totalUsers;
-    document.getElementById('cardActiveUsers').textContent = activeUsers;
-    document.getElementById('cardInactiveUsers').textContent = inactiveUsers;
-    document.getElementById('cardRoles').textContent = roles;
+    document.getElementById('cardAdmins').textContent = admins;
+    document.getElementById('cardServiceStaff').textContent = serviceStaff;
+    document.getElementById('cardKitchenStaff').textContent = kitchenStaff;
 }
 
 function applyFilters() {
@@ -320,11 +302,13 @@ function applyFilters() {
         const name = String(user.name ?? '').toLowerCase();
         const email = String(user.email ?? '').toLowerCase();
         const userRole = normalizeRole(user.role);
+        const userRoleLabel = formatRole(user.role).toLowerCase();
 
         const matchesSearch =
             name.includes(search) ||
             email.includes(search) ||
-            userRole.includes(search);
+            userRole.includes(search) ||
+            userRoleLabel.includes(search);
 
         const matchesRole =
             role === 'all' ? true : userRole === role;
@@ -371,8 +355,8 @@ function renderUsersTable() {
                 ${safeText(user.email)}
             </td>
 
-            <td class="px-6 py-4">
-                ${statusBadge(user)}
+            <td class="px-6 py-4 text-gray-500">
+                ${safeText(formatDate(user.created_at))}
             </td>
 
             <td class="px-6 py-4">
@@ -408,14 +392,12 @@ function openUserModal(id = null) {
         document.getElementById('userName').value = user.name || '';
         document.getElementById('userEmail').value = user.email || '';
         document.getElementById('userRole').value = normalizeRole(user.role);
-        document.getElementById('userStatus').value = normalizeStatus(user);
         document.getElementById('userPassword').required = false;
     } else {
         document.getElementById('userModalTitle').textContent = 'Add User';
         document.getElementById('userSaveBtn').textContent = 'Save User';
         document.getElementById('passwordNote').textContent = '(required for new user)';
         document.getElementById('userPassword').required = true;
-        document.getElementById('userStatus').value = 'active';
     }
 
     const modal = document.getElementById('userModal');
@@ -437,8 +419,7 @@ document.getElementById('userForm').addEventListener('submit', async function(e)
     const payload = {
         name: document.getElementById('userName').value,
         email: document.getElementById('userEmail').value,
-        role: document.getElementById('userRole').value,
-        status: document.getElementById('userStatus').value
+        role: document.getElementById('userRole').value
     };
 
     const password = document.getElementById('userPassword').value;
@@ -448,8 +429,8 @@ document.getElementById('userForm').addEventListener('submit', async function(e)
     }
 
     const url = editingUserId
-        ? `/api/admin/users/${editingUserId}`
-        : '/api/admin/users';
+        ? `/admin/users/${editingUserId}`
+        : '/admin/users';
 
     const method = editingUserId ? 'PUT' : 'POST';
 
@@ -458,6 +439,7 @@ document.getElementById('userForm').addEventListener('submit', async function(e)
         headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
         },
         body: JSON.stringify(payload)
     });
@@ -481,15 +463,18 @@ document.getElementById('userForm').addEventListener('submit', async function(e)
 async function deleteUser(id) {
     if (!confirm('Delete this user?')) return;
 
-    const res = await fetch(`/api/admin/users/${id}`, {
+    const res = await fetch(`/admin/users/${id}`, {
         method: 'DELETE',
         headers: {
             'Accept': 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
         }
     });
 
+    const data = await res.json().catch(() => ({}));
+
     if (!res.ok) {
-        alert('Failed to delete user.');
+        alert(data.message || 'Failed to delete user.');
         return;
     }
 

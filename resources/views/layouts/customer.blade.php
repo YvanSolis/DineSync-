@@ -6,6 +6,61 @@
     <title>DineSync+ Customer</title>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <style>
+        [x-cloak] {
+            display: none !important;
+        }
+
+        #customer-chatbot-root {
+            position: fixed !important;
+            right: 24px !important;
+            bottom: 24px !important;
+            left: auto !important;
+            top: auto !important;
+            z-index: 99999 !important;
+            transform: none !important;
+        }
+
+        #customer-chatbot-window {
+            position: fixed !important;
+            right: 24px !important;
+            bottom: 96px !important;
+            left: auto !important;
+            top: auto !important;
+            z-index: 99999 !important;
+            transform: none !important;
+        }
+
+        #customer-chatbot-button {
+            position: fixed !important;
+            right: 24px !important;
+            bottom: 24px !important;
+            left: auto !important;
+            top: auto !important;
+            z-index: 99999 !important;
+            transform: none !important;
+        }
+
+        @media (max-width: 640px) {
+            #customer-chatbot-root {
+                right: 16px !important;
+                bottom: 16px !important;
+            }
+
+            #customer-chatbot-window {
+                right: 16px !important;
+                bottom: 88px !important;
+                width: calc(100vw - 32px) !important;
+                max-width: calc(100vw - 32px) !important;
+            }
+
+            #customer-chatbot-button {
+                right: 16px !important;
+                bottom: 16px !important;
+            }
+        }
+    </style>
 </head>
 
 <body class="bg-[#f7f7f7] text-gray-800">
@@ -274,6 +329,7 @@
 
     <!-- OPENAI CUSTOMER CHATBOT -->
     <div
+        id="customer-chatbot-root"
         x-data="{
             open: false,
             message: '',
@@ -341,13 +397,14 @@
                 });
             }
         }"
-        class="fixed bottom-6 right-6 z-[9999]"
     >
         <!-- Chat Box -->
         <div
+            id="customer-chatbot-window"
+            x-cloak
             x-show="open"
             x-transition
-            class="w-[380px] max-w-[calc(100vw-3rem)] bg-white border border-gray-200 rounded-3xl shadow-2xl overflow-hidden mb-4"
+            class="w-[380px] max-w-[calc(100vw-3rem)] bg-white border border-gray-200 rounded-3xl shadow-2xl overflow-hidden"
         >
             <!-- Header -->
             <div class="bg-[#111827] text-white px-5 py-4 flex items-center justify-between">
@@ -453,6 +510,7 @@
 
         <!-- Floating Button -->
         <button
+            id="customer-chatbot-button"
             type="button"
             @click="open = !open"
             class="w-16 h-16 rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-xl flex items-center justify-center text-2xl"

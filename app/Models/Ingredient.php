@@ -103,4 +103,24 @@ class Ingredient extends Model
 
         return 'active';
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Refresh linked menu item availability
+    |--------------------------------------------------------------------------
+    | After this ingredient changes, refresh all menu items.
+    | Rule:
+    | - No linked ingredients = unavailable
+    | - Has linked ingredients but one ingredient stock is not enough = unavailable
+    | - Has linked ingredients and all stocks are enough = available
+    */
+    public function updateLinkedMenuAvailability(): void
+    {
+        MenuItem::refreshAllAvailability();
+    }
+
+    public static function refreshAllMenuAvailability(): void
+    {
+        MenuItem::refreshAllAvailability();
+    }
 }

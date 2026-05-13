@@ -12,6 +12,21 @@ class MenuItemIngredient extends Model
         'quantity_required',
     ];
 
+    protected static function booted()
+    {
+        static::created(function () {
+            MenuItem::refreshAllAvailability();
+        });
+
+        static::updated(function () {
+            MenuItem::refreshAllAvailability();
+        });
+
+        static::deleted(function () {
+            MenuItem::refreshAllAvailability();
+        });
+    }
+
     public function menuItem()
     {
         return $this->belongsTo(MenuItem::class);

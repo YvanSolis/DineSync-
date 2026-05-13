@@ -27,11 +27,19 @@ class AuthenticatedSessionController extends Controller
         $request->authenticate();
 
         $request->session()->regenerate();
-    
+
         $user = auth()->user();
 
-        if (in_array($user->role, ['admin', 'staff', 'kitchen'])) {
+        if ($user->role === 'admin') {
             return redirect()->intended(route('admin.dashboard'));
+        }
+
+        if ($user->role === 'staff') {
+            return redirect()->intended(route('service.dashboard'));
+        }
+
+        if ($user->role === 'kitchen') {
+            return redirect()->intended(route('kds.dashboard'));
         }
 
         return redirect()->intended(route('customer.home'));

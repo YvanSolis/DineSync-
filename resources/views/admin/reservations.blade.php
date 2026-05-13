@@ -8,7 +8,7 @@
         <div>
             <h1 class="text-3xl font-bold text-gray-900">Reservations</h1>
             <p class="text-gray-500 mt-1">
-                Review customer reservations and verify reservation fee payments.
+                View customer reservations and reservation fee payment status.
             </p>
         </div>
 
@@ -27,9 +27,9 @@
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
 
         <div class="p-5 border-b border-gray-100">
-            <h2 class="text-lg font-bold text-gray-900">Reservation Requests</h2>
+            <h2 class="text-lg font-bold text-gray-900">Reservation Records</h2>
             <p class="text-sm text-gray-500">
-                Customer submissions will appear here after they reserve a table.
+                Admin can only view reservation details. Reservation controls are handled by Service Staff.
             </p>
         </div>
 
@@ -43,7 +43,8 @@
                         <th class="px-5 py-4 font-semibold">Reservation Fee</th>
                         <th class="px-5 py-4 font-semibold">Payment</th>
                         <th class="px-5 py-4 font-semibold">Reservation Status</th>
-                        <th class="px-5 py-4 font-semibold text-right">Actions</th>
+                        <th class="px-5 py-4 font-semibold">Service Info</th>
+                        <th class="px-5 py-4 font-semibold text-right">Access</th>
                     </tr>
                 </thead>
 
@@ -127,6 +128,10 @@
                                     >
                                         View Payment Proof
                                     </a>
+                                @else
+                                    <p class="text-xs text-gray-400 mt-2">
+                                        No payment proof
+                                    </p>
                                 @endif
                             </td>
 
@@ -136,6 +141,8 @@
                                         'pending' => 'bg-yellow-50 text-yellow-700 border-yellow-200',
                                         'approved' => 'bg-green-50 text-green-700 border-green-200',
                                         'declined' => 'bg-red-50 text-red-700 border-red-200',
+                                        'arrived' => 'bg-blue-50 text-blue-700 border-blue-200',
+                                        'seated' => 'bg-purple-50 text-purple-700 border-purple-200',
                                         'completed' => 'bg-blue-50 text-blue-700 border-blue-200',
                                         'cancelled' => 'bg-gray-50 text-gray-600 border-gray-200',
                                     ];
@@ -147,67 +154,33 @@
                             </td>
 
                             <td class="px-5 py-4">
-                                <div class="flex flex-col items-end gap-2">
+                                <div class="space-y-2">
+                                    <p class="text-xs text-gray-500">
+                                        <span class="font-semibold text-gray-700">Table:</span>
+                                        {{ $reservation->table_number ? 'Table ' . $reservation->table_number : 'Not assigned' }}
+                                    </p>
 
-                                    @if ($reservation->payment_status === 'pending')
-                                        <form method="POST" action="{{ route('admin.reservations.verify-payment', $reservation) }}">
-                                            @csrf
-                                            @method('PATCH')
+                                    <p class="text-xs text-gray-500">
+                                        <span class="font-semibold text-gray-700">Arrived:</span>
+                                        {{ $reservation->arrived_at ? \Carbon\Carbon::parse($reservation->arrived_at)->format('M d, Y h:i A') : 'Not yet' }}
+                                    </p>
 
-                                            <button
-                                                type="submit"
-                                                class="w-full px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white font-semibold text-xs"
-                                            >
-                                                Verify Payment
-                                            </button>
-                                        </form>
-
-                                        <form method="POST" action="{{ route('admin.reservations.reject-payment', $reservation) }}">
-                                            @csrf
-                                            @method('PATCH')
-
-                                            <button
-                                                type="submit"
-                                                class="w-full px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold text-xs"
-                                            >
-                                                Reject Payment
-                                            </button>
-                                        </form>
-                                    @endif
-
-                                    <form
-                                        method="POST"
-                                        action="{{ route('admin.reservations.update-status', $reservation) }}"
-                                        class="flex items-center gap-2"
-                                    >
-                                        @csrf
-                                        @method('PATCH')
-
-                                        <select
-                                            name="status"
-                                            class="rounded-xl border-gray-200 text-xs focus:border-orange-300 focus:ring-orange-200"
-                                        >
-                                            <option value="pending" {{ $reservation->status === 'pending' ? 'selected' : '' }}>Pending</option>
-                                            <option value="approved" {{ $reservation->status === 'approved' ? 'selected' : '' }}>Approved</option>
-                                            <option value="declined" {{ $reservation->status === 'declined' ? 'selected' : '' }}>Declined</option>
-                                            <option value="completed" {{ $reservation->status === 'completed' ? 'selected' : '' }}>Completed</option>
-                                            <option value="cancelled" {{ $reservation->status === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-                                        </select>
-
-                                        <button
-                                            type="submit"
-                                            class="px-3 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold text-xs"
-                                        >
-                                            Save
-                                        </button>
-                                    </form>
-
+                                    <p class="text-xs text-gray-500">
+                                        <span class="font-semibold text-gray-700">Seated:</span>
+                                        {{ $reservation->seated_at ? \Carbon\Carbon::parse($reservation->seated_at)->format('M d, Y h:i A') : 'Not yet' }}
+                                    </p>
                                 </div>
+                            </td>
+
+                            <td class="px-5 py-4 text-right">
+                                <span class="inline-flex px-3 py-1 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold">
+                                    View Only
+                                </span>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-5 py-12 text-center">
+                            <td colspan="8" class="px-5 py-12 text-center">
                                 <div class="flex flex-col items-center">
                                     <div class="w-14 h-14 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center text-2xl mb-4">
                                         📅

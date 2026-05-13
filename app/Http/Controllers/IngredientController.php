@@ -37,6 +37,8 @@ class IngredientController extends Controller
             'threshold' => $validated['threshold'],
         ]);
 
+        Ingredient::refreshAllMenuAvailability();
+
         return response()->json(
             $ingredient->fresh()->load('batches'),
             201
@@ -70,6 +72,7 @@ class IngredientController extends Controller
         ]);
 
         $this->syncCurrentStock($ingredient);
+        $ingredient->refresh()->updateLinkedMenuAvailability();
 
         return response()->json(
             $ingredient->fresh()->load([
@@ -83,6 +86,8 @@ class IngredientController extends Controller
     public function destroy(Ingredient $ingredient)
     {
         $ingredient->delete();
+
+        Ingredient::refreshAllMenuAvailability();
 
         return response()->json([
             'message' => 'Ingredient deleted successfully.',
@@ -132,6 +137,7 @@ class IngredientController extends Controller
             ]);
 
             $this->syncCurrentStock($ingredient);
+            $ingredient->refresh()->updateLinkedMenuAvailability();
 
             return response()->json(
                 $ingredient->fresh()->load([
@@ -196,6 +202,7 @@ class IngredientController extends Controller
             ]);
 
             $this->syncCurrentStock($ingredient);
+            $ingredient->refresh()->updateLinkedMenuAvailability();
 
             return response()->json(
                 $ingredient->fresh()->load([
@@ -229,6 +236,7 @@ class IngredientController extends Controller
             $batch->delete();
 
             $this->syncCurrentStock($ingredient);
+            $ingredient->refresh()->updateLinkedMenuAvailability();
 
             return response()->json([
                 'message' => 'Stock batch deleted successfully.',

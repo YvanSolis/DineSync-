@@ -12,6 +12,10 @@ class Order extends Model
         'total_amount',
     ];
 
+    protected $casts = [
+        'total_amount' => 'decimal:2',
+    ];
+
     public function items()
     {
         return $this->hasMany(OrderItem::class);

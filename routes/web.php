@@ -3,6 +3,8 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AdminReservationController;
 use App\Http\Controllers\AdminRestaurantSettingController;
+use App\Http\Controllers\ServiceStaffController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\Customer\HomeController as CustomerHomeController;
 use App\Http\Controllers\Customer\MenuController as CustomerMenuController;
 use App\Http\Controllers\Customer\ReservationController as CustomerReservationController;
@@ -11,7 +13,7 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Customer Side Routes
+| Root Redirect
 |--------------------------------------------------------------------------
 */
 
@@ -22,35 +24,49 @@ Route::get('/', function () {
 
     $user = auth()->user();
 
-    if (in_array($user->role, ['admin', 'staff', 'kitchen'])) {
+    if ($user->role === 'admin') {
         return redirect()->route('admin.dashboard');
+    }
+
+    if ($user->role === 'staff') {
+        return redirect()->route('service.dashboard');
+    }
+
+    if ($user->role === 'kitchen') {
+        return redirect()->route('kds.dashboard');
     }
 
     return redirect()->route('customer.home');
 });
 
+/*
+|--------------------------------------------------------------------------
+| Customer Side Routes
+|--------------------------------------------------------------------------
+*/
+
 Route::get('/home', [CustomerHomeController::class, 'index'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:customer'])
     ->name('customer.home');
 
 Route::get('/menu', [CustomerMenuController::class, 'index'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:customer'])
     ->name('customer.menu');
 
 Route::get('/reservations', [CustomerReservationController::class, 'index'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:customer'])
     ->name('customer.reservations.index');
 
 Route::get('/reservations/create', [CustomerReservationController::class, 'create'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:customer'])
     ->name('customer.reservations.create');
 
 Route::post('/reservations', [CustomerReservationController::class, 'store'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:customer'])
     ->name('customer.reservations.store');
 
 Route::post('/chatbot/ask', [CustomerChatbotController::class, 'ask'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:customer'])
     ->name('customer.chatbot.ask');
 
 /*
@@ -62,8 +78,16 @@ Route::post('/chatbot/ask', [CustomerChatbotController::class, 'ask'])
 Route::get('/dashboard', function () {
     $user = auth()->user();
 
-    if (in_array($user->role, ['admin', 'staff', 'kitchen'])) {
+    if ($user->role === 'admin') {
         return redirect()->route('admin.dashboard');
+    }
+
+    if ($user->role === 'staff') {
+        return redirect()->route('service.dashboard');
+    }
+
+    if ($user->role === 'kitchen') {
+        return redirect()->route('kds.dashboard');
     }
 
     return redirect()->route('customer.home');
@@ -75,7 +99,7 @@ Route::get('/dashboard', function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', function () {
         return view('admin.dashboard');
     })->name('dashboard');
@@ -92,17 +116,20 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         return view('admin.payments');
     })->name('payments');
 
+    /*
+    |--------------------------------------------------------------------------
+    | Admin Reservations View Only
+    |--------------------------------------------------------------------------
+    */
+
     Route::get('/reservations', [AdminReservationController::class, 'index'])
         ->name('reservations');
 
-    Route::patch('/reservations/{reservation}/status', [AdminReservationController::class, 'updateStatus'])
-        ->name('reservations.update-status');
-
-    Route::patch('/reservations/{reservation}/verify-payment', [AdminReservationController::class, 'verifyPayment'])
-        ->name('reservations.verify-payment');
-
-    Route::patch('/reservations/{reservation}/reject-payment', [AdminReservationController::class, 'rejectPayment'])
-        ->name('reservations.reject-payment');
+    /*
+    |--------------------------------------------------------------------------
+    | Admin Settings
+    |--------------------------------------------------------------------------
+    */
 
     Route::get('/settings', [AdminRestaurantSettingController::class, 'edit'])
         ->name('settings');
@@ -110,13 +137,117 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::patch('/settings', [AdminRestaurantSettingController::class, 'update'])
         ->name('settings.update');
 
+    /*
+    |--------------------------------------------------------------------------
+    | Reports
+    |--------------------------------------------------------------------------
+    */
+
     Route::get('/reports', function () {
         return view('admin.reports');
     })->name('reports');
 
+    /*
+    |--------------------------------------------------------------------------
+    | User Management
+    |--------------------------------------------------------------------------
+    */
+
     Route::get('/users', function () {
         return view('admin.users');
     })->name('users');
+
+    Route::get('/users/list', [UserController::class, 'index'])
+        ->name('users.list');
+
+    Route::post('/users', [UserController::class, 'store'])
+        ->name('users.store');
+
+    Route::put('/users/{user}', [UserController::class, 'update'])
+        ->name('users.update');
+
+    Route::delete('/users/{user}', [UserController::class, 'destroy'])
+        ->name('users.destroy');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Service Staff Side Routes
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['auth', 'role:staff'])->prefix('service')->name('service.')->group(function () {
+    Route::get('/dashboard', [ServiceStaffController::class, 'dashboard'])
+        ->name('dashboard');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Active Orders
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/active-orders', [ServiceStaffController::class, 'activeOrders'])
+        ->name('active-orders');
+
+    Route::patch('/active-orders/{order}/served', [ServiceStaffController::class, 'markOrderServed'])
+        ->name('active-orders.mark-served');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Table Monitoring
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/table-monitoring', [ServiceStaffController::class, 'tableMonitoring'])
+        ->name('table-monitoring');
+
+    Route::patch('/table-monitoring/{table}/walk-in', [ServiceStaffController::class, 'assignWalkIn'])
+        ->name('table-monitoring.walk-in');
+
+    Route::patch('/table-monitoring/{table}/cleaning', [ServiceStaffController::class, 'markTableCleaning'])
+        ->name('table-monitoring.cleaning');
+
+    Route::patch('/table-monitoring/{table}/available', [ServiceStaffController::class, 'markTableAvailable'])
+        ->name('table-monitoring.available');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reservations
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/reservations', [ServiceStaffController::class, 'reservations'])
+        ->name('reservations');
+
+    Route::patch('/reservations/{reservation}/status', [ServiceStaffController::class, 'updateReservationStatus'])
+        ->name('reservations.update-status');
+
+    Route::patch('/reservations/{reservation}/verify-payment', [ServiceStaffController::class, 'verifyReservationPayment'])
+        ->name('reservations.verify-payment');
+
+    Route::patch('/reservations/{reservation}/reject-payment', [ServiceStaffController::class, 'rejectReservationPayment'])
+        ->name('reservations.reject-payment');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Customer Assistance
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/customer-assistance', [ServiceStaffController::class, 'customerAssistance'])
+        ->name('customer-assistance');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Kitchen Staff / KDS Routes
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['auth', 'role:kitchen'])->prefix('kds')->name('kds.')->group(function () {
+    Route::get('/dashboard', function () {
+        return 'KDS Dashboard coming soon';
+    })->name('dashboard');
 });
 
 /*
@@ -136,4 +267,4 @@ Route::middleware(['auth'])->group(function () {
         ->name('profile.destroy');
 });
 
-require __DIR__ . '/auth.php';
+require __DIR__ . '/auth.php';  
