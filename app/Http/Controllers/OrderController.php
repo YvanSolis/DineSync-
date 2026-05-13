@@ -16,7 +16,7 @@ class OrderController extends Controller
     public function index()
     {
         return response()->json(
-            Order::with('items.menuItem')->latest()->get()
+            Order::with(['items.menuItem', 'payment'])->latest()->get()
         );
     }
 
@@ -31,23 +31,28 @@ class OrderController extends Controller
             'order_items.*.menu_item_id' => 'required_with:order_items|exists:menu_items,id',
             'order_items.*.quantity' => 'required_with:order_items|integer|min:1',
 
-            'status' => 'nullable|string|max:50',
             'customer_name' => 'nullable|string|max:255',
             'table_number' => 'nullable|string|max:50',
             'remarks' => 'nullable|string',
+
+            'payment_method' => 'nullable|string|max:50',
+            'payment_status' => 'nullable|string|max:50',
         ]);
 
         $items = $request->input('items', $request->input('order_items', []));
 
         return DB::transaction(function () use ($request, $items, $inventoryDeductionService) {
-
-            // 1. Check inventory first. Kapag kulang, hindi gagawa ng order.
             $this->validateInventoryBeforeOrder($items);
 
-            // 2. Create order only if enough inventory.
             $order = new Order();
 
-            $this->setIfColumn($order, 'status', $request->input('status', 'pending'));
+            $this->setIfColumn($order, 'order_number', $this->generateOrderNumber());
+
+            // IMPORTANT:
+            // New mobile/customer orders should always start as pending.
+            // Kitchen/KDS will update this later to preparing and ready.
+            $this->setIfColumn($order, 'status', 'pending');
+
             $this->setIfColumn($order, 'customer_name', $request->input('customer_name'));
             $this->setIfColumn($order, 'table_number', $request->input('table_number'));
             $this->setIfColumn($order, 'remarks', $request->input('remarks'));
@@ -80,14 +85,23 @@ class OrderController extends Controller
             $this->setIfColumn($order, 'total_amount', $totalAmount);
             $order->save();
 
-            // 3. Deduct inventory only after successful validation and order creation.
+            if (Schema::hasTable('payments')) {
+                DB::table('payments')->insert([
+                    'order_id' => $order->id,
+                    'payment_method' => $request->input('payment_method', 'Cash'),
+                    'amount' => $totalAmount,
+                    'status' => $request->input('payment_status', 'paid'),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
             $inventoryDeductionService->deductForOrder($order);
 
-            // 4. Update menu availability after deduction.
             $this->refreshAllMenuAvailability();
 
             return response()->json(
-                $order->fresh()->load('items.menuItem'),
+                $order->fresh()->load(['items.menuItem', 'payment']),
                 201
             );
         });
@@ -96,7 +110,7 @@ class OrderController extends Controller
     public function show(Order $order)
     {
         return response()->json(
-            $order->load('items.menuItem')
+            $order->load(['items.menuItem', 'payment'])
         );
     }
 
@@ -116,7 +130,7 @@ class OrderController extends Controller
         $order->save();
 
         return response()->json(
-            $order->fresh()->load('items.menuItem')
+            $order->fresh()->load(['items.menuItem', 'payment'])
         );
     }
 
@@ -127,6 +141,15 @@ class OrderController extends Controller
         return response()->json([
             'message' => 'Order deleted successfully.',
         ]);
+    }
+
+    private function generateOrderNumber(): string
+    {
+        do {
+            $orderNumber = 'ORD-' . now()->format('YmdHis') . '-' . random_int(100, 999);
+        } while (Order::where('order_number', $orderNumber)->exists());
+
+        return $orderNumber;
     }
 
     private function validateInventoryBeforeOrder(array $items): void
@@ -173,12 +196,10 @@ class OrderController extends Controller
 
             if (!$ingredient) {
                 throw ValidationException::withMessages([
-                    'inventory' => "Ingredient not found.",
+                    'inventory' => 'Ingredient not found.',
                 ]);
             }
 
-            // Important: total_stock comes from usable batches only.
-            // It excludes expired, inactive, and zero-quantity batches.
             $availableStock = (float) $ingredient->total_stock;
             $requiredStock = (float) $data['required'];
 

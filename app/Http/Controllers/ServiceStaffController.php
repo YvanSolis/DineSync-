@@ -13,8 +13,10 @@ class ServiceStaffController extends Controller
     {
         $today = now()->toDateString();
 
+        $pendingStatuses = ['pending', 'new', 'placed', 'confirmed'];
+
         $orderStats = [
-            'active' => Order::whereIn('status', ['pending', 'preparing', 'ready'])->count(),
+            'active' => Order::whereNotIn('status', ['cancelled', 'completed'])->count(),
             'preparing' => Order::where('status', 'preparing')->count(),
             'ready' => Order::where('status', 'ready')->count(),
             'served_today' => Order::where('status', 'served')
@@ -32,6 +34,7 @@ class ServiceStaffController extends Controller
         ];
 
         $recentOrders = Order::with(['items.menuItem', 'payment'])
+            ->whereNotIn('status', ['cancelled', 'completed'])
             ->latest()
             ->take(5)
             ->get();
@@ -50,16 +53,18 @@ class ServiceStaffController extends Controller
 
     public function activeOrders()
     {
+        $pendingStatuses = ['pending', 'new', 'placed', 'confirmed'];
+
         $orders = Order::with(['items.menuItem', 'payment'])
-            ->whereIn('status', ['pending', 'preparing', 'ready', 'served'])
+            ->whereRaw("LOWER(TRIM(status)) NOT IN (?, ?)", ['cancelled', 'completed'])
             ->latest()
             ->paginate(10);
 
         $stats = [
-            'pending' => Order::where('status', 'pending')->count(),
-            'preparing' => Order::where('status', 'preparing')->count(),
-            'ready' => Order::where('status', 'ready')->count(),
-            'served_today' => Order::where('status', 'served')
+            'pending' => Order::whereRaw("LOWER(TRIM(status)) IN (?, ?, ?, ?)", $pendingStatuses)->count(),
+            'preparing' => Order::whereRaw("LOWER(TRIM(status)) = ?", ['preparing'])->count(),
+            'ready' => Order::whereRaw("LOWER(TRIM(status)) = ?", ['ready'])->count(),
+            'served_today' => Order::whereRaw("LOWER(TRIM(status)) = ?", ['served'])
                 ->whereDate('updated_at', now()->toDateString())
                 ->count(),
         ];
@@ -67,16 +72,16 @@ class ServiceStaffController extends Controller
         return view('service.active-orders', compact('orders', 'stats'));
     }
 
-    public function markOrderServed(Order $order)
+    public function updateOrderStatus(Request $request, Order $order)
     {
-        if ($order->status !== 'ready') {
-            return back()->with('error', 'Only ready orders can be marked as served.');
-        }
+        $request->validate([
+            'status' => ['required', 'in:pending,preparing,ready,served,cancelled'],
+        ]);
 
-        $order->status = 'served';
+        $order->status = strtolower(trim($request->status));
         $order->save();
 
-        return back()->with('success', 'Order marked as served successfully.');
+        return back()->with('success', 'Order status updated successfully.');
     }
 
     public function tableMonitoring()
