@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Reservation;
 use App\Models\RestaurantTable;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class ServiceStaffController extends Controller
@@ -13,13 +14,11 @@ class ServiceStaffController extends Controller
     {
         $today = now()->toDateString();
 
-        $pendingStatuses = ['pending', 'new', 'placed', 'confirmed'];
-
         $orderStats = [
-            'active' => Order::whereNotIn('status', ['cancelled', 'completed'])->count(),
-            'preparing' => Order::where('status', 'preparing')->count(),
-            'ready' => Order::where('status', 'ready')->count(),
-            'served_today' => Order::where('status', 'served')
+            'active' => Order::whereRaw("LOWER(TRIM(status)) NOT IN (?, ?)", ['cancelled', 'completed'])->count(),
+            'preparing' => Order::whereRaw("LOWER(TRIM(status)) = ?", ['preparing'])->count(),
+            'ready' => Order::whereRaw("LOWER(TRIM(status)) = ?", ['ready'])->count(),
+            'served_today' => Order::whereRaw("LOWER(TRIM(status)) = ?", ['served'])
                 ->whereDate('updated_at', $today)
                 ->count(),
         ];
@@ -34,10 +33,14 @@ class ServiceStaffController extends Controller
         ];
 
         $recentOrders = Order::with(['items.menuItem', 'payment'])
-            ->whereNotIn('status', ['cancelled', 'completed'])
+            ->whereRaw("LOWER(TRIM(status)) NOT IN (?, ?)", ['cancelled', 'completed'])
             ->latest()
             ->take(5)
-            ->get();
+            ->get()
+            ->map(function ($order) {
+                $order->display_status = $this->normalizeOrderStatus($order);
+                return $order;
+            });
 
         $recentReservations = Reservation::latest()
             ->take(5)
@@ -53,17 +56,55 @@ class ServiceStaffController extends Controller
 
     public function activeOrders()
     {
-        $pendingStatuses = ['pending', 'new', 'placed', 'confirmed'];
-
         $orders = Order::with(['items.menuItem', 'payment'])
             ->whereRaw("LOWER(TRIM(status)) NOT IN (?, ?)", ['cancelled', 'completed'])
             ->latest()
             ->paginate(10);
 
+        $orderCollection = $orders->getCollection();
+
+        $orderIds = $orderCollection->pluck('id')->filter()->values();
+        $tableIds = $orderCollection->pluck('table_id')->filter()->values();
+
+        $tablesByOrderId = RestaurantTable::whereIn('current_order_id', $orderIds)
+            ->get()
+            ->keyBy('current_order_id');
+
+        $tablesById = RestaurantTable::whereIn('id', $tableIds)
+            ->get()
+            ->keyBy('id');
+
+        $orders->setCollection(
+            $orderCollection->map(function ($order) use ($tablesByOrderId, $tablesById) {
+                $order->display_status = $this->normalizeOrderStatus($order);
+                $order->status = $order->display_status;
+
+                $tableNumber = $order->table_number ?? null;
+
+                if (!$tableNumber && !empty($order->table_id)) {
+                    $tableNumber = optional($tablesById->get($order->table_id))->table_number;
+                }
+
+                if (!$tableNumber) {
+                    $tableNumber = optional($tablesByOrderId->get($order->id))->table_number;
+                }
+
+                $order->source_table_number = $tableNumber;
+
+                return $order;
+            })
+        );
+
+        $activeForStats = Order::whereRaw("LOWER(TRIM(status)) NOT IN (?, ?)", ['cancelled', 'completed'])
+            ->get()
+            ->map(function ($order) {
+                return $this->normalizeOrderStatus($order);
+            });
+
         $stats = [
-            'pending' => Order::whereRaw("LOWER(TRIM(status)) IN (?, ?, ?, ?)", $pendingStatuses)->count(),
-            'preparing' => Order::whereRaw("LOWER(TRIM(status)) = ?", ['preparing'])->count(),
-            'ready' => Order::whereRaw("LOWER(TRIM(status)) = ?", ['ready'])->count(),
+            'pending' => $activeForStats->filter(fn ($status) => $status === 'pending')->count(),
+            'preparing' => $activeForStats->filter(fn ($status) => $status === 'preparing')->count(),
+            'ready' => $activeForStats->filter(fn ($status) => $status === 'ready')->count(),
             'served_today' => Order::whereRaw("LOWER(TRIM(status)) = ?", ['served'])
                 ->whereDate('updated_at', now()->toDateString())
                 ->count(),
@@ -79,7 +120,22 @@ class ServiceStaffController extends Controller
         ]);
 
         $order->status = strtolower(trim($request->status));
+        $order->updated_at = now();
         $order->save();
+
+        if ($order->status === 'served') {
+            $table = RestaurantTable::where('current_order_id', $order->id)->first();
+
+            if ($table && $table->status === 'occupied') {
+                $table->update([
+                    'status' => 'cleaning',
+                    'current_order_id' => null,
+                    'current_guest_count' => null,
+                    'occupied_at' => null,
+                    'notes' => 'Needs cleaning',
+                ]);
+            }
+        }
 
         return back()->with('success', 'Order status updated successfully.');
     }
@@ -96,7 +152,60 @@ class ServiceStaffController extends Controller
             'cleaning' => RestaurantTable::where('status', 'cleaning')->count(),
         ];
 
-        return view('service.table-monitoring', compact('tables', 'tableStats'));
+        $tabletAccounts = User::where('role', 'table_customer')
+            ->orderByRaw('CAST(table_number AS INTEGER) ASC')
+            ->get()
+            ->keyBy('table_number');
+
+        $orders = Order::with(['items.menuItem'])
+            ->whereRaw("LOWER(TRIM(status)) IN (?, ?, ?, ?, ?, ?)", [
+                'pending',
+                'new',
+                'placed',
+                'confirmed',
+                'preparing',
+                'ready',
+            ])
+            ->latest()
+            ->get()
+            ->map(function ($order) {
+                $order->display_status = $this->normalizeOrderStatus($order);
+                $order->status = $order->display_status;
+                return $order;
+            });
+
+        $activeOrders = collect();
+
+        foreach ($tables as $table) {
+            $matchedOrder = null;
+
+            if (!empty($table->current_order_id)) {
+                $matchedOrder = $orders->firstWhere('id', $table->current_order_id);
+            }
+
+            if (!$matchedOrder) {
+                $matchedOrder = $orders->first(function ($order) use ($table) {
+                    return (string) ($order->table_number ?? '') === (string) $table->table_number;
+                });
+            }
+
+            if (!$matchedOrder) {
+                $matchedOrder = $orders->first(function ($order) use ($table) {
+                    return !empty($order->table_id) && (int) $order->table_id === (int) $table->id;
+                });
+            }
+
+            if ($matchedOrder) {
+                $activeOrders[$table->table_number] = $matchedOrder;
+            }
+        }
+
+        return view('service.table-monitoring', compact(
+            'tables',
+            'tableStats',
+            'tabletAccounts',
+            'activeOrders'
+        ));
     }
 
     public function assignWalkIn(Request $request, RestaurantTable $table)
@@ -291,5 +400,16 @@ class ServiceStaffController extends Controller
     public function customerAssistance()
     {
         return view('service.customer-assistance');
+    }
+
+    private function normalizeOrderStatus(Order $order): string
+    {
+        $status = strtolower(trim($order->status ?? 'pending'));
+
+        if (in_array($status, ['new', 'placed', 'confirmed'])) {
+            return 'pending';
+        }
+
+        return $status;
     }
 }

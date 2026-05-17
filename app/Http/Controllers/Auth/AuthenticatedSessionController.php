@@ -28,21 +28,45 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        $user = auth()->user();
+        $user = Auth::user();
 
         if ($user->role === 'admin') {
-            return redirect()->intended(route('admin.dashboard'));
+            return redirect()->route('admin.dashboard');
         }
 
-        if ($user->role === 'staff') {
-            return redirect()->intended(route('service.dashboard'));
+        if ($user->role === 'staff' || $user->role === 'service_staff') {
+            return redirect()->route('service.dashboard');
         }
 
-        if ($user->role === 'kitchen') {
-            return redirect()->intended(route('kds.dashboard'));
+        if ($user->role === 'kitchen' || $user->role === 'kitchen_staff') {
+            return redirect()->route('kitchen.dashboard');
         }
 
-        return redirect()->intended(route('customer.home'));
+        if ($user->role === 'customer') {
+            return redirect()->route('customer.home');
+        }
+
+        if ($user->role === 'table_customer') {
+            Auth::guard('web')->logout();
+
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')
+                ->withErrors([
+                    'email' => 'Table accounts are only for tablet/mobile ordering.',
+                ]);
+        }
+
+        Auth::guard('web')->logout();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('login')
+            ->withErrors([
+                'email' => 'Invalid account role.',
+            ]);
     }
 
     /**
@@ -56,6 +80,6 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        return redirect()->route('login');
     }
 }

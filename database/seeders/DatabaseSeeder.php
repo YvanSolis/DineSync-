@@ -12,6 +12,7 @@ class DatabaseSeeder extends Seeder
             DemoOrderHistorySeeder::class,
             AdminUserSeeder::class,
             RestaurantTableSeeder::class,
+            TableAccountSeeder::class,
         ]);
     }
 }

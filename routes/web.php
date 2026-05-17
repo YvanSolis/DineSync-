@@ -5,6 +5,7 @@ use App\Http\Controllers\AdminReservationController;
 use App\Http\Controllers\AdminRestaurantSettingController;
 use App\Http\Controllers\ServiceStaffController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\Kitchen\KdsController;
 use App\Http\Controllers\Customer\HomeController as CustomerHomeController;
 use App\Http\Controllers\Customer\MenuController as CustomerMenuController;
 use App\Http\Controllers\Customer\ReservationController as CustomerReservationController;
@@ -28,12 +29,12 @@ Route::get('/', function () {
         return redirect()->route('admin.dashboard');
     }
 
-    if ($user->role === 'staff') {
+    if ($user->role === 'staff' || $user->role === 'service_staff') {
         return redirect()->route('service.dashboard');
     }
 
-    if ($user->role === 'kitchen') {
-        return redirect()->route('kds.dashboard');
+    if ($user->role === 'kitchen' || $user->role === 'kitchen_staff') {
+        return redirect()->route('kitchen.dashboard');
     }
 
     return redirect()->route('customer.home');
@@ -82,12 +83,12 @@ Route::get('/dashboard', function () {
         return redirect()->route('admin.dashboard');
     }
 
-    if ($user->role === 'staff') {
+    if ($user->role === 'staff' || $user->role === 'service_staff') {
         return redirect()->route('service.dashboard');
     }
 
-    if ($user->role === 'kitchen') {
-        return redirect()->route('kds.dashboard');
+    if ($user->role === 'kitchen' || $user->role === 'kitchen_staff') {
+        return redirect()->route('kitchen.dashboard');
     }
 
     return redirect()->route('customer.home');
@@ -116,20 +117,8 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
         return view('admin.payments');
     })->name('payments');
 
-    /*
-    |--------------------------------------------------------------------------
-    | Admin Reservations View Only
-    |--------------------------------------------------------------------------
-    */
-
     Route::get('/reservations', [AdminReservationController::class, 'index'])
         ->name('reservations');
-
-    /*
-    |--------------------------------------------------------------------------
-    | Admin Settings
-    |--------------------------------------------------------------------------
-    */
 
     Route::get('/settings', [AdminRestaurantSettingController::class, 'edit'])
         ->name('settings');
@@ -137,21 +126,9 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::patch('/settings', [AdminRestaurantSettingController::class, 'update'])
         ->name('settings.update');
 
-    /*
-    |--------------------------------------------------------------------------
-    | Reports
-    |--------------------------------------------------------------------------
-    */
-
     Route::get('/reports', function () {
         return view('admin.reports');
     })->name('reports');
-
-    /*
-    |--------------------------------------------------------------------------
-    | User Management
-    |--------------------------------------------------------------------------
-    */
 
     Route::get('/users', function () {
         return view('admin.users');
@@ -180,23 +157,11 @@ Route::middleware(['auth', 'role:staff'])->prefix('service')->name('service.')->
     Route::get('/dashboard', [ServiceStaffController::class, 'dashboard'])
         ->name('dashboard');
 
-    /*
-    |--------------------------------------------------------------------------
-    | Active Orders
-    |--------------------------------------------------------------------------
-    */
-
     Route::get('/active-orders', [ServiceStaffController::class, 'activeOrders'])
         ->name('active-orders');
 
     Route::patch('/active-orders/{order}/status', [ServiceStaffController::class, 'updateOrderStatus'])
-    ->name('active-orders.update-status');
-
-    /*
-    |--------------------------------------------------------------------------
-    | Table Monitoring
-    |--------------------------------------------------------------------------
-    */
+        ->name('active-orders.update-status');
 
     Route::get('/table-monitoring', [ServiceStaffController::class, 'tableMonitoring'])
         ->name('table-monitoring');
@@ -210,12 +175,6 @@ Route::middleware(['auth', 'role:staff'])->prefix('service')->name('service.')->
     Route::patch('/table-monitoring/{table}/available', [ServiceStaffController::class, 'markTableAvailable'])
         ->name('table-monitoring.available');
 
-    /*
-    |--------------------------------------------------------------------------
-    | Reservations
-    |--------------------------------------------------------------------------
-    */
-
     Route::get('/reservations', [ServiceStaffController::class, 'reservations'])
         ->name('reservations');
 
@@ -228,12 +187,6 @@ Route::middleware(['auth', 'role:staff'])->prefix('service')->name('service.')->
     Route::patch('/reservations/{reservation}/reject-payment', [ServiceStaffController::class, 'rejectReservationPayment'])
         ->name('reservations.reject-payment');
 
-    /*
-    |--------------------------------------------------------------------------
-    | Customer Assistance
-    |--------------------------------------------------------------------------
-    */
-
     Route::get('/customer-assistance', [ServiceStaffController::class, 'customerAssistance'])
         ->name('customer-assistance');
 });
@@ -244,10 +197,15 @@ Route::middleware(['auth', 'role:staff'])->prefix('service')->name('service.')->
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:kitchen'])->prefix('kds')->name('kds.')->group(function () {
-    Route::get('/dashboard', function () {
-        return 'KDS Dashboard coming soon';
-    })->name('dashboard');
+Route::middleware(['auth', 'kitchen.staff'])->prefix('kitchen')->name('kitchen.')->group(function () {
+    Route::get('/dashboard', [KdsController::class, 'index'])
+        ->name('dashboard');
+
+    Route::get('/orders/fetch', [KdsController::class, 'fetchOrders'])
+        ->name('orders.fetch');
+
+    Route::patch('/orders/{order}/status', [KdsController::class, 'updateStatus'])
+        ->name('orders.status');
 });
 
 /*
@@ -267,4 +225,4 @@ Route::middleware(['auth'])->group(function () {
         ->name('profile.destroy');
 });
 
-require __DIR__ . '/auth.php';  
+require __DIR__ . '/auth.php';
