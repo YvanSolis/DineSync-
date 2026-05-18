@@ -29,5 +29,17 @@ class RestaurantTable extends Model
     public function reservation()
     {
         return $this->belongsTo(Reservation::class, 'current_reservation_id');
+    }   
+
+    public function sessions()
+    {
+        return $this->hasMany(\App\Models\TableSession::class, 'restaurant_table_id');
+    }
+
+    public function activeSession()
+    {
+        return $this->hasOne(\App\Models\TableSession::class, 'restaurant_table_id')
+            ->where('status', 'active')
+            ->latestOfMany();
     }
 }

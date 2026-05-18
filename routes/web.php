@@ -157,6 +157,9 @@ Route::middleware(['auth', 'role:staff'])->prefix('service')->name('service.')->
     Route::get('/dashboard', [ServiceStaffController::class, 'dashboard'])
         ->name('dashboard');
 
+    Route::get('/ready-order-count', [ServiceStaffController::class, 'readyOrderCount'])
+        ->name('ready-order-count');
+
     Route::get('/active-orders', [ServiceStaffController::class, 'activeOrders'])
         ->name('active-orders');
 

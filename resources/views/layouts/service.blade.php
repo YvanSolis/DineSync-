@@ -51,12 +51,6 @@
                    {{ request()->routeIs('service.reservations') ? 'bg-orange-500 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900' }}">
                     Reservations
                 </a>
-
-                <a href="{{ route('service.customer-assistance') }}"
-                   class="flex items-center px-4 py-3 rounded-xl text-sm font-medium transition
-                   {{ request()->routeIs('service.customer-assistance') ? 'bg-orange-500 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900' }}">
-                    Customer Assistance
-                </a>
             </nav>
 
             <!-- User / Logout -->

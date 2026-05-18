@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Reservation;
 use App\Models\RestaurantTable;
+use App\Models\TableSession;
 use App\Models\User;
 use Illuminate\Http\Request;
 
@@ -34,11 +35,21 @@ class ServiceStaffController extends Controller
 
         $recentOrders = Order::with(['items.menuItem', 'payment'])
             ->whereRaw("LOWER(TRIM(status)) NOT IN (?, ?)", ['cancelled', 'completed'])
-            ->latest()
+            ->orderByRaw("
+                CASE
+                    WHEN LOWER(TRIM(status)) IN ('pending', 'new', 'placed', 'confirmed') THEN 1
+                    WHEN LOWER(TRIM(status)) = 'preparing' THEN 2
+                    WHEN LOWER(TRIM(status)) = 'ready' THEN 3
+                    WHEN LOWER(TRIM(status)) = 'served' THEN 4
+                    ELSE 5
+                END
+            ")
+            ->orderByDesc('id')
             ->take(5)
             ->get()
             ->map(function ($order) {
                 $order->display_status = $this->normalizeOrderStatus($order);
+                $order->status = $order->display_status;
                 return $order;
             });
 
@@ -58,32 +69,32 @@ class ServiceStaffController extends Controller
     {
         $orders = Order::with(['items.menuItem', 'payment'])
             ->whereRaw("LOWER(TRIM(status)) NOT IN (?, ?)", ['cancelled', 'completed'])
-            ->latest()
+            ->orderByRaw("
+                CASE
+                    WHEN LOWER(TRIM(status)) IN ('pending', 'new', 'placed', 'confirmed') THEN 1
+                    WHEN LOWER(TRIM(status)) = 'preparing' THEN 2
+                    WHEN LOWER(TRIM(status)) = 'ready' THEN 3
+                    WHEN LOWER(TRIM(status)) = 'served' THEN 4
+                    ELSE 5
+                END
+            ")
+            ->orderByDesc('id')
             ->paginate(10);
 
         $orderCollection = $orders->getCollection();
 
         $orderIds = $orderCollection->pluck('id')->filter()->values();
-        $tableIds = $orderCollection->pluck('table_id')->filter()->values();
 
         $tablesByOrderId = RestaurantTable::whereIn('current_order_id', $orderIds)
             ->get()
             ->keyBy('current_order_id');
 
-        $tablesById = RestaurantTable::whereIn('id', $tableIds)
-            ->get()
-            ->keyBy('id');
-
         $orders->setCollection(
-            $orderCollection->map(function ($order) use ($tablesByOrderId, $tablesById) {
+            $orderCollection->map(function ($order) use ($tablesByOrderId) {
                 $order->display_status = $this->normalizeOrderStatus($order);
                 $order->status = $order->display_status;
 
                 $tableNumber = $order->table_number ?? null;
-
-                if (!$tableNumber && !empty($order->table_id)) {
-                    $tableNumber = optional($tablesById->get($order->table_id))->table_number;
-                }
 
                 if (!$tableNumber) {
                     $tableNumber = optional($tablesByOrderId->get($order->id))->table_number;
@@ -123,20 +134,6 @@ class ServiceStaffController extends Controller
         $order->updated_at = now();
         $order->save();
 
-        if ($order->status === 'served') {
-            $table = RestaurantTable::where('current_order_id', $order->id)->first();
-
-            if ($table && $table->status === 'occupied') {
-                $table->update([
-                    'status' => 'cleaning',
-                    'current_order_id' => null,
-                    'current_guest_count' => null,
-                    'occupied_at' => null,
-                    'notes' => 'Needs cleaning',
-                ]);
-            }
-        }
-
         return back()->with('success', 'Order status updated successfully.');
     }
 
@@ -166,7 +163,15 @@ class ServiceStaffController extends Controller
                 'preparing',
                 'ready',
             ])
-            ->latest()
+            ->orderByRaw("
+                CASE
+                    WHEN LOWER(TRIM(status)) IN ('pending', 'new', 'placed', 'confirmed') THEN 1
+                    WHEN LOWER(TRIM(status)) = 'preparing' THEN 2
+                    WHEN LOWER(TRIM(status)) = 'ready' THEN 3
+                    ELSE 4
+                END
+            ")
+            ->orderByDesc('id')
             ->get()
             ->map(function ($order) {
                 $order->display_status = $this->normalizeOrderStatus($order);
@@ -186,12 +191,6 @@ class ServiceStaffController extends Controller
             if (!$matchedOrder) {
                 $matchedOrder = $orders->first(function ($order) use ($table) {
                     return (string) ($order->table_number ?? '') === (string) $table->table_number;
-                });
-            }
-
-            if (!$matchedOrder) {
-                $matchedOrder = $orders->first(function ($order) use ($table) {
-                    return !empty($order->table_id) && (int) $order->table_id === (int) $table->id;
                 });
             }
 
@@ -232,6 +231,8 @@ class ServiceStaffController extends Controller
             'notes' => $request->notes ?: 'Walk-in customer',
         ]);
 
+        $this->createTableSession($table, $request->guest_count, $request->notes ?: 'Walk-in customer');
+
         return back()->with('success', 'Walk-in customer assigned to table successfully.');
     }
 
@@ -240,6 +241,8 @@ class ServiceStaffController extends Controller
         if ($table->status !== 'occupied') {
             return back()->with('error', 'Only occupied tables can be marked for cleaning.');
         }
+
+        $this->closeActiveTableSession($table);
 
         $table->update([
             'status' => 'cleaning',
@@ -250,7 +253,7 @@ class ServiceStaffController extends Controller
             'notes' => 'Needs cleaning',
         ]);
 
-        return back()->with('success', 'Table marked for cleaning.');
+        return back()->with('success', 'Table marked for cleaning. Tablet session has been reset.');
     }
 
     public function markTableAvailable(RestaurantTable $table)
@@ -355,6 +358,8 @@ class ServiceStaffController extends Controller
                 'occupied_at' => now(),
                 'notes' => 'Reservation customer',
             ]);
+
+            $this->createTableSession($table, $reservation->guest_count, 'Reservation customer');
         }
 
         if (in_array($status, ['completed', 'cancelled', 'declined'])) {
@@ -364,6 +369,8 @@ class ServiceStaffController extends Controller
                     ->first();
 
                 if ($table && $table->status === 'occupied') {
+                    $this->closeActiveTableSession($table);
+
                     $table->update([
                         'status' => 'cleaning',
                         'current_guest_count' => null,
@@ -400,6 +407,54 @@ class ServiceStaffController extends Controller
     public function customerAssistance()
     {
         return view('service.customer-assistance');
+    }
+
+    public function readyOrderCount()
+    {
+        $readyCount = Order::whereRaw("LOWER(TRIM(status)) = ?", ['ready'])->count();
+
+        $latestReadyOrder = Order::whereRaw("LOWER(TRIM(status)) = ?", ['ready'])
+            ->latest('updated_at')
+            ->first();
+
+        return response()->json([
+            'ready_count' => $readyCount,
+            'latest_order_number' => $latestReadyOrder?->order_number,
+            'latest_updated_at' => $latestReadyOrder?->updated_at,
+        ]);
+    }
+
+    private function createTableSession(RestaurantTable $table, ?int $guestCount = null, ?string $notes = null): TableSession
+    {
+        $this->closeActiveTableSession($table);
+
+        return TableSession::create([
+            'restaurant_table_id' => $table->id,
+            'session_code' => $this->generateTableSessionCode(),
+            'guest_count' => $guestCount,
+            'notes' => $notes,
+            'started_at' => now(),
+            'status' => 'active',
+        ]);
+    }
+
+    private function closeActiveTableSession(RestaurantTable $table): void
+    {
+        TableSession::where('restaurant_table_id', $table->id)
+            ->where('status', 'active')
+            ->update([
+                'status' => 'closed',
+                'ended_at' => now(),
+            ]);
+    }
+
+    private function generateTableSessionCode(): string
+    {
+        do {
+            $sessionCode = 'TS-' . now()->format('YmdHis') . '-' . random_int(100, 999);
+        } while (TableSession::where('session_code', $sessionCode)->exists());
+
+        return $sessionCode;
     }
 
     private function normalizeOrderStatus(Order $order): string

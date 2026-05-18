@@ -10,6 +10,7 @@ class Order extends Model
         'order_number',
         'status',
         'total_amount',
+        'table_session_id',
     ];
 
     protected $casts = [
@@ -29,5 +30,9 @@ class Order extends Model
     public function ingredientUsages()
     {
         return $this->hasMany(IngredientUsage::class);
+    }
+    public function tableSession()
+    {
+        return $this->belongsTo(\App\Models\TableSession::class, 'table_session_id');
     }
 }

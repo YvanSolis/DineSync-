@@ -6,27 +6,13 @@
 @section('content')
 <div class="space-y-6">
 
-    <!-- Main Summary -->
+    <!-- Summary Cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <a href="{{ route('service.active-orders') }}"
-           class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:border-orange-300 hover:shadow transition">
-            <p class="text-sm text-gray-500">Active Orders</p>
-            <p class="text-2xl font-bold text-orange-500 mt-1">{{ $orderStats['active'] ?? 0 }}</p>
-            <p class="text-xs text-gray-400 mt-1">Pending, preparing, and ready</p>
-        </a>
-
-        <a href="{{ route('service.active-orders') }}"
-           class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:border-blue-300 hover:shadow transition">
-            <p class="text-sm text-gray-500">Preparing</p>
-            <p class="text-2xl font-bold text-blue-500 mt-1">{{ $orderStats['preparing'] ?? 0 }}</p>
-            <p class="text-xs text-gray-400 mt-1">Currently in kitchen</p>
-        </a>
-
-        <a href="{{ route('service.active-orders') }}"
-           class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:border-green-300 hover:shadow transition">
-            <p class="text-sm text-gray-500">Ready to Serve</p>
-            <p class="text-2xl font-bold text-green-500 mt-1">{{ $orderStats['ready'] ?? 0 }}</p>
-            <p class="text-xs text-gray-400 mt-1">Waiting for service staff</p>
+           class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:shadow transition">
+            <p class="text-sm text-gray-500">Served Today</p>
+            <p class="text-2xl font-bold text-gray-700 mt-1">{{ $orderStats['served_today'] ?? 0 }}</p>
+            <p class="text-xs text-gray-400 mt-1">Completed orders today</p>
         </a>
 
         <a href="{{ route('service.reservations') }}"
@@ -35,32 +21,21 @@
             <p class="text-2xl font-bold text-purple-500 mt-1">{{ $reservationStats['pending'] ?? 0 }}</p>
             <p class="text-xs text-gray-400 mt-1">Needs payment or approval</p>
         </a>
-    </div>
 
-    <!-- Secondary Summary -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <a href="{{ route('service.active-orders') }}"
-           class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:shadow transition">
-            <p class="text-sm text-gray-500">Served Today</p>
-            <p class="text-2xl font-bold text-gray-700 mt-1">{{ $orderStats['served_today'] ?? 0 }}</p>
-        </a>
-
-        <a href="{{ route('service.reservations') }}"
-           class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:shadow transition">
-            <p class="text-sm text-gray-500">Accepted Today</p>
-            <p class="text-2xl font-bold text-green-500 mt-1">{{ $reservationStats['approved_today'] ?? 0 }}</p>
-        </a>
-
-        <a href="{{ route('service.reservations') }}"
-           class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:shadow transition">
-            <p class="text-sm text-gray-500">Arrived</p>
-            <p class="text-2xl font-bold text-blue-500 mt-1">{{ $reservationStats['arrived'] ?? 0 }}</p>
+           class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:border-green-300 hover:shadow transition">
+            <p class="text-sm text-gray-500">Ready to Serve</p>
+            <p class="text-2xl font-bold text-green-500 mt-1">
+                <span id="ready-to-serve-count">{{ $orderStats['ready'] ?? 0 }}</span>
+            </p>
+            <p class="text-xs text-gray-400 mt-1">Waiting for service staff</p>
         </a>
 
         <a href="{{ route('service.reservations') }}"
            class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:shadow transition">
             <p class="text-sm text-gray-500">Seated</p>
             <p class="text-2xl font-bold text-purple-500 mt-1">{{ $reservationStats['seated'] ?? 0 }}</p>
+            <p class="text-xs text-gray-400 mt-1">Currently seated customers</p>
         </a>
     </div>
 
@@ -242,4 +217,95 @@
     </div>
 
 </div>
+
+<script>
+    let lastReadyCount = {{ $orderStats['ready'] ?? 0 }};
+    let hasLoadedReadyChecker = false;
+
+    function showReadyOrderToast(orderNumber) {
+        const oldToast = document.getElementById('ready-order-toast');
+
+        if (oldToast) {
+            oldToast.remove();
+        }
+
+        const toast = document.createElement('div');
+        toast.id = 'ready-order-toast';
+        toast.className = 'fixed top-5 right-5 z-50 bg-green-600 text-white px-5 py-4 rounded-2xl shadow-lg max-w-sm';
+
+        toast.innerHTML = `
+            <div class="flex items-start gap-3">
+                <div>
+                    <p class="font-bold text-sm">Order Ready to Serve</p>
+                    <p class="text-sm mt-1">
+                        ${orderNumber ? 'Order #' + orderNumber + ' is ready.' : 'A kitchen order is ready.'}
+                    </p>
+                </div>
+                <button onclick="this.closest('#ready-order-toast').remove()" class="ml-3 text-white/80 hover:text-white font-bold">
+                    ×
+                </button>
+            </div>
+        `;
+
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            if (toast) {
+                toast.remove();
+            }
+        }, 7000);
+    }
+
+    function playReadySound() {
+        const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+        audio.volume = 0.5;
+        audio.play().catch(() => {});
+    }
+
+    async function checkReadyOrders() {
+        try {
+            const response = await fetch("{{ route('service.ready-order-count') }}", {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            const data = await response.json();
+            const currentReadyCount = Number(data.ready_count ?? 0);
+
+            const readyCardNumber = document.getElementById('ready-to-serve-count');
+
+            if (readyCardNumber) {
+                readyCardNumber.textContent = currentReadyCount;
+            }
+
+            if (hasLoadedReadyChecker && currentReadyCount > lastReadyCount) {
+                showReadyOrderToast(data.latest_order_number);
+                playReadySound();
+
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification('Order Ready to Serve', {
+                        body: data.latest_order_number
+                            ? `Order #${data.latest_order_number} is ready.`
+                            : 'A kitchen order is ready.'
+                    });
+                }
+            }
+
+            lastReadyCount = currentReadyCount;
+            hasLoadedReadyChecker = true;
+        } catch (error) {
+            console.error('Ready order check failed:', error);
+        }
+    }
+
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+
+    checkReadyOrders();
+    setInterval(checkReadyOrders, 5000);
+</script>
+
 @endsection

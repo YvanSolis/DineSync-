@@ -6,7 +6,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\MenuItem;
 use App\Models\RestaurantTable;
-use App\Models\User;
+use App\Models\TableSession;
 use App\Services\InventoryDeductionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +25,21 @@ class OrderController extends Controller
 
     public function store(Request $request, InventoryDeductionService $inventoryDeductionService)
     {
+        Log::info('ORDER STORE HIT FROM MOBILE/WEB', [
+            'full_url' => $request->fullUrl(),
+            'method' => $request->method(),
+            'bearer_token' => $request->bearerToken(),
+            'x_table_number' => $request->header('X-Table-Number'),
+            'auth_user' => $request->user() ? [
+                'id' => $request->user()->id,
+                'name' => $request->user()->name,
+                'email' => $request->user()->email,
+                'role' => $request->user()->role,
+                'table_number' => $request->user()->table_number ?? null,
+            ] : null,
+            'body' => $request->all(),
+        ]);
+
         $request->validate([
             'items' => 'required_without:order_items|array',
             'items.*.menu_item_id' => 'required_with:items|exists:menu_items,id',
@@ -51,6 +66,26 @@ class OrderController extends Controller
             $table = $this->detectTableFromRequest($request);
             $tableNumber = $table?->table_number ?? $request->input('table_number');
 
+            $tableSession = null;
+
+            if ($table && Schema::hasTable('table_sessions')) {
+                $tableSession = TableSession::where('restaurant_table_id', $table->id)
+                    ->where('status', 'active')
+                    ->latest()
+                    ->first();
+
+                if (! $tableSession) {
+                    $tableSession = TableSession::create([
+                        'restaurant_table_id' => $table->id,
+                        'session_code' => $this->generateTableSessionCode(),
+                        'guest_count' => $table->current_guest_count ?? null,
+                        'notes' => $table->notes,
+                        'started_at' => now(),
+                        'status' => 'active',
+                    ]);
+                }
+            }
+
             $order = new Order();
 
             $this->setIfColumn($order, 'order_number', $this->generateOrderNumber());
@@ -58,6 +93,7 @@ class OrderController extends Controller
             $this->setIfColumn($order, 'customer_name', $request->input('customer_name'));
             $this->setIfColumn($order, 'table_number', $tableNumber);
             $this->setIfColumn($order, 'table_id', $table?->id);
+            $this->setIfColumn($order, 'table_session_id', $tableSession?->id);
             $this->setIfColumn($order, 'remarks', $request->input('remarks'));
             $this->setIfColumn($order, 'notes', $request->input('notes'));
             $this->setIfColumn($order, 'total_amount', 0);
@@ -95,7 +131,7 @@ class OrderController extends Controller
                     'status' => 'occupied',
                     'current_order_id' => $order->id,
                     'occupied_at' => $table->occupied_at ?? now(),
-                    'notes' => 'Tablet order',
+                    'notes' => $table->notes ?? 'Tablet order',
                 ]);
             }
 
@@ -118,20 +154,54 @@ class OrderController extends Controller
                 $order->fresh()->load(['items.menuItem', 'payment']),
                 201
             );
-        }); Log::info('ORDER STORE HIT FROM MOBILE/WEB', [
-        'full_url' => $request->fullUrl(),
-        'method' => $request->method(),
-        'bearer_token' => $request->bearerToken(),
-        'x_table_number' => $request->header('X-Table-Number'),
-        'auth_user' => $request->user() ? [
-            'id' => $request->user()->id,
-            'name' => $request->user()->name,
-            'email' => $request->user()->email,
-            'role' => $request->user()->role,
-            'table_number' => $request->user()->table_number ?? null,
-        ] : null,
-        'body' => $request->all(),
-    ]);
+        });
+    }
+
+    public function tableOrderHistory(Request $request)
+    {
+        $table = $this->detectTableFromRequest($request);
+
+        if (! $table) {
+            return response()->json([
+                'message' => 'Table not found.',
+                'orders' => [],
+            ], 404);
+        }
+
+        if (! Schema::hasTable('table_sessions')) {
+            return response()->json([
+                'message' => 'Table sessions table does not exist yet.',
+                'table_number' => $table->table_number,
+                'session' => null,
+                'orders' => [],
+            ], 500);
+        }
+
+        $activeSession = TableSession::where('restaurant_table_id', $table->id)
+            ->where('status', 'active')
+            ->latest()
+            ->first();
+
+        if (! $activeSession) {
+            return response()->json([
+                'message' => 'No active table session.',
+                'table_number' => $table->table_number,
+                'session' => null,
+                'orders' => [],
+            ]);
+        }
+
+        $orders = Order::with(['items.menuItem', 'payment'])
+            ->where('table_session_id', $activeSession->id)
+            ->oldest()
+            ->get();
+
+        return response()->json([
+            'message' => 'Order history loaded successfully.',
+            'table_number' => $table->table_number,
+            'session' => $activeSession,
+            'orders' => $orders,
+        ]);
     }
 
     public function show(Order $order)
@@ -161,8 +231,18 @@ class OrderController extends Controller
         }
 
         if ($table) {
+            $activeSession = null;
+
+            if (Schema::hasTable('table_sessions')) {
+                $activeSession = TableSession::where('restaurant_table_id', $table->id)
+                    ->where('status', 'active')
+                    ->latest()
+                    ->first();
+            }
+
             $this->setIfColumn($order, 'table_number', $table->table_number);
             $this->setIfColumn($order, 'table_id', $table->id);
+            $this->setIfColumn($order, 'table_session_id', $activeSession?->id);
 
             $table->update([
                 'status' => 'occupied',
@@ -206,7 +286,7 @@ class OrderController extends Controller
             $tableNumber = $request->input('table_number');
         }
 
-        if (!$tableNumber && $request->filled('table_id')) {
+        if (! $tableNumber && $request->filled('table_id')) {
             $tableById = RestaurantTable::find($request->input('table_id'));
 
             if ($tableById) {
@@ -216,17 +296,17 @@ class OrderController extends Controller
 
         $authUser = $request->user();
 
-        if (!$tableNumber && $authUser && $authUser->role === 'table_customer') {
+        if (! $tableNumber && $authUser && $authUser->role === 'table_customer') {
             $tableNumber = $authUser->table_number;
         }
 
         $bearerToken = $request->bearerToken();
 
-        if (!$tableNumber && $bearerToken && preg_match('/table-token-(\d+)/', $bearerToken, $matches)) {
+        if (! $tableNumber && $bearerToken && preg_match('/table-token-(\d+)/', $bearerToken, $matches)) {
             $tableNumber = $matches[1];
         }
 
-        if (!$tableNumber) {
+        if (! $tableNumber) {
             $headerTableNumber = $request->header('X-Table-Number');
 
             if ($headerTableNumber) {
@@ -234,7 +314,7 @@ class OrderController extends Controller
             }
         }
 
-        if (!$tableNumber) {
+        if (! $tableNumber) {
             return null;
         }
 
@@ -250,6 +330,15 @@ class OrderController extends Controller
         return $orderNumber;
     }
 
+    private function generateTableSessionCode(): string
+    {
+        do {
+            $sessionCode = 'TS-' . now()->format('YmdHis') . '-' . random_int(100, 999);
+        } while (TableSession::where('session_code', $sessionCode)->exists());
+
+        return $sessionCode;
+    }
+
     private function validateInventoryBeforeOrder(array $items): void
     {
         $requiredIngredients = [];
@@ -259,7 +348,7 @@ class OrderController extends Controller
 
             if (
                 Schema::hasColumn('menu_items', 'is_available') &&
-                !$menuItem->is_available
+                ! $menuItem->is_available
             ) {
                 throw ValidationException::withMessages([
                     'inventory' => "{$menuItem->name} is currently unavailable.",
@@ -272,7 +361,7 @@ class OrderController extends Controller
                 $requiredPerItem = (float) $ingredient->pivot->quantity_required;
                 $totalRequired = $requiredPerItem * $orderQuantity;
 
-                if (!isset($requiredIngredients[$ingredient->id])) {
+                if (! isset($requiredIngredients[$ingredient->id])) {
                     $requiredIngredients[$ingredient->id] = [
                         'ingredient_id' => $ingredient->id,
                         'ingredient_name' => $ingredient->name,
@@ -292,7 +381,7 @@ class OrderController extends Controller
                 ->lockForUpdate()
                 ->first();
 
-            if (!$ingredient) {
+            if (! $ingredient) {
                 throw ValidationException::withMessages([
                     'inventory' => 'Ingredient not found.',
                 ]);
@@ -313,7 +402,7 @@ class OrderController extends Controller
 
     private function refreshAllMenuAvailability(): void
     {
-        if (!Schema::hasColumn('menu_items', 'is_available')) {
+        if (! Schema::hasColumn('menu_items', 'is_available')) {
             return;
         }
 
