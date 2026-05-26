@@ -830,6 +830,20 @@ document.getElementById('inventorySearch').addEventListener('input', applyFilter
 document.getElementById('statusFilter').addEventListener('change', applyFilters);
 
 loadIngredients();
+
+setInterval(() => {
+    const ingredientModal = document.getElementById('ingredientModal');
+    const stockModal = document.getElementById('stockModal');
+
+    const ingredientModalOpen = ingredientModal && !ingredientModal.classList.contains('hidden');
+    const stockModalOpen = stockModal && !stockModal.classList.contains('hidden');
+
+    if (document.hidden || ingredientModalOpen || stockModalOpen) {
+        return;
+    }
+
+    silentReloadIngredients();
+}, 30000);
 </script>
 
 @endsection

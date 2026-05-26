@@ -10,10 +10,22 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\AdminReportController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\Api\TableStatusController;
+use App\Http\Controllers\Api\XenditWebhookController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
+
+/*
+|--------------------------------------------------------------------------
+| Xendit Webhook Route
+|--------------------------------------------------------------------------
+| This must be public because Xendit will call this endpoint after payment.
+| Do not put this inside auth:sanctum middleware.
+*/
+
+Route::post('/xendit/webhook', [XenditWebhookController::class, 'handle'])
+    ->name('xendit.webhook');
 
 /*
 |--------------------------------------------------------------------------

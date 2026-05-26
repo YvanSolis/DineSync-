@@ -294,17 +294,19 @@ function getAmount(payment) {
     return Number(payment.amount ?? payment.total_amount ?? payment.payment_amount ?? 0);
 }
 
-async function loadPayments() {
+async function loadPayments(showLoading = true) {
     const tbody = document.getElementById('paymentsTableBody');
 
     try {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" class="px-6 py-8 text-center text-gray-400">
-                    Loading payment records...
-                </td>
-            </tr>
-        `;
+        if (showLoading) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="px-6 py-8 text-center text-gray-400">
+                        Loading payment records...
+                    </td>
+                </tr>
+            `;
+        }
 
         const res = await fetch('/api/admin/payments', {
             headers: {
@@ -534,7 +536,7 @@ async function loadReceiptOrderItems(payment) {
             <div class="flex justify-between gap-4">
                 <span class="text-gray-600">Order Payment</span>
                 <span class="font-medium">${formatMoney(amount)}</span>
-            </div>
+            </div>async function loadPayments() {
         `;
     }
 }
@@ -591,7 +593,18 @@ function exportPaymentsReport() {
 document.getElementById('paymentSearch').addEventListener('input', applyPaymentFilters);
 document.getElementById('paymentStatusFilter').addEventListener('change', applyPaymentFilters);
 
-loadPayments();
+loadPayments(true);
+
+setInterval(() => {
+    const receiptModal = document.getElementById('receiptModal');
+    const receiptModalOpen = receiptModal && !receiptModal.classList.contains('hidden');
+
+    if (document.hidden || receiptModalOpen) {
+        return;
+    }
+
+    loadPayments(false);
+}, 30000);
 </script>
 
 @endsection

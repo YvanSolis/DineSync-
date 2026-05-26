@@ -304,4 +304,29 @@
         @endif
     </div>
 </div>
+
+<script>
+setInterval(() => {
+    if (document.hidden) {
+        return;
+    }
+
+    const activeElement = document.activeElement;
+    const isInteracting =
+        activeElement &&
+        (
+            activeElement.tagName === 'INPUT' ||
+            activeElement.tagName === 'TEXTAREA' ||
+            activeElement.tagName === 'SELECT' ||
+            activeElement.tagName === 'BUTTON'
+        );
+
+    if (isInteracting) {
+        return;
+    }
+
+    window.location.reload();
+}, 30000);
+</script>
+
 @endsection

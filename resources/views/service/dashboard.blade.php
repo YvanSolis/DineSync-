@@ -305,7 +305,7 @@
     }
 
     checkReadyOrders();
-    setInterval(checkReadyOrders, 5000);
+    setInterval(checkReadyOrders, 10000);
 </script>
 
 @endsection

@@ -9,19 +9,29 @@ class MenuItem extends Model
     protected $fillable = [
         'name',
         'category',
+        'description',
         'price',
         'image',
         'is_available',
+        'flavor_tags',
+        'meal_type',
     ];
 
     protected $casts = [
         'is_available' => 'boolean',
+        'price' => 'decimal:2',
+        'flavor_tags' => 'array',
+    ];
+
+    protected $appends = [
+        'image_url',
     ];
 
     protected static function booted()
     {
         static::creating(function ($menuItem) {
-            // New menu items are unavailable first until ingredients are linked.
+            // New menu items should be unavailable first
+            // until ingredients are linked and stock is enough.
             $menuItem->is_available = false;
         });
     }
@@ -33,19 +43,19 @@ class MenuItem extends Model
             ->withTimestamps();
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | IMPORTANT
-    |--------------------------------------------------------------------------
-    | This makes $menuItem->is_available always computed live.
-    | Rule:
-    | - No ingredients = unavailable
-    | - Any ingredient stock lower than required = unavailable
-    | - All linked ingredients enough = available
-    */
-    public function getIsAvailableAttribute($value): bool
+    public function getImageUrlAttribute(): ?string
     {
-        return $this->computeAvailability();
+        if (!$this->image) {
+            return null;
+        }
+
+        // If old records still use direct online image URL
+        if (str_starts_with($this->image, 'http')) {
+            return $this->image;
+        }
+
+        // For uploaded Laravel storage images
+        return asset('storage/' . $this->image);
     }
 
     public function refreshAvailability(): void
@@ -59,18 +69,14 @@ class MenuItem extends Model
     {
         self::query()->chunk(100, function ($menuItems) {
             foreach ($menuItems as $menuItem) {
-                $menuItem->forceFill([
-                    'is_available' => $menuItem->computeAvailability(),
-                ])->saveQuietly();
+                $menuItem->refreshAvailability();
             }
         });
     }
 
     public function computeAvailability(): bool
     {
-        $ingredients = $this->relationLoaded('ingredients')
-            ? $this->ingredients
-            : $this->ingredients()->get();
+        $ingredients = $this->ingredients()->get();
 
         // No linked ingredients = unavailable
         if ($ingredients->isEmpty()) {
@@ -78,18 +84,18 @@ class MenuItem extends Model
         }
 
         foreach ($ingredients as $ingredient) {
-            $requiredForOneOrder = (float) $ingredient->pivot->quantity_required;
+            $requiredForOneOrder = (float) ($ingredient->pivot->quantity_required ?? 0);
 
-            // Use current_stock because this is what your inventory page displays.
-            $freshIngredient = Ingredient::find($ingredient->id);
-
-            if (!$freshIngredient) {
+            if ($requiredForOneOrder <= 0) {
                 return false;
             }
 
-            $availableStock = (float) $freshIngredient->current_stock;
+            /*
+             * Use current_stock because this is what your inventory page displays.
+             * If your inventory is based on batches later, we can change this to total_stock.
+             */
+            $availableStock = (float) ($ingredient->current_stock ?? 0);
 
-            // If even one ingredient is not enough, unavailable
             if ($availableStock < $requiredForOneOrder) {
                 return false;
             }

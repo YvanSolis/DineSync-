@@ -485,6 +485,17 @@ document.getElementById('userSearch').addEventListener('input', applyFilters);
 document.getElementById('roleFilter').addEventListener('change', applyFilters);
 
 loadUsers();
+
+setInterval(() => {
+    const userModal = document.getElementById('userModal');
+    const userModalOpen = userModal && !userModal.classList.contains('hidden');
+
+    if (document.hidden || userModalOpen) {
+        return;
+    }
+
+    loadUsers();
+}, 30000);
 </script>
 
 @endsection

@@ -64,7 +64,7 @@
 
 <!-- Add/Edit Menu Item Modal -->
 <div id="menuModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between p-5 border-b">
             <h3 id="menuModalTitle" class="text-lg font-bold">Add Menu Item</h3>
             <button onclick="closeMenuModal()" class="text-gray-500 hover:text-black text-xl">&times;</button>
@@ -81,6 +81,21 @@
                 <select id="itemCategory" class="w-full border rounded px-3 py-2" required>
                     <option value="">Select Category</option>
                 </select>
+                <p class="text-xs text-gray-400 mt-1">Category is still used for menu filtering/display.</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium mb-1">
+                    Description <span class="text-gray-400">(optional)</span>
+                </label>
+                <textarea
+                    id="itemDescription"
+                    rows="3"
+                    maxlength="1000"
+                    placeholder="Enter menu item description..."
+                    class="w-full border rounded px-3 py-2 resize-none"
+                ></textarea>
+                <p class="text-xs text-gray-400 mt-1">Short description for customer/mobile display.</p>
             </div>
 
             <div>
@@ -89,8 +104,48 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1">Image URL <span class="text-gray-400">(optional)</span></label>
-                <input id="itemImage" type="text" class="w-full border rounded px-3 py-2" placeholder="https://example.com/image.jpg">
+                <label class="block text-sm font-medium mb-2">
+                    Flavor Tags <span class="text-gray-400">(for AI recommendations)</span>
+                </label>
+
+                <div id="flavorTagsContainer" class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <!-- Flavor tags will load here -->
+                </div>
+
+                <p class="text-xs text-gray-400 mt-1">
+                    You can select multiple tags like spicy, savory, sweet, or refreshing.
+                </p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium mb-1">
+                    Meal Type <span class="text-gray-400">(for AI recommendations)</span>
+                </label>
+
+                <select id="itemMealType" class="w-full border rounded px-3 py-2">
+                    <option value="">Select Meal Type</option>
+                </select>
+
+                <p class="text-xs text-gray-400 mt-1">
+                    Select one only, like main, side, drink, dessert, snack, or soup.
+                </p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium mb-1">
+                    Upload Image <span class="text-gray-400">(optional)</span>
+                </label>
+
+                <input
+                    id="itemImage"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    class="w-full border rounded px-3 py-2"
+                >
+
+                <p id="currentImageText" class="text-xs text-gray-400 mt-1 hidden">
+                    Current image will stay unless you upload a new one.
+                </p>
             </div>
 
             <div class="flex items-center gap-2">
@@ -173,6 +228,7 @@
 let menuItems = [];
 let filteredMenuItems = [];
 let ingredients = [];
+
 let categories = [
     'Authentic Ala Carte Meals',
     'Dishes',
@@ -182,6 +238,45 @@ let categories = [
     'Maki & Sushi',
     'Jeon Series',
     'Tteokbokki Series'
+];
+
+let flavorTags = [
+    'spicy',
+    'sweet',
+    'savory',
+    'mild',
+    'sour',
+    'creamy',
+    'refreshing',
+    'salty',
+    'crispy',
+    'cheesy',
+    'rich',
+    'smoky',
+    'umami',
+    'tangy',
+    'fried',
+    'grilled',
+    'seafood',
+    'meaty',
+    'broth',
+    'fermented'
+];
+
+let mealTypes = [
+    'set',
+    'main',
+    'side',
+    'drink',
+    'dessert',
+    'snack',
+    'soup',
+    'hotpot',
+    'noodle',
+    'sushi',
+    'salad',
+    'extra',
+    'alcohol'
 ];
 
 let editingMenuItemId = null;
@@ -198,6 +293,30 @@ function safeText(value) {
 
 function formatMoney(value) {
     return `₱${Number(value || 0).toFixed(2)}`;
+}
+
+function formatLabel(value) {
+    return String(value || '')
+        .replaceAll('_', ' ')
+        .replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function getImageSrc(item) {
+    if (!item) return null;
+
+    const image = item.image_url || item.image;
+
+    if (!image) return null;
+
+    if (image.startsWith('http://') || image.startsWith('https://')) {
+        return image;
+    }
+
+    if (image.startsWith('/storage/')) {
+        return image;
+    }
+
+    return `/storage/${image}`;
 }
 
 function setButtonLoading(button, isLoading, loadingText = 'Loading...') {
@@ -264,12 +383,23 @@ async function silentReloadMenuItems() {
             menuItems = data;
         } else {
             menuItems = data.menu_items ?? [];
+
             if (data.categories) {
                 categories = data.categories;
+            }
+
+            if (data.flavor_tags_options) {
+                flavorTags = data.flavor_tags_options;
+            }
+
+            if (data.meal_type_options) {
+                mealTypes = data.meal_type_options;
             }
         }
 
         populateCategoryFilters();
+        populateFlavorTags();
+        populateMealTypes();
         applyFilters();
 
         if (currentIngredientMenuItemId) {
@@ -282,9 +412,11 @@ async function silentReloadMenuItems() {
 }
 
 function getImageHtml(item) {
-    if (item.image) {
+    const imageSrc = getImageSrc(item);
+
+    if (imageSrc) {
         return `
-            <img src="${safeText(item.image)}"
+            <img src="${safeText(imageSrc)}"
                 class="w-14 h-14 object-cover rounded-lg border"
                 onerror="this.outerHTML='<div class=&quot;w-14 h-14 rounded-lg bg-gray-100 border flex items-center justify-center text-gray-400 text-xs&quot;>No Image</div>'">
         `;
@@ -303,6 +435,35 @@ function availabilityBadge(item) {
     }
 
     return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-600">Unavailable</span>';
+}
+
+function getFlavorTagsHtml(item) {
+    const tags = Array.isArray(item.flavor_tags) ? item.flavor_tags : [];
+
+    if (!tags.length && !item.meal_type) {
+        return `<p class="text-xs text-gray-400 mt-1 italic">No AI tags yet</p>`;
+    }
+
+    const tagsHtml = tags.map(tag => `
+        <span class="bg-orange-50 text-orange-600 border border-orange-100 px-2 py-0.5 rounded-full text-[11px]">
+            ${safeText(tag)}
+        </span>
+    `).join('');
+
+    const mealTypeHtml = item.meal_type
+        ? `
+            <span class="bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-full text-[11px]">
+                ${safeText(item.meal_type)}
+            </span>
+        `
+        : '';
+
+    return `
+        <div class="flex flex-wrap gap-1 mt-2">
+            ${mealTypeHtml}
+            ${tagsHtml}
+        </div>
+    `;
 }
 
 async function loadIngredients() {
@@ -352,12 +513,23 @@ async function loadMenuItems() {
             menuItems = data;
         } else {
             menuItems = data.menu_items ?? [];
+
             if (data.categories) {
                 categories = data.categories;
+            }
+
+            if (data.flavor_tags_options) {
+                flavorTags = data.flavor_tags_options;
+            }
+
+            if (data.meal_type_options) {
+                mealTypes = data.meal_type_options;
             }
         }
 
         populateCategoryFilters();
+        populateFlavorTags();
+        populateMealTypes();
         applyFilters();
     } catch (error) {
         console.error('Load menu items failed:', error);
@@ -391,6 +563,50 @@ function populateCategoryFilters() {
     itemCategory.value = selectedCategory;
 }
 
+function populateFlavorTags(selectedTags = []) {
+    const container = document.getElementById('flavorTagsContainer');
+    const selected = Array.isArray(selectedTags) ? selectedTags : [];
+
+    container.innerHTML = '';
+
+    flavorTags.forEach(tag => {
+        const checked = selected.includes(tag) ? 'checked' : '';
+
+        container.innerHTML += `
+            <label class="flex items-center gap-2 text-sm bg-gray-50 border rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-100">
+                <input
+                    type="checkbox"
+                    class="flavor-tag-checkbox rounded"
+                    value="${safeText(tag)}"
+                    ${checked}
+                >
+                <span>${safeText(formatLabel(tag))}</span>
+            </label>
+        `;
+    });
+}
+
+function populateMealTypes(selectedType = '') {
+    const select = document.getElementById('itemMealType');
+
+    select.innerHTML = '<option value="">Select Meal Type</option>';
+
+    mealTypes.forEach(type => {
+        const selected = selectedType === type ? 'selected' : '';
+
+        select.innerHTML += `
+            <option value="${safeText(type)}" ${selected}>
+                ${safeText(formatLabel(type))}
+            </option>
+        `;
+    });
+}
+
+function getSelectedFlavorTags() {
+    return Array.from(document.querySelectorAll('.flavor-tag-checkbox:checked'))
+        .map(checkbox => checkbox.value);
+}
+
 function populateIngredientDropdown() {
     const select = document.getElementById('ingredientSelect');
     select.innerHTML = '<option value="">Select Ingredient</option>';
@@ -409,7 +625,17 @@ function applyFilters() {
     const category = document.getElementById('categoryFilter').value;
 
     filteredMenuItems = menuItems.filter(item => {
-        const matchesSearch = item.name.toLowerCase().includes(search);
+        const name = String(item.name || '').toLowerCase();
+        const description = String(item.description || '').toLowerCase();
+        const mealType = String(item.meal_type || '').toLowerCase();
+        const tags = Array.isArray(item.flavor_tags) ? item.flavor_tags.join(' ').toLowerCase() : '';
+
+        const matchesSearch =
+            name.includes(search) ||
+            description.includes(search) ||
+            mealType.includes(search) ||
+            tags.includes(search);
+
         const matchesCategory = category === 'all' ? true : item.category === category;
 
         return matchesSearch && matchesCategory;
@@ -438,9 +664,18 @@ function renderMenuTable() {
                 ${getImageHtml(item)}
             </td>
 
-            <td class="px-6 py-4">
+            <td class="px-6 py-4 max-w-[320px]">
                 <p class="font-semibold">${safeText(item.name)}</p>
-                <p class="text-xs text-gray-400">${item.ingredients?.length || 0} linked ingredient(s)</p>
+
+                ${
+                    item.description
+                        ? `<p class="text-xs text-gray-500 mt-1 line-clamp-2">${safeText(item.description)}</p>`
+                        : `<p class="text-xs text-gray-400 mt-1 italic">No description</p>`
+                }
+
+                <p class="text-xs text-gray-400 mt-1">${item.ingredients?.length || 0} linked ingredient(s)</p>
+
+                ${getFlavorTagsHtml(item)}
             </td>
 
             <td class="px-6 py-4">
@@ -454,7 +689,7 @@ function renderMenuTable() {
             </td>
 
             <td class="px-6 py-4">
-                <button onclick="toggleAvailability(${item.id}, ${item.is_available}, this)">
+                <button onclick="toggleAvailability(${item.id}, ${item.is_available ? 'true' : 'false'}, this)">
                     ${availabilityBadge(item)}
                 </button>
             </td>
@@ -484,6 +719,12 @@ function renderMenuTable() {
 function openMenuModal(id = null) {
     editingMenuItemId = id;
 
+    const imageInput = document.getElementById('itemImage');
+    const currentImageText = document.getElementById('currentImageText');
+
+    populateFlavorTags();
+    populateMealTypes();
+
     if (id) {
         const item = menuItems.find(menuItem => Number(menuItem.id) === Number(id));
         if (!item) return;
@@ -491,16 +732,27 @@ function openMenuModal(id = null) {
         document.getElementById('menuModalTitle').textContent = 'Edit Menu Item';
         document.getElementById('menuSaveBtn').textContent = 'Update Menu Item';
 
-        document.getElementById('itemName').value = item.name;
-        document.getElementById('itemCategory').value = item.category;
-        document.getElementById('itemPrice').value = item.price;
-        document.getElementById('itemImage').value = item.image || '';
+        document.getElementById('itemName').value = item.name || '';
+        document.getElementById('itemCategory').value = item.category || '';
+        document.getElementById('itemDescription').value = item.description || '';
+        document.getElementById('itemPrice').value = item.price || '';
+        imageInput.value = '';
+        currentImageText.classList.toggle('hidden', !item.image && !item.image_url);
         document.getElementById('itemAvailable').checked = Boolean(item.is_available);
+
+        populateFlavorTags(item.flavor_tags || []);
+        populateMealTypes(item.meal_type || '');
     } else {
         document.getElementById('menuModalTitle').textContent = 'Add Menu Item';
         document.getElementById('menuSaveBtn').textContent = 'Save Menu Item';
         document.getElementById('menuForm').reset();
+        document.getElementById('itemDescription').value = '';
+        imageInput.value = '';
+        currentImageText.classList.add('hidden');
         document.getElementById('itemAvailable').checked = true;
+
+        populateFlavorTags([]);
+        populateMealTypes('');
     }
 
     const modal = document.getElementById('menuModal');
@@ -520,20 +772,35 @@ document.getElementById('menuForm').addEventListener('submit', async function(e)
     e.preventDefault();
 
     const saveBtn = document.getElementById('menuSaveBtn');
+    const imageInput = document.getElementById('itemImage');
 
-    const payload = {
-        name: document.getElementById('itemName').value,
-        category: document.getElementById('itemCategory').value,
-        price: document.getElementById('itemPrice').value,
-        image: document.getElementById('itemImage').value,
-        is_available: document.getElementById('itemAvailable').checked
-    };
+    const formData = new FormData();
+    formData.append('name', document.getElementById('itemName').value);
+    formData.append('category', document.getElementById('itemCategory').value);
+    formData.append('description', document.getElementById('itemDescription').value);
+    formData.append('price', document.getElementById('itemPrice').value);
+    formData.append('is_available', document.getElementById('itemAvailable').checked ? '1' : '0');
 
-    const url = editingMenuItemId
-        ? `/api/admin/menu-items/${editingMenuItemId}`
-        : '/api/admin/menu-items';
+    const selectedFlavorTags = getSelectedFlavorTags();
 
-    const method = editingMenuItemId ? 'PUT' : 'POST';
+    selectedFlavorTags.forEach(tag => {
+        formData.append('flavor_tags[]', tag);
+    });
+
+    formData.append('meal_type', document.getElementById('itemMealType').value);
+
+    if (imageInput.files && imageInput.files[0]) {
+        formData.append('image', imageInput.files[0]);
+    }
+
+    let url = '/api/admin/menu-items';
+    let method = 'POST';
+
+    if (editingMenuItemId) {
+        url = `/api/admin/menu-items/${editingMenuItemId}`;
+        method = 'POST';
+        formData.append('_method', 'PUT');
+    }
 
     setButtonLoading(saveBtn, true, editingMenuItemId ? 'Updating...' : 'Saving...');
 
@@ -541,16 +808,20 @@ document.getElementById('menuForm').addEventListener('submit', async function(e)
         const res = await fetch(url, {
             method,
             headers: {
-                'Content-Type': 'application/json',
                 'Accept': 'application/json',
             },
-            body: JSON.stringify(payload)
+            body: formData
         });
 
         const data = await res.json();
 
         if (!res.ok) {
-            alert(data.message || 'Failed to save menu item.');
+            if (data.errors) {
+                const firstError = Object.values(data.errors)[0][0];
+                alert(firstError);
+            } else {
+                alert(data.message || 'Failed to save menu item.');
+            }
             return;
         }
 
@@ -783,11 +1054,28 @@ document.getElementById('menuSearch').addEventListener('input', applyFilters);
 document.getElementById('categoryFilter').addEventListener('change', applyFilters);
 
 async function init() {
+    populateFlavorTags();
+    populateMealTypes();
     await loadIngredients();
     await loadMenuItems();
 }
 
 init();
+
+setInterval(() => {
+    const menuModal = document.getElementById('menuModal');
+    const ingredientsModal = document.getElementById('ingredientsModal');
+
+    const menuModalOpen = menuModal && !menuModal.classList.contains('hidden');
+    const ingredientsModalOpen = ingredientsModal && !ingredientsModal.classList.contains('hidden');
+
+    if (document.hidden || menuModalOpen || ingredientsModalOpen) {
+        return;
+    }
+
+    silentReloadMenuItems();
+    loadIngredients();
+}, 30000);
 </script>
 
 @endsection

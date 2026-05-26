@@ -658,7 +658,13 @@ async function refreshAIForecast(event) {
     }
 }
 
+let reportsAutoRefresh = null;
+
 loadReportsForecast();
+
+reportsAutoRefresh = setInterval(() => {
+    loadReportsForecast();
+}, 60000);
 </script>
 
 @endsection

@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use App\Models\Reservation;
 use App\Models\RestaurantSetting;
+use App\Services\XenditService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ReservationController extends Controller
 {
@@ -29,7 +32,7 @@ class ReservationController extends Controller
         ));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, XenditService $xenditService)
     {
         $settings = RestaurantSetting::current();
 
@@ -40,33 +43,56 @@ class ReservationController extends Controller
             'reservation_date' => ['required', 'date', 'after_or_equal:today'],
             'reservation_time' => ['required'],
             'guest_count' => ['required', 'integer', 'min:1', 'max:30'],
-            'payment_method' => ['required', 'string', 'max:50'],
-            'payment_reference' => ['required', 'string', 'max:255'],
-            'payment_proof' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $proofPath = $request->file('payment_proof')->store('reservation_payment_proofs', 'public');
+        try {
+            $reservation = DB::transaction(function () use ($request, $settings) {
+                return Reservation::create([
+                    'user_id' => auth()->id(),
+                    'customer_name' => $request->customer_name,
+                    'customer_email' => $request->customer_email,
+                    'customer_phone' => $request->customer_phone,
+                    'reservation_date' => $request->reservation_date,
+                    'reservation_time' => $request->reservation_time,
+                    'guest_count' => $request->guest_count,
+                    'reservation_fee_amount' => $settings->reservation_fee,
 
-        Reservation::create([
-            'user_id' => auth()->id(),
-            'customer_name' => $request->customer_name,
-            'customer_email' => $request->customer_email,
-            'customer_phone' => $request->customer_phone,
-            'reservation_date' => $request->reservation_date,
-            'reservation_time' => $request->reservation_time,
-            'guest_count' => $request->guest_count,
-            'reservation_fee_amount' => $settings->reservation_fee,
-            'payment_method' => $request->payment_method,
-            'payment_reference' => $request->payment_reference,
-            'payment_proof' => $proofPath,
-            'payment_status' => 'pending',
-            'notes' => $request->notes,
-            'status' => 'pending',
-        ]);
+                    // Xendit payment flow
+                    'payment_method' => 'Xendit',
+                    'payment_reference' => null,
+                    'payment_proof' => null,
+                    'payment_status' => 'pending',
 
-        return redirect()
-            ->route('customer.reservations.index')
-            ->with('success', 'Your reservation request has been submitted. Please wait for admin verification.');
+                    'notes' => $request->notes,
+                    'status' => 'pending',
+                ]);
+            });
+
+            $invoice = $xenditService->createReservationInvoice($reservation);
+
+            $reservation->update([
+                'xendit_invoice_id' => $invoice['id'] ?? null,
+                'xendit_external_id' => $invoice['external_id'] ?? ('RESERVATION-' . $reservation->id),
+                'xendit_invoice_url' => $invoice['invoice_url'] ?? null,
+            ]);
+
+            if (empty($invoice['invoice_url'])) {
+                return redirect()
+                    ->route('customer.reservations.index')
+                    ->with('error', 'Reservation was created, but payment link was not generated. Please contact staff.');
+            }
+
+            return redirect()->away($invoice['invoice_url']);
+        } catch (\Throwable $e) {
+            Log::error('Reservation Xendit payment creation failed', [
+                'message' => $e->getMessage(),
+                'user_id' => auth()->id(),
+            ]);
+
+            return back()
+                ->withInput()
+                ->with('error', 'Unable to create payment link right now. Please try again. Error: ' . $e->getMessage());
+        }
     }
 }

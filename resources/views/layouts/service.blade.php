@@ -11,110 +11,174 @@
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800&display=swap" rel="stylesheet" />
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <style>
+        .service-bg {
+            background:
+                linear-gradient(135deg, rgba(255, 247, 237, 0.94), rgba(255, 255, 255, 0.96)),
+                url('https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1800&q=80');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+
+        .service-sidebar-bg {
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(255, 247, 237, 0.94)),
+                url('https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1200&q=80');
+            background-size: cover;
+            background-position: left center;
+        }
+
+        .service-brand-card {
+            background:
+                linear-gradient(135deg, rgba(249, 115, 22, 0.96), rgba(251, 146, 60, 0.88)),
+                url('https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1200&q=80');
+            background-size: cover;
+            background-position: center;
+        }
+
+        .soft-glass {
+            background: rgba(255, 255, 255, 0.82);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+    </style>
 </head>
 
-<body class="font-sans bg-gray-50 text-gray-900">
-    <div class="min-h-screen flex">
+<body class="font-sans text-gray-900 h-screen overflow-hidden">
 
-        <!-- Sidebar -->
-        <aside class="w-64 bg-white border-r border-gray-200 min-h-screen fixed left-0 top-0 bottom-0 flex flex-col">
-            <!-- Brand -->
-            <div class="h-24 flex items-center px-6 border-b border-gray-100">
+<div class="h-screen overflow-hidden service-bg">
+
+    <!-- Sidebar -->
+    <aside class="fixed left-0 top-0 z-50 h-screen w-[260px] service-sidebar-bg border-r border-orange-100/70 flex flex-col overflow-y-auto shadow-[8px_0_30px_rgba(15,23,42,0.04)]">
+
+        <!-- Brand -->
+        <div class="px-5 py-5 border-b border-orange-100/70 shrink-0">
+            <div class="service-brand-card rounded-2xl px-4 py-4 text-white shadow-lg shadow-orange-200/60">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-white/20 border border-white/30 flex items-center justify-center text-2xl">
+                        🍽️
+                    </div>
+
+                    <div>
+                        <h1 class="text-[20px] font-extrabold leading-tight">DineSync+</h1>
+                        <p class="text-[12px] text-white/85">Service Staff Panel</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 px-4 py-5 space-y-2 text-[14px] font-semibold">
+
+            <a href="{{ route('service.dashboard') }}"
+               class="flex items-center gap-3 px-4 py-3.5 rounded-2xl transition
+               {{ request()->routeIs('service.dashboard') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600' }}">
+                <span class="w-6 text-center">⌂</span>
+                <span>Dashboard</span>
+            </a>
+
+            <a href="{{ route('service.active-orders') }}"
+               class="flex items-center gap-3 px-4 py-3.5 rounded-2xl transition
+               {{ request()->routeIs('service.active-orders') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600' }}">
+                <span class="w-6 text-center">▤</span>
+                <span>Active Orders</span>
+            </a>
+
+            <a href="{{ route('service.table-monitoring') }}"
+               class="flex items-center gap-3 px-4 py-3.5 rounded-2xl transition
+               {{ request()->routeIs('service.table-monitoring') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600' }}">
+                <span class="w-6 text-center">▦</span>
+                <span>Table Monitoring</span>
+            </a>
+
+            <a href="{{ route('service.reservations') }}"
+               class="flex items-center gap-3 px-4 py-3.5 rounded-2xl transition
+               {{ request()->routeIs('service.reservations') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600' }}">
+                <span class="w-6 text-center">◷</span>
+                <span>Reservations</span>
+            </a>
+        </nav>
+
+        <!-- User / Logout -->
+        <div class="px-4 pb-5 space-y-3">
+            <div class="rounded-2xl border border-orange-100 bg-white/80 px-4 py-4 shadow-sm">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white flex items-center justify-center text-sm font-bold shadow-md shadow-orange-200">
+                        {{ strtoupper(substr(auth()->user()->name ?? 'S', 0, 1)) }}
+                    </div>
+
+                    <div class="min-w-0">
+                        <p class="text-sm font-bold text-gray-800 truncate">
+                            {{ auth()->user()->name ?? 'Service Staff' }}
+                        </p>
+
+                        <div class="flex items-center gap-2 mt-1">
+                            <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                            <p class="text-xs text-gray-400">On Duty</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <form method="POST" action="{{ route('logout') }}">
+                @csrf
+
+                <button type="submit"
+                    class="w-full rounded-2xl bg-red-50 px-4 py-3.5 text-sm font-bold text-red-600 hover:bg-red-100 transition">
+                    Logout
+                </button>
+            </form>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="ml-[260px] h-screen overflow-y-auto">
+
+        <!-- Topbar -->
+        <header class="sticky top-0 z-40 soft-glass border-b border-orange-100/70 px-7 py-4">
+            <div class="flex items-center justify-between gap-4 flex-wrap">
+
                 <div>
-                    <h1 class="text-2xl font-extrabold text-orange-500 leading-tight">DineSync</h1>
-                    <p class="text-sm text-gray-400">Service Staff Panel</p>
-                </div>
-            </div>
-
-            <!-- Navigation -->
-            <nav class="flex-1 px-4 py-6 space-y-1">
-                <a href="{{ route('service.dashboard') }}"
-                   class="flex items-center px-4 py-3 rounded-xl text-sm font-medium transition
-                   {{ request()->routeIs('service.dashboard') ? 'bg-orange-500 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900' }}">
-                    Dashboard
-                </a>
-
-                <a href="{{ route('service.active-orders') }}"
-                   class="flex items-center px-4 py-3 rounded-xl text-sm font-medium transition
-                   {{ request()->routeIs('service.active-orders') ? 'bg-orange-500 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900' }}">
-                    Active Orders
-                </a>
-
-                <a href="{{ route('service.table-monitoring') }}"
-                   class="flex items-center px-4 py-3 rounded-xl text-sm font-medium transition
-                   {{ request()->routeIs('service.table-monitoring') ? 'bg-orange-500 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900' }}">
-                    Table Monitoring
-                </a>
-
-                <a href="{{ route('service.reservations') }}"
-                   class="flex items-center px-4 py-3 rounded-xl text-sm font-medium transition
-                   {{ request()->routeIs('service.reservations') ? 'bg-orange-500 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900' }}">
-                    Reservations
-                </a>
-            </nav>
-
-            <!-- User / Logout -->
-            <div class="p-4 border-t border-gray-100">
-                <div class="bg-gray-50 rounded-2xl px-4 py-4 mb-3">
-                    <p class="font-semibold text-gray-900 truncate">
-                        {{ auth()->user()->name ?? 'Service Staff' }}
+                    <p class="text-xs font-bold uppercase tracking-[0.18em] text-orange-500">
+                        Service Operations
                     </p>
-                    <p class="text-sm text-gray-400">On Duty</p>
+
+                    <h2 class="text-2xl font-extrabold text-gray-900 leading-tight">
+                        @yield('page-title', 'Service Staff')
+                    </h2>
+
+                    <p class="text-sm text-gray-500 mt-1">
+                        @yield('page-subtitle', 'Manage daily restaurant service operations')
+                    </p>
                 </div>
 
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
-                    <button type="submit"
-                        class="w-full px-4 py-3 rounded-xl text-sm font-semibold bg-red-50 text-red-600 hover:bg-red-100 transition">
-                        Logout
-                    </button>
-                </form>
-            </div>
-        </aside>
-
-        <!-- Main -->
-        <main class="ml-64 flex-1 min-h-screen">
-            <!-- Topbar -->
-            <header class="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8">
-                <div class="flex items-center gap-4">
-                    <div class="hidden md:flex items-center bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 w-80">
-                        <input
-                            type="text"
-                            placeholder="Search..."
-                            class="bg-transparent border-0 focus:ring-0 text-sm w-full p-0 text-gray-600 placeholder:text-gray-400">
-                    </div>
-
-                    <div class="hidden lg:block bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+                <div class="flex items-center gap-3">
+                    <div class="hidden md:block bg-white/80 border border-orange-100 rounded-2xl px-5 py-3 shadow-sm">
                         <p class="text-xs text-gray-400">Today</p>
-                        <p class="text-sm font-semibold text-gray-700">{{ now()->format('M d, Y') }}</p>
+                        <p class="text-sm font-bold text-gray-700">{{ now()->format('M d, Y') }}</p>
                     </div>
-                </div>
 
-                <div class="flex items-center gap-4">
-                    <div class="hidden sm:flex items-center gap-2 bg-green-50 text-green-600 px-4 py-2 rounded-xl text-sm font-semibold">
+                    <div class="bg-green-50 border border-green-100 text-green-600 px-4 py-3 rounded-2xl text-sm font-bold shadow-sm flex items-center gap-2">
                         <span class="w-2 h-2 rounded-full bg-green-500"></span>
                         Online
                     </div>
-
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold">
-                            {{ strtoupper(substr(auth()->user()->name ?? 'S', 0, 1)) }}
-                        </div>
-                        <div class="hidden md:block">
-                            <p class="text-sm font-semibold text-gray-900">
-                                {{ auth()->user()->name ?? 'Service Staff' }}
-                            </p>
-                            <p class="text-xs text-gray-400">Service Staff</p>
-                        </div>
-                    </div>
                 </div>
-            </header>
+            </div>
+        </header>
 
-            <!-- Content -->
-            <section class="p-8">
+        <!-- Content -->
+        <main class="p-7">
+            <div class="max-w-[1600px] mx-auto">
                 @yield('content')
-            </section>
+            </div>
         </main>
+
     </div>
+</div>
+
+@stack('scripts')
+
 </body>
 </html>

@@ -27,6 +27,12 @@ class Reservation extends Model
         'payment_proof',
         'payment_status',
 
+        // Xendit fields
+        'xendit_invoice_id',
+        'xendit_external_id',
+        'xendit_invoice_url',
+        'paid_at',
+
         'notes',
         'status',
     ];
@@ -35,6 +41,7 @@ class Reservation extends Model
         'reservation_date' => 'date',
         'arrived_at' => 'datetime',
         'seated_at' => 'datetime',
+        'paid_at' => 'datetime',
     ];
 
     public function user()

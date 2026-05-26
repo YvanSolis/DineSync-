@@ -2,146 +2,447 @@
 
 @section('content')
 
-<section class="max-w-7xl mx-auto px-6 py-8">
+<style>
+    [x-cloak] {
+        display: none !important;
+    }
 
-    <!-- PAGE HEADER -->
-    <div class="bg-white border border-gray-200 rounded-3xl shadow-sm p-8 mb-6">
-        <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-            <div>
-                <p class="text-sm font-semibold text-orange-500 mb-2">Customer Menu</p>
-                <h1 class="text-3xl md:text-4xl font-bold text-gray-900">
-                    Browse available meals
-                </h1>
-                <p class="text-gray-500 mt-2 max-w-2xl">
-                    Check menu items before ordering or reserving. Items marked unavailable cannot be selected today.
-                </p>
-            </div>
+    body {
+        overflow: hidden;
+    }
 
-            <a href="{{ route('customer.home') }}" class="inline-flex items-center justify-center px-5 py-3 rounded-xl border border-gray-200 hover:border-orange-500 hover:text-orange-500 font-semibold transition">
-                Back to Home
-            </a>
-        </div>
-    </div>
+    .menu-book-page {
+        height: calc(100vh - 80px);
+        width: 100%;
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background:
+            radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.18), transparent 18rem),
+            radial-gradient(circle at 82% 20%, rgba(249, 115, 22, 0.20), transparent 20rem),
+            linear-gradient(135deg, rgba(45, 22, 10, 0.92), rgba(99, 51, 22, 0.92)),
+            repeating-linear-gradient(
+                90deg,
+                #4b2410 0px,
+                #4b2410 78px,
+                #5f3016 78px,
+                #5f3016 156px
+            );
+    }
 
-    <!-- CATEGORY FILTER -->
-    <div 
-        x-data="{ selectedCategory: 'All' }"
-        class="space-y-6"
-    >
-        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 overflow-x-auto">
-            <div class="flex gap-3 min-w-max">
-                <button
-                    @click="selectedCategory = 'All'"
-                    class="px-4 py-2 rounded-xl text-sm font-semibold transition"
-                    :class="selectedCategory === 'All' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-orange-50 hover:text-orange-500'"
-                >
-                    All
-                </button>
+    .menu-book-page::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+            linear-gradient(90deg, rgba(255,255,255,0.05), transparent 28%, rgba(0,0,0,0.18)),
+            repeating-linear-gradient(
+                0deg,
+                rgba(255,255,255,0.025) 0px,
+                rgba(255,255,255,0.025) 1px,
+                transparent 1px,
+                transparent 8px
+            );
+        opacity: 0.9;
+    }
 
-                @foreach ($categories as $category)
-                    <button
-                        @click="selectedCategory = @js($category)"
-                        class="px-4 py-2 rounded-xl text-sm font-semibold transition"
-                        :class="selectedCategory === @js($category) ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-orange-50 hover:text-orange-500'"
-                    >
-                        {{ $category }}
-                    </button>
-                @endforeach
-            </div>
-        </div>
+    .menu-book-page::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+            radial-gradient(circle at center, rgba(255,255,255,0.16), transparent 34rem),
+            linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.14) 100%);
+    }
 
-        <!-- MENU GROUPS -->
-        @forelse ($groupedMenuItems as $category => $items)
-            <div 
-                x-show="selectedCategory === 'All' || selectedCategory === @js($category)"
-                x-transition
-                class="bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden"
+    .fixed.bottom-6.right-6,
+    .fixed.bottom-8.right-8,
+    .fixed.bottom-10.right-10 {
+        display: none !important;
+    }
+
+    .menu-book-stage {
+        position: relative;
+        z-index: 5;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        perspective: 2600px;
+        transform-style: preserve-3d;
+    }
+
+    .menu-book-wrap {
+        position: relative;
+        width: min(760px, 94vw);
+        height: 500px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transform-style: preserve-3d;
+        animation: bookFloat 5.2s ease-in-out infinite;
+    }
+
+    @keyframes bookFloat {
+        0%, 100% {
+            transform: translateY(0px) rotateZ(-0.25deg);
+        }
+
+        50% {
+            transform: translateY(-8px) rotateZ(0.25deg);
+        }
+    }
+
+    .menu-book-shell {
+        position: relative;
+        z-index: 5;
+        width: min(740px, 94vw);
+        height: 470px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transform-style: preserve-3d;
+        transition: transform 260ms ease;
+    }
+
+    .menu-book-shell.single-page-mode {
+        transform: translateX(-165px);
+    }
+
+    .menu-book-shell.spread-mode {
+        transform: translateX(0);
+    }
+
+    #chefOppaFlipBook {
+        margin: 0 auto;
+        transform-style: preserve-3d;
+        filter: drop-shadow(0 22px 26px rgba(0, 0, 0, 0.34));
+    }
+
+    .page {
+        background: transparent;
+        overflow: hidden;
+    }
+
+    .page-content {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+        background: #fffaf3;
+        border-radius: 4px;
+    }
+
+    .page-content::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        pointer-events: none;
+        background:
+            linear-gradient(
+                90deg,
+                rgba(0,0,0,0.02),
+                transparent 8%,
+                transparent 92%,
+                rgba(0,0,0,0.02)
+            );
+    }
+
+    .page-content img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        user-select: none;
+        -webkit-user-drag: none;
+        position: relative;
+        z-index: 1;
+    }
+
+    .page-cover,
+    .back-cover {
+        color: white;
+        overflow: hidden;
+        position: relative;
+        border-radius: 16px;
+        background:
+            radial-gradient(circle at 75% 14%, rgba(249, 115, 22, 0.12), transparent 12rem),
+            linear-gradient(135deg, #1e293b 0%, #111827 55%, #020617 100%);
+        box-shadow:
+            inset 0 0 0 1px rgba(255,255,255,0.06),
+            inset 12px 0 20px rgba(255,255,255,0.03),
+            inset -18px 0 26px rgba(0,0,0,0.45);
+    }
+
+    .cover-texture {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+            repeating-linear-gradient(
+                35deg,
+                rgba(255,255,255,0.024) 0px,
+                rgba(255,255,255,0.024) 1px,
+                transparent 1px,
+                transparent 5px
+            ),
+            repeating-linear-gradient(
+                125deg,
+                rgba(0,0,0,0.18) 0px,
+                rgba(0,0,0,0.18) 1px,
+                transparent 1px,
+                transparent 7px
+            );
+        opacity: 0.88;
+    }
+
+    .cover-spine {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 15%;
+        height: 100%;
+        z-index: 2;
+        background: linear-gradient(90deg, #020617, #111827 58%, rgba(255,255,255,0.04));
+        box-shadow:
+            inset -18px 0 24px rgba(0,0,0,0.55),
+            10px 0 18px rgba(0,0,0,0.24);
+    }
+
+    .cover-spine::after {
+        content: "";
+        position: absolute;
+        right: 10px;
+        top: 8%;
+        width: 2px;
+        height: 84%;
+        border-radius: 999px;
+        background: rgba(249, 115, 22, 0.58);
+    }
+
+    .hard-cover-inner {
+        position: relative;
+        z-index: 5;
+        height: 100%;
+        padding: 30px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .cover-accent {
+        color: #fb923c;
+        text-shadow: 0 2px 8px rgba(249, 115, 22, 0.22);
+    }
+
+    .cover-line {
+        width: 84px;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #fb923c, transparent);
+    }
+
+    .cover-line-small {
+        width: 50px;
+        height: 2px;
+        background: #fb923c;
+        margin-top: 10px;
+    }
+
+    .cover-content-block {
+        margin-top: 54px;
+    }
+
+    @media (max-width: 1100px) {
+        .menu-book-wrap {
+            width: min(410px, 94vw);
+            height: 560px;
+        }
+
+        .menu-book-shell {
+            width: min(410px, 94vw);
+            height: 540px;
+        }
+
+        .menu-book-shell.single-page-mode,
+        .menu-book-shell.spread-mode {
+            transform: translateX(0);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .menu-book-wrap {
+            height: 540px;
+        }
+
+        .menu-book-shell {
+            width: min(390px, 94vw);
+            height: 520px;
+        }
+
+        .hard-cover-inner {
+            padding: 26px;
+        }
+
+        .cover-content-block {
+            margin-top: 48px;
+        }
+    }
+</style>
+
+<div
+    class="menu-book-page"
+    x-data="{
+        currentPage: 0,
+        totalPages: 9,
+        pageFlip: null,
+
+        updatePage(page) {
+            this.currentPage = page;
+        },
+
+        isSinglePageView() {
+            return this.currentPage === 0 || this.currentPage >= this.totalPages - 1;
+        }
+    }"
+    x-init="
+        const initFlipBook = () => {
+            const book = document.getElementById('chefOppaFlipBook');
+
+            if (!book || !window.St || !window.St.PageFlip) {
+                setTimeout(initFlipBook, 120);
+                return;
+            }
+
+            const isCompact = window.innerWidth < 1100;
+
+            pageFlip = new window.St.PageFlip(book, {
+                width: 330,
+                height: 470,
+                size: 'stretch',
+                minWidth: 285,
+                maxWidth: isCompact ? 410 : 740,
+                minHeight: 400,
+                maxHeight: isCompact ? 540 : 470,
+                maxShadowOpacity: 0.24,
+                showCover: true,
+                mobileScrollSupport: false,
+                usePortrait: true,
+                flippingTime: 950,
+                drawShadow: true,
+                startPage: 0,
+                autoSize: true,
+                clickEventForward: true,
+                swipeDistance: 18,
+                showPageCorners: true
+            });
+
+            pageFlip.loadFromHTML(document.querySelectorAll('#chefOppaFlipBook .page'));
+
+            totalPages = pageFlip.getPageCount();
+
+            pageFlip.on('flip', (event) => {
+                updatePage(event.data);
+            });
+        };
+
+        initFlipBook();
+    "
+>
+    <main class="menu-book-stage">
+        <div class="menu-book-wrap">
+            <div
+                class="menu-book-shell"
+                :class="isSinglePageView() ? 'single-page-mode' : 'spread-mode'"
             >
-                <div class="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    <div>
-                        <h2 class="text-2xl font-bold text-gray-900">
-                            {{ $category }}
-                        </h2>
-                        <p class="text-sm text-gray-500 mt-1">
-                            {{ count($items) }} menu item{{ count($items) > 1 ? 's' : '' }}
-                        </p>
-                    </div>
+                <div id="chefOppaFlipBook">
+                    <div class="page page-cover" data-density="hard">
+                        <div class="cover-texture"></div>
+                        <div class="cover-spine"></div>
 
-                    <span class="text-xs px-3 py-1 rounded-full bg-orange-50 text-orange-500 font-semibold w-fit">
-                        Menu Category
-                    </span>
-                </div>
-
-                <div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    @foreach ($items as $item)
-                        <div class="relative border rounded-2xl p-5 transition
-                            {{ $item['is_available'] ? 'border-gray-200 hover:border-orange-200 hover:shadow-sm' : 'border-gray-200 bg-gray-50 opacity-75' }}"
-                        >
-                            @if (!$item['is_available'])
-                                <div class="absolute inset-0 bg-white/50 rounded-2xl pointer-events-none"></div>
-                            @endif
-
-                            <div class="flex items-start justify-between gap-4 mb-4">
-                                <div class="w-14 h-14 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center text-2xl shrink-0">
-                                    🍽️
+                        <div class="hard-cover-inner">
+                            <div>
+                                <div class="cover-accent">
+                                    <div class="text-[10px] tracking-[0.40em] font-black">DINESYNC+</div>
+                                    <div class="cover-line mt-3"></div>
                                 </div>
 
-                                @if ($item['is_available'])
-                                    <span class="text-xs px-3 py-1 rounded-full bg-green-50 text-green-600 font-semibold">
-                                        Available
-                                    </span>
-                                @else
-                                    <span class="text-xs px-3 py-1 rounded-full bg-red-50 text-red-600 font-semibold">
-                                        Unavailable
-                                    </span>
-                                @endif
+                                <div class="cover-content-block">
+                                    <p class="cover-accent text-[11px] font-black uppercase tracking-[0.28em]">
+                                        Digital Restaurant Menu
+                                    </p>
+
+                                    <h2 class="mt-4 text-4xl font-black leading-none tracking-tight text-white">
+                                        MENU BOOK
+                                    </h2>
+
+                                    <div class="cover-line-small"></div>
+
+                                    <p class="mt-5 max-w-[250px] text-sm leading-6 text-white/65">
+                                        Browse our menu with a smooth realistic page-flip experience.
+                                    </p>
+                                </div>
                             </div>
 
-                            <h3 class="text-lg font-bold text-gray-900">
-                                {{ $item['name'] }}
-                            </h3>
-
-                            <p class="text-sm text-gray-500 mt-2 leading-6">
-                                {{ $item['description'] }}
-                            </p>
-
-                            <div class="mt-5 flex items-center justify-between">
-                                <p class="text-xl font-bold text-orange-500">
-                                    ₱{{ number_format($item['price'], 2) }}
+                            <div>
+                                <p class="text-sm text-white/60 mb-3">
+                                    Tap or drag the cover to open
                                 </p>
 
-                                @if ($item['is_available'])
-                                    <button
-                                        type="button"
-                                        class="px-4 py-2 rounded-xl bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 transition"
-                                    >
-                                        View
-                                    </button>
-                                @else
-                                    <button
-                                        type="button"
-                                        disabled
-                                        class="px-4 py-2 rounded-xl bg-gray-200 text-gray-400 text-sm font-semibold cursor-not-allowed"
-                                    >
-                                        Not Available
-                                    </button>
-                                @endif
+                                <div class="inline-flex rounded-full border border-orange-300/60 bg-orange-400 px-5 py-3 text-sm font-black text-black shadow-lg shadow-black/25">
+                                    Open Menu
+                                </div>
                             </div>
                         </div>
-                    @endforeach
+                    </div>
+
+                    @for ($i = 1; $i <= 7; $i++)
+                        <div class="page">
+                            <div class="page-content">
+                                <img
+                                    src="{{ asset('images/customer-menu/page-' . $i . '.jpg') }}"
+                                    alt="DineSync+ menu page {{ $i }}"
+                                >
+                            </div>
+                        </div>
+                    @endfor
+
+                    <div class="page back-cover" data-density="hard">
+                        <div class="cover-texture"></div>
+                        <div class="cover-spine"></div>
+
+                        <div class="hard-cover-inner">
+                            <div>
+                                <div class="cover-accent">
+                                    <div class="text-[10px] tracking-[0.40em] font-black">DINESYNC+</div>
+                                    <div class="cover-line mt-3"></div>
+                                </div>
+
+                                <h2 class="mt-20 text-4xl font-black leading-none tracking-tight text-white">
+                                    Thank You
+                                </h2>
+
+                                <p class="mt-5 max-w-[260px] text-sm leading-6 text-white/65">
+                                    Please call our service staff if you need assistance with ordering or table requests.
+                                </p>
+                            </div>
+
+                            <div class="text-sm text-white/50">
+                                DineSync+ Customer Portal
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        @empty
-            <div class="bg-white border border-gray-200 rounded-3xl shadow-sm p-10 text-center">
-                <div class="text-5xl mb-4">🍽️</div>
-                <h2 class="text-2xl font-bold text-gray-900">No menu items found</h2>
-                <p class="text-gray-500 mt-2">
-                    Menu items added by the admin will appear here.
-                </p>
-            </div>
-        @endforelse
-    </div>
+        </div>
+    </main>
+</div>
 
-</section>
+<script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
 
 @endsection

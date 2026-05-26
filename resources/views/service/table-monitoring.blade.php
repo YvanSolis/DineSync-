@@ -235,8 +235,25 @@
 </div>
 
 <script>
-    setTimeout(function () {
+    setInterval(() => {
+        if (document.hidden) {
+            return;
+        }
+
+        const activeElement = document.activeElement;
+        const isTyping =
+            activeElement &&
+            (
+                activeElement.tagName === 'INPUT' ||
+                activeElement.tagName === 'TEXTAREA' ||
+                activeElement.tagName === 'SELECT'
+            );
+
+        if (isTyping) {
+            return;
+        }
+
         window.location.reload();
-    }, 5000);
+    }, 15000);
 </script>
 @endsection

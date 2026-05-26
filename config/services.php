@@ -40,4 +40,11 @@ return [
     'model' => env('OPENAI_MODEL', 'gpt-5-nano'),
     ],
 
+    'xendit' => [
+    'secret_key' => env('XENDIT_SECRET_KEY'),
+    'callback_token' => env('XENDIT_CALLBACK_TOKEN'),
+    'success_redirect_url' => env('XENDIT_SUCCESS_REDIRECT_URL'),
+    'failure_redirect_url' => env('XENDIT_FAILURE_REDIRECT_URL'),
+    ],
+
 ];

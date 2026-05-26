@@ -207,4 +207,16 @@
 
 </div>
 
+</div>
+
+<script>
+setInterval(() => {
+    if (document.hidden) {
+        return;
+    }
+
+    window.location.reload();
+}, 30000);
+</script>
+
 @endsection
