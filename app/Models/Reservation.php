@@ -31,6 +31,7 @@ class Reservation extends Model
         'xendit_invoice_id',
         'xendit_external_id',
         'xendit_invoice_url',
+        'xendit_expiry_date',
         'paid_at',
 
         'notes',
@@ -41,6 +42,7 @@ class Reservation extends Model
         'reservation_date' => 'date',
         'arrived_at' => 'datetime',
         'seated_at' => 'datetime',
+        'xendit_expiry_date' => 'datetime',
         'paid_at' => 'datetime',
     ];
 

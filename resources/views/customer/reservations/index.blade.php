@@ -97,7 +97,7 @@
                         </h1>
 
                         <p class="text-gray-600 mt-2 max-w-2xl leading-7">
-                            Create a reservation and track your payment verification, approval status, and visit details in one place.
+                            Create a reservation, complete your payment, and track your reservation status in one place.
                         </p>
                     </div>
                 </div>
@@ -117,6 +117,12 @@
             </div>
         @endif
 
+        @if (session('error'))
+            <div class="mb-6 rounded-2xl bg-red-50 border border-red-200 text-red-700 px-5 py-4 text-sm font-semibold shadow-sm">
+                {{ session('error') }}
+            </div>
+        @endif
+
         @forelse ($reservations as $reservation)
             @php
                 $reservationStatusClasses = [
@@ -127,20 +133,47 @@
                     'cancelled' => 'bg-gray-50 text-gray-600 border-gray-200',
                 ];
 
+                $paymentStatus = strtolower($reservation->payment_status ?? 'pending');
+
                 $paymentStatusClasses = [
                     'pending' => 'bg-yellow-50 text-yellow-700 border-yellow-200',
+                    'paid' => 'bg-green-50 text-green-700 border-green-200',
+                    'expired' => 'bg-red-50 text-red-700 border-red-200',
+
+                    // temporary fallback kung may old data pa
                     'verified' => 'bg-green-50 text-green-700 border-green-200',
                     'rejected' => 'bg-red-50 text-red-700 border-red-200',
                     'unpaid' => 'bg-gray-50 text-gray-600 border-gray-200',
                 ];
 
-                $statusMessage = [
-                    'pending' => 'Waiting for admin review.',
-                    'approved' => 'Confirmed. Please arrive on time.',
-                    'declined' => 'Declined. Please contact the restaurant for assistance.',
-                    'completed' => 'Completed reservation.',
-                    'cancelled' => 'Cancelled reservation.',
-                ][$reservation->status] ?? 'Status unavailable.';
+                $paymentLabels = [
+                    'pending' => 'Pending Payment',
+                    'paid' => 'Paid',
+                    'expired' => 'Expired',
+
+                    // temporary fallback kung may old data pa
+                    'verified' => 'Paid',
+                    'rejected' => 'Rejected',
+                    'unpaid' => 'Unpaid',
+                ];
+
+                if ($paymentStatus === 'paid' || $paymentStatus === 'verified') {
+                    $statusMessage = [
+                        'pending' => 'Payment received. Waiting for admin approval.',
+                        'approved' => 'Reservation approved. Please arrive on time.',
+                        'declined' => 'Reservation declined. Please contact the restaurant for assistance.',
+                        'completed' => 'Completed reservation.',
+                        'cancelled' => 'Cancelled reservation.',
+                    ][$reservation->status] ?? 'Reservation status unavailable.';
+                } elseif ($paymentStatus === 'expired') {
+                    $statusMessage = 'Payment link expired. Please create a new reservation or contact the restaurant.';
+                } else {
+                    $statusMessage = 'Waiting for payment. Please complete your reservation fee payment first.';
+                }
+
+                $canContinuePayment =
+                    $paymentStatus === 'pending'
+                    && !empty($reservation->xendit_invoice_url);
             @endphp
 
             <div class="glass-card rounded-[2rem] overflow-hidden mb-5">
@@ -163,8 +196,8 @@
                                     {{ ucfirst($reservation->status) }}
                                 </span>
 
-                                <span class="inline-flex px-3 py-1 rounded-full border text-xs font-black {{ $paymentStatusClasses[$reservation->payment_status] ?? 'bg-gray-50 text-gray-600 border-gray-200' }}">
-                                    Payment {{ ucfirst($reservation->payment_status) }}
+                                <span class="inline-flex px-3 py-1 rounded-full border text-xs font-black {{ $paymentStatusClasses[$paymentStatus] ?? 'bg-gray-50 text-gray-600 border-gray-200' }}">
+                                    {{ $paymentLabels[$paymentStatus] ?? ucfirst($paymentStatus) }}
                                 </span>
                             </div>
 
@@ -221,42 +254,66 @@
 
                         <div>
                             <p class="text-xs font-black text-gray-400 uppercase tracking-wider">
-                                Payment
+                                Payment Status
                             </p>
-                            <p class="text-sm font-semibold text-gray-700 mt-1">
-                                {{ $reservation->payment_method ?? 'N/A' }}
+
+                            <p class="text-sm font-black mt-1
+                                @if ($paymentStatus === 'paid' || $paymentStatus === 'verified')
+                                    text-green-700
+                                @elseif ($paymentStatus === 'expired')
+                                    text-red-700
+                                @else
+                                    text-yellow-700
+                                @endif
+                            ">
+                                {{ $paymentLabels[$paymentStatus] ?? ucfirst($paymentStatus) }}
                             </p>
+
                             <p class="text-xs text-gray-500 mt-1">
-                                Ref: {{ $reservation->payment_reference ?? 'N/A' }}
+                                Payment is handled securely through Xendit.
                             </p>
                         </div>
 
                         <div class="flex flex-col sm:flex-row lg:justify-end gap-3">
-                            @if ($reservation->payment_proof)
+                            @if ($canContinuePayment)
                                 <a
-                                    href="{{ asset('storage/' . $reservation->payment_proof) }}"
+                                    href="{{ $reservation->xendit_invoice_url }}"
                                     target="_blank"
-                                    class="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 font-black text-sm transition"
+                                    rel="noopener noreferrer"
+                                    class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-orange-500 text-white hover:bg-orange-600 font-black text-sm transition shadow-lg shadow-orange-500/20"
                                 >
-                                    View Proof
+                                    Continue Payment
                                 </a>
                             @endif
 
-                            @if ($reservation->status === 'approved')
-                                <span class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-green-50 text-green-700 font-black text-sm border border-green-100">
-                                    Show this upon arrival
-                                </span>
-                            @elseif ($reservation->status === 'pending')
-                                <span class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-yellow-50 text-yellow-700 font-black text-sm border border-yellow-100">
-                                    Waiting for approval
-                                </span>
-                            @elseif ($reservation->status === 'declined')
+                            @if ($paymentStatus === 'paid' || $paymentStatus === 'verified')
+                                @if ($reservation->status === 'approved')
+                                    <span class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-green-50 text-green-700 font-black text-sm border border-green-100">
+                                        Show this upon arrival
+                                    </span>
+                                @elseif ($reservation->status === 'pending')
+                                    <span class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-blue-50 text-blue-700 font-black text-sm border border-blue-100">
+                                        Waiting for approval
+                                    </span>
+                                @elseif ($reservation->status === 'declined')
+                                    <a
+                                        href="{{ route('customer.reservations.create') }}"
+                                        class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-orange-500 text-white font-black text-sm hover:bg-orange-600 transition"
+                                    >
+                                        Create New
+                                    </a>
+                                @endif
+                            @elseif ($paymentStatus === 'expired')
                                 <a
                                     href="{{ route('customer.reservations.create') }}"
                                     class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-orange-500 text-white font-black text-sm hover:bg-orange-600 transition"
                                 >
                                     Create New
                                 </a>
+                            @else
+                                <span class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-yellow-50 text-yellow-700 font-black text-sm border border-yellow-100">
+                                    Payment Required
+                                </span>
                             @endif
                         </div>
 
@@ -285,7 +342,7 @@
                 <h2 class="text-2xl font-black text-gray-950">No reservations yet</h2>
 
                 <p class="text-gray-600 mt-2 max-w-md mx-auto leading-7">
-                    You can create a reservation and track its approval status here.
+                    You can create a reservation and track its payment and approval status here.
                 </p>
 
                 <a
@@ -300,4 +357,4 @@
     </section>
 </div>
 
-@endsection 
+@endsection

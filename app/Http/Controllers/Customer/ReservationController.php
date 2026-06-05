@@ -64,6 +64,11 @@ class ReservationController extends Controller
                     'payment_proof' => null,
                     'payment_status' => 'pending',
 
+                    'xendit_invoice_id' => null,
+                    'xendit_external_id' => null,
+                    'xendit_invoice_url' => null,
+                    'xendit_expiry_date' => null,
+
                     'notes' => $request->notes,
                     'status' => 'pending',
                 ]);
@@ -75,12 +80,18 @@ class ReservationController extends Controller
                 'xendit_invoice_id' => $invoice['id'] ?? null,
                 'xendit_external_id' => $invoice['external_id'] ?? ('RESERVATION-' . $reservation->id),
                 'xendit_invoice_url' => $invoice['invoice_url'] ?? null,
+                'xendit_expiry_date' => $invoice['expiry_date'] ?? null,
             ]);
 
             if (empty($invoice['invoice_url'])) {
+                Log::warning('Reservation created but Xendit invoice URL is missing', [
+                    'reservation_id' => $reservation->id,
+                    'invoice' => $invoice,
+                ]);
+
                 return redirect()
                     ->route('customer.reservations.index')
-                    ->with('error', 'Reservation was created, but payment link was not generated. Please contact staff.');
+                    ->with('error', 'Reservation was created, but the payment link was not generated. Please contact staff.');
             }
 
             return redirect()->away($invoice['invoice_url']);
@@ -92,7 +103,7 @@ class ReservationController extends Controller
 
             return back()
                 ->withInput()
-                ->with('error', 'Unable to create payment link right now. Please try again. Error: ' . $e->getMessage());
+                ->with('error', 'Unable to create payment link right now. Please try again.');
         }
     }
 }
