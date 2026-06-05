@@ -2,6 +2,26 @@
 
 @section('content')
 
+@php
+    $today = now('Asia/Manila')->toDateString();
+    $currentTime = now('Asia/Manila')->format('H:i');
+    $selectedReservationDate = old('reservation_date', $today);
+    $selectedReservationTime = old('reservation_time');
+
+    $reservationTimeSlots = [];
+    $slotStart = \Carbon\Carbon::createFromFormat('H:i', '11:00', 'Asia/Manila');
+    $slotEnd = \Carbon\Carbon::createFromFormat('H:i', '19:00', 'Asia/Manila');
+
+    while ($slotStart->lte($slotEnd)) {
+        $reservationTimeSlots[] = [
+            'value' => $slotStart->format('H:i'),
+            'label' => $slotStart->format('g:i A'),
+        ];
+
+        $slotStart->addMinutes(30);
+    }
+@endphp
+
 <style>
     [x-cloak] {
         display: none !important;
@@ -283,17 +303,37 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        <div
+                            x-data="{
+                                selectedDate: @json($selectedReservationDate),
+                                selectedTime: @json($selectedReservationTime),
+                                today: @json($today),
+                                currentTime: @json($currentTime),
+                                isPastSlot(slot) {
+                                    return this.selectedDate === this.today && slot <= this.currentTime;
+                                },
+                                clearInvalidTime() {
+                                    if (this.selectedTime && this.isPastSlot(this.selectedTime)) {
+                                        this.selectedTime = '';
+                                    }
+                                }
+                            }"
+                            x-init="$watch('selectedDate', () => clearInvalidTime()); clearInvalidTime();"
+                            class="grid grid-cols-1 md:grid-cols-3 gap-5"
+                        >
                             <div>
                                 <label class="block text-sm font-bold text-gray-700 mb-2">Date</label>
                                 <input
                                     type="date"
                                     name="reservation_date"
-                                    value="{{ old('reservation_date') }}"
-                                    min="{{ date('Y-m-d') }}"
+                                    x-model="selectedDate"
+                                    min="{{ $today }}"
                                     class="form-input-clean"
                                     required
                                 >
+                                <p class="mt-2 text-xs font-semibold text-gray-500">
+                                    Past dates are disabled.
+                                </p>
                                 @error('reservation_date')
                                     <p class="text-sm text-red-500 mt-2">{{ $message }}</p>
                                 @enderror
@@ -301,15 +341,26 @@
 
                             <div>
                                 <label class="block text-sm font-bold text-gray-700 mb-2">Time</label>
-                                <input
-                                    type="time"
+                                <select
                                     name="reservation_time"
-                                    value="{{ old('reservation_time') }}"
-                                    min="10:00"
-                                    max="21:00"
+                                    x-model="selectedTime"
                                     class="form-input-clean"
                                     required
                                 >
+                                    <option value="">Select time</option>
+
+                                    @foreach ($reservationTimeSlots as $slot)
+                                        <option
+                                            value="{{ $slot['value'] }}"
+                                            :disabled="isPastSlot('{{ $slot['value'] }}')"
+                                        >
+                                            {{ $slot['label'] }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <p class="mt-2 text-xs font-semibold text-gray-500">
+                                    Available from 11:00 AM to 7:00 PM.
+                                </p>
                                 @error('reservation_time')
                                     <p class="text-sm text-red-500 mt-2">{{ $message }}</p>
                                 @enderror

@@ -12,18 +12,22 @@ class XenditService
     public function createReservationInvoice(Reservation $reservation): array
     {
         $secretKey = config('services.xendit.secret_key');
-        $successRedirectUrl = config('services.xendit.success_redirect_url');
-        $failureRedirectUrl = config('services.xendit.failure_redirect_url');
 
         if (!$secretKey) {
             throw new RuntimeException('Xendit secret key is not configured. Please check your .env file.');
         }
 
-        if (!$successRedirectUrl || !$failureRedirectUrl) {
-            throw new RuntimeException('Xendit redirect URLs are not configured. Please check config/services.php and your .env file.');
-        }
-
         $externalId = 'RESERVATION-' . $reservation->id;
+
+        /*
+         * Important:
+         * Your route list shows that customer.reservations.index points to:
+         * /reservations
+         *
+         * So we use route() instead of hardcoded /customer/reservations.
+         */
+        $successRedirectUrl = route('customer.reservations.index');
+        $failureRedirectUrl = route('customer.reservations.index');
 
         $payload = [
             'external_id' => $externalId,
@@ -73,6 +77,8 @@ class XenditService
         Log::info('Xendit invoice created successfully', [
             'reservation_id' => $reservation->id,
             'external_id' => $externalId,
+            'success_redirect_url' => $successRedirectUrl,
+            'failure_redirect_url' => $failureRedirectUrl,
             'xendit_invoice_id' => $invoice['id'] ?? null,
             'invoice_url' => $invoice['invoice_url'] ?? null,
         ]);

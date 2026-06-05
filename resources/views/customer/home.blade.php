@@ -5,26 +5,32 @@
 @php
     $topBestSeller = $bestSellers[0] ?? null;
 
-    $getMenuImage = function ($item) {
+    $fallbackMenuImage = 'https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1200&q=80';
+
+    $getMenuImage = function ($item) use ($fallbackMenuImage) {
         if (!$item) {
-            return null;
+            return $fallbackMenuImage;
         }
 
         $image = $item['image_url'] ?? $item['image'] ?? null;
 
         if (!$image) {
-            return null;
+            return $fallbackMenuImage;
         }
 
         if (str_starts_with($image, 'http://') || str_starts_with($image, 'https://')) {
             return $image;
         }
 
-        if (str_starts_with($image, '/storage/')) {
+        if (str_starts_with($image, '/storage/') || str_starts_with($image, '/images/')) {
             return $image;
         }
 
-        return asset('storage/' . $image);
+        if (str_starts_with($image, 'storage/')) {
+            return asset($image);
+        }
+
+        return asset('storage/' . ltrim($image, '/'));
     };
 
     $topBestSellerImage = $getMenuImage($topBestSeller);
@@ -151,6 +157,12 @@
                 <div
                     x-cloak
                     x-show="activeSlide === 0"
+                    x-transition:enter="transition ease-out duration-700"
+                    x-transition:enter-start="opacity-0 translate-x-8 scale-[0.98]"
+                    x-transition:enter-end="opacity-100 translate-x-0 scale-100"
+                    x-transition:leave="transition ease-in duration-500"
+                    x-transition:leave-start="opacity-100 translate-x-0 scale-100"
+                    x-transition:leave-end="opacity-0 -translate-x-8 scale-[0.98]"
                     class="hero-slide absolute inset-0 grid grid-cols-1 lg:grid-cols-[0.92fr_1.08fr]"
                 >
                     <div class="relative z-10 p-8 sm:p-10 lg:p-14 flex items-center">
@@ -258,6 +270,12 @@
                 <div
                     x-cloak
                     x-show="activeSlide === 1"
+                    x-transition:enter="transition ease-out duration-700"
+                    x-transition:enter-start="opacity-0 translate-x-8 scale-[0.98]"
+                    x-transition:enter-end="opacity-100 translate-x-0 scale-100"
+                    x-transition:leave="transition ease-in duration-500"
+                    x-transition:leave-start="opacity-100 translate-x-0 scale-100"
+                    x-transition:leave-end="opacity-0 -translate-x-8 scale-[0.98]"
                     class="hero-slide absolute inset-0 grid grid-cols-1 lg:grid-cols-[0.95fr_1.05fr] bg-[#0f172a]"
                 >
                     <div class="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(249,115,22,0.28),transparent_32rem),radial-gradient(circle_at_0%_100%,rgba(251,146,60,0.16),transparent_26rem)]"></div>
@@ -333,25 +351,18 @@
                         <div class="w-full max-w-[570px]">
                             <div class="rounded-[2rem] border border-white/10 bg-white/10 p-4 shadow-2xl backdrop-blur">
                                 <div class="relative h-[430px] overflow-hidden rounded-[1.5rem] bg-white">
-                                    @if ($topBestSellerImage)
-                                        <img
-                                            src="{{ $topBestSellerImage }}"
-                                            alt="{{ $topBestSeller['name'] ?? 'Best seller item' }}"
-                                            class="h-full w-full object-cover"
-                                            onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');"
-                                        >
+                                    <img
+                                        src="{{ $topBestSellerImage }}"
+                                        alt="{{ $topBestSeller['name'] ?? 'Best seller item' }}"
+                                        class="h-full w-full object-cover"
+                                        onerror="this.src='{{ $fallbackMenuImage }}';"
+                                    >
 
-                                        <div class="hidden h-full w-full items-center justify-center bg-gray-50">
-                                            <div class="px-6 text-center">
-                                                <p class="text-lg font-bold text-gray-900">Image unavailable</p>
-                                                <p class="mt-2 text-sm text-gray-500">Please check the uploaded menu image.</p>
-                                            </div>
-                                        </div>
-                                    @else
-                                        <div class="flex h-full w-full items-center justify-center bg-gray-50">
-                                            <div class="px-6 text-center">
-                                                <p class="text-lg font-bold text-gray-900">No image uploaded</p>
-                                                <p class="mt-2 text-sm text-gray-500">Add an image in admin menu management.</p>
+                                    @if (!$topBestSeller)
+                                        <div class="absolute inset-0 flex items-center justify-center bg-black/40">
+                                            <div class="rounded-3xl bg-white/90 px-6 py-5 text-center shadow-xl backdrop-blur">
+                                                <p class="text-lg font-black text-gray-900">Best seller will appear here soon.</p>
+                                                <p class="mt-2 text-sm text-gray-500">Once orders are recorded, this section will update.</p>
                                             </div>
                                         </div>
                                     @endif
@@ -383,6 +394,12 @@
                 <div
                     x-cloak
                     x-show="activeSlide === 2"
+                    x-transition:enter="transition ease-out duration-700"
+                    x-transition:enter-start="opacity-0 translate-x-8 scale-[0.98]"
+                    x-transition:enter-end="opacity-100 translate-x-0 scale-100"
+                    x-transition:leave="transition ease-in duration-500"
+                    x-transition:leave-start="opacity-100 translate-x-0 scale-100"
+                    x-transition:leave-end="opacity-0 -translate-x-8 scale-[0.98]"
                     class="hero-slide absolute inset-0 grid grid-cols-1 lg:grid-cols-[0.95fr_1.05fr]"
                 >
                     <div class="p-8 sm:p-10 lg:p-14 flex items-center bg-white">
@@ -417,20 +434,36 @@
 
                             <div class="space-y-4">
                                 @forelse (array_slice($recommendedToday, 0, 3) as $item)
-                                    <div class="rounded-3xl border border-white/10 bg-white/10 p-5">
-                                        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                                            <div class="min-w-0">
-                                                <p class="truncate text-lg font-bold text-white">{{ $item['name'] }}</p>
-                                                <p class="mt-1 truncate text-sm text-gray-400">{{ $item['category'] }}</p>
+                                    @php
+                                        $recommendedImage = $getMenuImage($item);
+                                    @endphp
+
+                                    <div class="rounded-3xl border border-white/10 bg-white/10 p-4">
+                                        <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+                                            <div class="h-24 w-full overflow-hidden rounded-2xl bg-white/10 sm:h-24 sm:w-28 sm:flex-shrink-0">
+                                                <img
+                                                    src="{{ $recommendedImage }}"
+                                                    alt="{{ $item['name'] }}"
+                                                    class="h-full w-full object-cover"
+                                                    loading="lazy"
+                                                    onerror="this.src='{{ $fallbackMenuImage }}';"
+                                                >
                                             </div>
 
-                                            <div class="flex-shrink-0 sm:text-right">
-                                                <p class="whitespace-nowrap text-xl font-black text-orange-300">
-                                                    ₱{{ number_format($item['price'], 2) }}
-                                                </p>
-                                                <p class="mt-1 text-xs font-semibold text-green-300">
-                                                    {{ $item['status'] }}
-                                                </p>
+                                            <div class="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                                <div class="min-w-0">
+                                                    <p class="truncate text-lg font-bold text-white">{{ $item['name'] }}</p>
+                                                    <p class="mt-1 truncate text-sm text-gray-400">{{ $item['category'] }}</p>
+                                                </div>
+
+                                                <div class="flex-shrink-0 sm:text-right">
+                                                    <p class="whitespace-nowrap text-xl font-black text-orange-300">
+                                                        ₱{{ number_format($item['price'], 2) }}
+                                                    </p>
+                                                    <p class="mt-1 text-xs font-semibold text-green-300">
+                                                        {{ $item['status'] }}
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -449,7 +482,7 @@
                     type="button"
                     @click="prev"
                     aria-label="Previous slide"
-                    class="absolute left-4 sm:left-6 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-2xl text-gray-700 shadow-lg hover:bg-gray-50"
+                    class="absolute left-4 sm:left-6 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-2xl text-gray-700 shadow-lg transition hover:scale-105 hover:bg-gray-50 active:scale-95"
                 >
                     ‹
                 </button>
@@ -458,7 +491,7 @@
                     type="button"
                     @click="next"
                     aria-label="Next slide"
-                    class="absolute right-4 sm:right-6 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-2xl text-gray-700 shadow-lg hover:bg-gray-50"
+                    class="absolute right-4 sm:right-6 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-2xl text-gray-700 shadow-lg transition hover:scale-105 hover:bg-gray-50 active:scale-95"
                 >
                     ›
                 </button>
@@ -468,7 +501,7 @@
                     <button
                         type="button"
                         @click="activeSlide = 0"
-                        class="h-2.5 rounded-full transition-all"
+                        class="h-2.5 rounded-full transition-all duration-300"
                         :class="activeSlide === 0 ? 'w-8 bg-orange-500' : 'w-2.5 bg-gray-300'"
                         aria-label="Go to slide 1"
                     ></button>
@@ -476,7 +509,7 @@
                     <button
                         type="button"
                         @click="activeSlide = 1"
-                        class="h-2.5 rounded-full transition-all"
+                        class="h-2.5 rounded-full transition-all duration-300"
                         :class="activeSlide === 1 ? 'w-8 bg-orange-500' : 'w-2.5 bg-gray-300'"
                         aria-label="Go to slide 2"
                     ></button>
@@ -484,7 +517,7 @@
                     <button
                         type="button"
                         @click="activeSlide = 2"
-                        class="h-2.5 rounded-full transition-all"
+                        class="h-2.5 rounded-full transition-all duration-300"
                         :class="activeSlide === 2 ? 'w-8 bg-orange-500' : 'w-2.5 bg-gray-300'"
                         aria-label="Go to slide 3"
                     ></button>
@@ -540,7 +573,7 @@
                                 </h3>
 
                                 <p class="text-sm text-yellow-700 mt-1 leading-6">
-                                    Please wait while the admin verifies your reservation fee payment.
+                                    Please wait while the admin verifies your reservation.
                                 </p>
                             </div>
                         </div>
@@ -567,7 +600,7 @@
                         </h2>
                         <p class="text-gray-300 mt-4 leading-7 max-w-3xl">
                             A ₱{{ number_format($settings->reservation_fee, 2) }} non-refundable reservation fee is required to secure your table.
-                            After submitting your payment proof, you can track the status in Reservations.
+                            After submitting your reservation, you can track the status in Reservations.
                         </p>
                     </div>
 

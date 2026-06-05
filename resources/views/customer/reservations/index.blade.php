@@ -3,10 +3,6 @@
 @section('content')
 
 <style>
-    [x-cloak] {
-        display: none !important;
-    }
-
     html,
     body {
         background-image:
@@ -30,7 +26,7 @@
         margin-top: 0 !important;
     }
 
-    .reservation-page {
+    .reservations-page {
         min-height: calc(100vh - 80px);
         position: relative;
         overflow-x: hidden;
@@ -46,7 +42,7 @@
         background-attachment: fixed;
     }
 
-    .reservation-page::before {
+    .reservations-page::before {
         content: "";
         position: absolute;
         inset: 0;
@@ -57,54 +53,71 @@
         pointer-events: none;
     }
 
-    .reservation-inner {
+    .reservations-inner {
         position: relative;
         z-index: 2;
     }
 
-    .glass-card {
-        background: rgba(255, 255, 255, 0.93);
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+    .glass-dark {
+        background: rgba(10, 10, 10, 0.88);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
         backdrop-filter: blur(14px);
     }
 
-    .dark-card {
-        background:
-            radial-gradient(circle at 85% 12%, rgba(249, 115, 22, 0.22), transparent 18rem),
-            linear-gradient(135deg, #111827 0%, #020617 100%);
+    .reservation-card {
+        background: rgba(10, 10, 10, 0.88);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
+        backdrop-filter: blur(14px);
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 0.35rem 0.8rem;
+        font-size: 0.75rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .info-box {
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.04);
     }
 </style>
 
-<div class="reservation-page">
-    <section class="reservation-inner max-w-7xl mx-auto px-4 sm:px-6 py-8 pb-12">
+<div class="reservations-page">
+    <section class="reservations-inner max-w-7xl mx-auto px-4 sm:px-6 py-8 pb-12">
 
-        <!-- HEADER -->
-        <div class="glass-card rounded-[2rem] p-6 sm:p-8 mb-6">
+        <!-- PAGE HEADER -->
+        <div class="glass-dark rounded-[2rem] p-6 sm:p-8 mb-6 text-white">
             <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
                 <div class="flex items-start gap-4">
-                    <div class="w-14 h-14 rounded-2xl bg-orange-50 text-orange-600 border border-orange-100 flex items-center justify-center font-black shrink-0">
+                    <div class="w-14 h-14 rounded-2xl bg-orange-500/10 text-orange-500 border border-orange-500/30 flex items-center justify-center font-black shrink-0">
                         D+
                     </div>
 
                     <div>
-                        <p class="text-sm font-black text-orange-600 uppercase tracking-widest mb-2">
+                        <p class="text-sm font-black text-orange-500 uppercase tracking-widest mb-2">
                             Reservations
                         </p>
 
-                        <h1 class="text-3xl md:text-4xl font-black text-gray-950 tracking-tight">
+                        <h1 class="text-3xl md:text-4xl font-black tracking-tight">
                             Manage your table reservations
                         </h1>
 
-                        <p class="text-gray-600 mt-2 max-w-2xl leading-7">
-                            Create a reservation, complete your payment, and track your reservation status in one place.
+                        <p class="text-gray-300 mt-3 max-w-3xl leading-7">
+                            Create a reservation and track your reservation status in one place.
                         </p>
                     </div>
                 </div>
 
                 <a
                     href="{{ route('customer.reservations.create') }}"
-                    class="inline-flex items-center justify-center px-6 py-3 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black transition shadow-lg shadow-orange-500/25"
+                    class="inline-flex items-center justify-center px-6 py-4 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black transition shadow-lg shadow-orange-500/30"
                 >
                     New Reservation
                 </a>
@@ -125,231 +138,137 @@
 
         @forelse ($reservations as $reservation)
             @php
-                $reservationStatusClasses = [
-                    'pending' => 'bg-yellow-50 text-yellow-700 border-yellow-200',
-                    'approved' => 'bg-green-50 text-green-700 border-green-200',
-                    'declined' => 'bg-red-50 text-red-700 border-red-200',
-                    'completed' => 'bg-blue-50 text-blue-700 border-blue-200',
-                    'cancelled' => 'bg-gray-50 text-gray-600 border-gray-200',
-                ];
+                $reservationStatus = strtolower($reservation->status ?? 'pending');
 
-                $paymentStatus = strtolower($reservation->payment_status ?? 'pending');
+                $reservationStatusLabel = match ($reservationStatus) {
+                    'approved' => 'Approved',
+                    'declined' => 'Declined',
+                    'completed' => 'Completed',
+                    'cancelled' => 'Cancelled',
+                    default => 'Pending',
+                };
 
-                $paymentStatusClasses = [
-                    'pending' => 'bg-yellow-50 text-yellow-700 border-yellow-200',
-                    'paid' => 'bg-green-50 text-green-700 border-green-200',
-                    'expired' => 'bg-red-50 text-red-700 border-red-200',
+                $reservationMessage = match ($reservationStatus) {
+                    'approved' => 'Your reservation has been approved by the restaurant.',
+                    'declined' => 'Your reservation was declined. Please contact the restaurant for assistance.',
+                    'completed' => 'This reservation has been completed.',
+                    'cancelled' => 'This reservation was cancelled.',
+                    default => 'Your reservation request has been submitted. Please wait for the admin to review your reservation.',
+                };
 
-                    // temporary fallback kung may old data pa
-                    'verified' => 'bg-green-50 text-green-700 border-green-200',
-                    'rejected' => 'bg-red-50 text-red-700 border-red-200',
-                    'unpaid' => 'bg-gray-50 text-gray-600 border-gray-200',
-                ];
-
-                $paymentLabels = [
-                    'pending' => 'Pending Payment',
-                    'paid' => 'Paid',
-                    'expired' => 'Expired',
-
-                    // temporary fallback kung may old data pa
-                    'verified' => 'Paid',
-                    'rejected' => 'Rejected',
-                    'unpaid' => 'Unpaid',
-                ];
-
-                if ($paymentStatus === 'paid' || $paymentStatus === 'verified') {
-                    $statusMessage = [
-                        'pending' => 'Payment received. Waiting for admin approval.',
-                        'approved' => 'Reservation approved. Please arrive on time.',
-                        'declined' => 'Reservation declined. Please contact the restaurant for assistance.',
-                        'completed' => 'Completed reservation.',
-                        'cancelled' => 'Cancelled reservation.',
-                    ][$reservation->status] ?? 'Reservation status unavailable.';
-                } elseif ($paymentStatus === 'expired') {
-                    $statusMessage = 'Payment link expired. Please create a new reservation or contact the restaurant.';
-                } else {
-                    $statusMessage = 'Waiting for payment. Please complete your reservation fee payment first.';
-                }
-
-                $canContinuePayment =
-                    $paymentStatus === 'pending'
-                    && !empty($reservation->xendit_invoice_url);
+                $reservationDate = \Carbon\Carbon::parse($reservation->reservation_date)->format('M d, Y');
+                $reservationTime = \Carbon\Carbon::parse($reservation->reservation_time)->format('h:i A');
+                $submittedAt = $reservation->created_at
+                    ? \Carbon\Carbon::parse($reservation->created_at)->format('M d, Y h:i A')
+                    : 'N/A';
             @endphp
 
-            <div class="glass-card rounded-[2rem] overflow-hidden mb-5">
+            <div class="reservation-card rounded-[2rem] overflow-hidden text-white mb-5">
+                <div class="p-6">
+                    <div class="grid grid-cols-1 xl:grid-cols-[1fr_520px] gap-6 items-start">
 
-                <!-- MAIN ROW -->
-                <div class="p-6 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
-
-                    <div class="flex items-start gap-4">
-                        <div class="w-14 h-14 rounded-2xl bg-orange-50 text-orange-600 border border-orange-100 flex items-center justify-center font-black shrink-0">
-                            RSV
-                        </div>
-
-                        <div class="min-w-0">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <h2 class="text-xl font-black text-gray-950">
-                                    Reservation #{{ str_pad($reservation->id, 5, '0', STR_PAD_LEFT) }}
-                                </h2>
-
-                                <span class="inline-flex px-3 py-1 rounded-full border text-xs font-black {{ $reservationStatusClasses[$reservation->status] ?? 'bg-gray-50 text-gray-600 border-gray-200' }}">
-                                    {{ ucfirst($reservation->status) }}
-                                </span>
-
-                                <span class="inline-flex px-3 py-1 rounded-full border text-xs font-black {{ $paymentStatusClasses[$paymentStatus] ?? 'bg-gray-50 text-gray-600 border-gray-200' }}">
-                                    {{ $paymentLabels[$paymentStatus] ?? ucfirst($paymentStatus) }}
-                                </span>
+                        <!-- LEFT DETAILS -->
+                        <div class="flex items-start gap-4">
+                            <div class="w-14 h-14 rounded-2xl bg-orange-500/10 text-orange-500 border border-orange-500/30 flex items-center justify-center font-black shrink-0">
+                                RSV
                             </div>
 
-                            <p class="text-sm text-gray-600 mt-2">
-                                {{ $statusMessage }}
-                            </p>
+                            <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <h2 class="text-xl font-black">
+                                        Reservation #{{ str_pad($reservation->id, 5, '0', STR_PAD_LEFT) }}
+                                    </h2>
 
-                            <p class="text-xs text-gray-400 mt-1">
-                                Submitted {{ $reservation->created_at->format('M d, Y h:i A') }}
-                            </p>
+                                    @if ($reservationStatus === 'approved')
+                                        <span class="status-badge bg-green-500/10 text-green-400 border border-green-500/30">
+                                            {{ $reservationStatusLabel }}
+                                        </span>
+                                    @elseif ($reservationStatus === 'declined' || $reservationStatus === 'cancelled')
+                                        <span class="status-badge bg-red-500/10 text-red-400 border border-red-500/30">
+                                            {{ $reservationStatusLabel }}
+                                        </span>
+                                    @elseif ($reservationStatus === 'completed')
+                                        <span class="status-badge bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                                            {{ $reservationStatusLabel }}
+                                        </span>
+                                    @else
+                                        <span class="status-badge bg-yellow-500/10 text-yellow-400 border border-yellow-500/30">
+                                            {{ $reservationStatusLabel }}
+                                        </span>
+                                    @endif
+                                </div>
+
+                                <p class="text-sm text-gray-300 mt-3 leading-6">
+                                    {{ $reservationMessage }}
+                                </p>
+
+                                <p class="text-xs text-gray-400 mt-2">
+                                    Submitted {{ $submittedAt }}
+                                </p>
+                            </div>
                         </div>
+
+                        <!-- RIGHT DATE TIME GUESTS -->
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div class="info-box rounded-2xl p-4">
+                                <p class="text-xs font-bold text-gray-400 mb-2">Date</p>
+                                <p class="font-black text-white">{{ $reservationDate }}</p>
+                            </div>
+
+                            <div class="info-box rounded-2xl p-4">
+                                <p class="text-xs font-bold text-gray-400 mb-2">Time</p>
+                                <p class="font-black text-white">{{ $reservationTime }}</p>
+                            </div>
+
+                            <div class="info-box rounded-2xl p-4">
+                                <p class="text-xs font-bold text-gray-400 mb-2">Guests</p>
+                                <p class="font-black text-white">{{ $reservation->guest_count }}</p>
+                            </div>
+                        </div>
+
                     </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-full xl:min-w-[520px]">
-                        <div class="rounded-2xl bg-white border border-gray-100 p-4 shadow-sm">
-                            <p class="text-xs font-semibold text-gray-500">Date</p>
-                            <p class="font-black text-gray-950 mt-1">
-                                {{ \Carbon\Carbon::parse($reservation->reservation_date)->format('M d, Y') }}
-                            </p>
-                        </div>
-
-                        <div class="rounded-2xl bg-white border border-gray-100 p-4 shadow-sm">
-                            <p class="text-xs font-semibold text-gray-500">Time</p>
-                            <p class="font-black text-gray-950 mt-1">
-                                {{ \Carbon\Carbon::parse($reservation->reservation_time)->format('h:i A') }}
-                            </p>
-                        </div>
-
-                        <div class="rounded-2xl bg-white border border-gray-100 p-4 shadow-sm">
-                            <p class="text-xs font-semibold text-gray-500">Guests</p>
-                            <p class="font-black text-gray-950 mt-1">
-                                {{ $reservation->guest_count }}
-                            </p>
-                        </div>
-                    </div>
-
                 </div>
 
-                <!-- DETAILS ROW -->
-                <div class="border-t border-gray-100 bg-white/75 px-6 py-5">
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <div class="border-t border-white/10 p-6">
+                    <div class="grid grid-cols-1 gap-5 items-center">
 
+                        <!-- FEE ONLY -->
                         <div>
-                            <p class="text-xs font-black text-gray-400 uppercase tracking-wider">
+                            <p class="text-xs font-black text-gray-400 uppercase tracking-widest">
                                 Reservation Fee
                             </p>
-                            <p class="font-black text-orange-500 mt-1 text-lg">
+
+                            <p class="text-xl font-black text-orange-500 mt-2">
                                 ₱{{ number_format($reservation->reservation_fee_amount, 2) }}
                             </p>
-                            <p class="text-xs text-gray-500 mt-1">
+
+                            <p class="text-xs text-gray-400 mt-2">
                                 Non-refundable securing fee
                             </p>
                         </div>
 
-                        <div>
-                            <p class="text-xs font-black text-gray-400 uppercase tracking-wider">
-                                Payment Status
-                            </p>
-
-                            <p class="text-sm font-black mt-1
-                                @if ($paymentStatus === 'paid' || $paymentStatus === 'verified')
-                                    text-green-700
-                                @elseif ($paymentStatus === 'expired')
-                                    text-red-700
-                                @else
-                                    text-yellow-700
-                                @endif
-                            ">
-                                {{ $paymentLabels[$paymentStatus] ?? ucfirst($paymentStatus) }}
-                            </p>
-
-                            <p class="text-xs text-gray-500 mt-1">
-                                Payment is handled securely through Xendit.
-                            </p>
-                        </div>
-
-                        <div class="flex flex-col sm:flex-row lg:justify-end gap-3">
-                            @if ($canContinuePayment)
-                                <a
-                                    href="{{ $reservation->xendit_invoice_url }}"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-orange-500 text-white hover:bg-orange-600 font-black text-sm transition shadow-lg shadow-orange-500/20"
-                                >
-                                    Continue Payment
-                                </a>
-                            @endif
-
-                            @if ($paymentStatus === 'paid' || $paymentStatus === 'verified')
-                                @if ($reservation->status === 'approved')
-                                    <span class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-green-50 text-green-700 font-black text-sm border border-green-100">
-                                        Show this upon arrival
-                                    </span>
-                                @elseif ($reservation->status === 'pending')
-                                    <span class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-blue-50 text-blue-700 font-black text-sm border border-blue-100">
-                                        Waiting for approval
-                                    </span>
-                                @elseif ($reservation->status === 'declined')
-                                    <a
-                                        href="{{ route('customer.reservations.create') }}"
-                                        class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-orange-500 text-white font-black text-sm hover:bg-orange-600 transition"
-                                    >
-                                        Create New
-                                    </a>
-                                @endif
-                            @elseif ($paymentStatus === 'expired')
-                                <a
-                                    href="{{ route('customer.reservations.create') }}"
-                                    class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-orange-500 text-white font-black text-sm hover:bg-orange-600 transition"
-                                >
-                                    Create New
-                                </a>
-                            @else
-                                <span class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-yellow-50 text-yellow-700 font-black text-sm border border-yellow-100">
-                                    Payment Required
-                                </span>
-                            @endif
-                        </div>
-
                     </div>
-
-                    @if ($reservation->notes)
-                        <div class="mt-5 pt-5 border-t border-gray-200">
-                            <p class="text-xs font-black text-gray-400 uppercase tracking-wider mb-1">
-                                Notes
-                            </p>
-                            <p class="text-sm text-gray-600 leading-6">
-                                {{ $reservation->notes }}
-                            </p>
-                        </div>
-                    @endif
                 </div>
-
             </div>
-
         @empty
-            <div class="glass-card rounded-[2rem] p-12 text-center">
-                <div class="w-16 h-16 rounded-2xl bg-orange-50 text-orange-600 border border-orange-100 flex items-center justify-center font-black mx-auto mb-5">
+            <div class="glass-dark rounded-[2rem] p-10 text-center text-white">
+                <div class="mx-auto w-16 h-16 rounded-2xl bg-orange-500/10 text-orange-500 border border-orange-500/30 flex items-center justify-center font-black mb-5">
                     RSV
                 </div>
 
-                <h2 class="text-2xl font-black text-gray-950">No reservations yet</h2>
+                <h2 class="text-2xl font-black">
+                    No reservations yet
+                </h2>
 
-                <p class="text-gray-600 mt-2 max-w-md mx-auto leading-7">
-                    You can create a reservation and track its payment and approval status here.
+                <p class="text-gray-300 mt-3 max-w-xl mx-auto leading-7">
+                    You do not have any table reservations yet. Create a new reservation to secure your table.
                 </p>
 
                 <a
                     href="{{ route('customer.reservations.create') }}"
-                    class="inline-flex items-center justify-center mt-6 px-5 py-3 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black transition shadow-lg shadow-orange-500/25"
+                    class="mt-6 inline-flex items-center justify-center px-6 py-4 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black transition shadow-lg shadow-orange-500/30"
                 >
-                    Create Reservation
+                    New Reservation
                 </a>
             </div>
         @endforelse

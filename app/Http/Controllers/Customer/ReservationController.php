@@ -6,12 +6,18 @@ use App\Http\Controllers\Controller;
 use App\Models\Reservation;
 use App\Models\RestaurantSetting;
 use App\Services\XenditService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class ReservationController extends Controller
 {
+    private const TIMEZONE = 'Asia/Manila';
+    private const RESERVATION_START_TIME = '11:00';
+    private const RESERVATION_END_TIME = '19:00';
+    private const MAX_RESERVATIONS_PER_SLOT = 5;
+
     public function index()
     {
         $reservations = Reservation::where('user_id', auth()->id())
@@ -41,13 +47,71 @@ class ReservationController extends Controller
             'customer_email' => ['required', 'email', 'max:255'],
             'customer_phone' => ['required', 'string', 'max:30'],
             'reservation_date' => ['required', 'date', 'after_or_equal:today'],
-            'reservation_time' => ['required'],
+            'reservation_time' => [
+                'required',
+                'date_format:H:i',
+                function ($attribute, $value, $fail) use ($request) {
+                    $openingTime = Carbon::createFromFormat('H:i', self::RESERVATION_START_TIME, self::TIMEZONE);
+                    $closingTime = Carbon::createFromFormat('H:i', self::RESERVATION_END_TIME, self::TIMEZONE);
+
+                    try {
+                        $reservationDate = Carbon::parse($request->reservation_date, self::TIMEZONE)->toDateString();
+                        $reservationTime = Carbon::createFromFormat('H:i', $value, self::TIMEZONE);
+                    } catch (\Throwable $e) {
+                        $fail('Please select a valid reservation date and time.');
+                        return;
+                    }
+
+                    if ($reservationTime->lt($openingTime) || $reservationTime->gt($closingTime)) {
+                        $fail('Reservation time must be between 11:00 AM and 7:00 PM.');
+                        return;
+                    }
+
+                    $minutes = (int) $reservationTime->format('i');
+
+                    if (!in_array($minutes, [0, 30], true)) {
+                        $fail('Reservation time must be in 30-minute intervals.');
+                        return;
+                    }
+
+                    $now = now(self::TIMEZONE);
+                    $today = $now->toDateString();
+
+                    if ($reservationDate === $today) {
+                        $reservationDateTime = Carbon::parse($reservationDate . ' ' . $value, self::TIMEZONE);
+
+                        if ($reservationDateTime->lte($now)) {
+                            $fail('Reservation time must not be in the past.');
+                            return;
+                        }
+                    }
+
+                    $existingReservations = Reservation::whereDate('reservation_date', $reservationDate)
+                        ->where('reservation_time', $value)
+                        ->whereNotIn('status', ['declined', 'cancelled', 'completed'])
+                        ->count();
+
+                    if ($existingReservations >= self::MAX_RESERVATIONS_PER_SLOT) {
+                        $fail('This reservation time is already full. Please choose another time slot.');
+                        return;
+                    }
+                },
+            ],
             'guest_count' => ['required', 'integer', 'min:1', 'max:30'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
         try {
             $reservation = DB::transaction(function () use ($request, $settings) {
+                $existingReservations = Reservation::whereDate('reservation_date', $request->reservation_date)
+                    ->where('reservation_time', $request->reservation_time)
+                    ->whereNotIn('status', ['declined', 'cancelled', 'completed'])
+                    ->count();
+
+                if ($existingReservations >= self::MAX_RESERVATIONS_PER_SLOT) {
+                    throw new \Exception('This reservation time is already full. Please choose another time slot.');
+                }
+
                 return Reservation::create([
                     'user_id' => auth()->id(),
                     'customer_name' => $request->customer_name,
@@ -103,7 +167,7 @@ class ReservationController extends Controller
 
             return back()
                 ->withInput()
-                ->with('error', 'Unable to create payment link right now. Please try again.');
+                ->with('error', $e->getMessage() ?: 'Unable to create payment link right now. Please try again.');
         }
     }
 }
