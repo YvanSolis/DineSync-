@@ -68,22 +68,41 @@ class OrderController extends Controller
 
             $tableSession = null;
 
+            if ($table) {
+                /*
+                * IMPORTANT:
+                * Tablet/mobile customers cannot place an order unless
+                * service staff has already assigned/occupied the table.
+                */
+                if ($table->status !== 'occupied') {
+                    return response()->json([
+                        'message' => 'Please wait for service staff to assign your table before placing an order.',
+                    ], 403);
+                }
+
+                if (Schema::hasTable('table_sessions')) {
+                    $tableSession = TableSession::where('restaurant_table_id', $table->id)
+                        ->where('status', 'active')
+                        ->latest()
+                        ->first();
+
+                    if (! $tableSession) {
+                        return response()->json([
+                            'message' => 'No active table session found. Please ask service staff to assign your table first.',
+                        ], 403);
+                    }
+                }
+            }
             if ($table && Schema::hasTable('table_sessions')) {
+                /*
+                * Do not create a table session automatically from tablet/mobile order.
+                * A table session should only start when service staff assigns a walk-in
+                * or seats a reservation.
+                */
                 $tableSession = TableSession::where('restaurant_table_id', $table->id)
                     ->where('status', 'active')
                     ->latest()
                     ->first();
-
-                if (! $tableSession) {
-                    $tableSession = TableSession::create([
-                        'restaurant_table_id' => $table->id,
-                        'session_code' => $this->generateTableSessionCode(),
-                        'guest_count' => $table->current_guest_count ?? null,
-                        'notes' => $table->notes,
-                        'started_at' => now(),
-                        'status' => 'active',
-                    ]);
-                }
             }
 
             $order = new Order();
@@ -126,15 +145,16 @@ class OrderController extends Controller
             $this->setIfColumn($order, 'total_amount', $totalAmount);
             $order->save();
 
-            if ($table) {
+            if ($table && $table->status === 'occupied') {
+                /*
+                * Only link order to table if the table is already occupied
+                * by service staff assignment.
+                */
                 $table->update([
-                    'status' => 'occupied',
                     'current_order_id' => $order->id,
-                    'occupied_at' => $table->occupied_at ?? now(),
-                    'notes' => $table->notes ?? 'Tablet order',
+                    'notes' => $table->notes ?? 'Active table order',
                 ]);
             }
-
             if (Schema::hasTable('payments')) {
                 DB::table('payments')->insert([
                     'order_id' => $order->id,
@@ -231,26 +251,27 @@ class OrderController extends Controller
         }
 
         if ($table) {
-            $activeSession = null;
+        $activeSession = null;
 
-            if (Schema::hasTable('table_sessions')) {
-                $activeSession = TableSession::where('restaurant_table_id', $table->id)
-                    ->where('status', 'active')
-                    ->latest()
-                    ->first();
-            }
-
-            $this->setIfColumn($order, 'table_number', $table->table_number);
-            $this->setIfColumn($order, 'table_id', $table->id);
-            $this->setIfColumn($order, 'table_session_id', $activeSession?->id);
-
-            $table->update([
-                'status' => 'occupied',
-                'current_order_id' => $order->id,
-                'occupied_at' => $table->occupied_at ?? now(),
-                'notes' => 'Order assigned',
-            ]);
+        if (Schema::hasTable('table_sessions')) {
+            $activeSession = TableSession::where('restaurant_table_id', $table->id)
+                ->where('status', 'active')
+                ->latest()
+                ->first();
         }
+
+        $this->setIfColumn($order, 'table_number', $table->table_number);
+        $this->setIfColumn($order, 'table_id', $table->id);
+        $this->setIfColumn($order, 'table_session_id', $activeSession?->id);
+
+        /*
+        * Do not mark table as occupied from order update.
+        * Table occupancy is controlled by service staff only.
+        */
+        $table->update([
+            'notes' => $table->notes ?? 'Order linked to table',
+        ]);
+    }
 
         $order->save();
 
@@ -342,9 +363,31 @@ class OrderController extends Controller
     private function validateInventoryBeforeOrder(array $items): void
     {
         $requiredIngredients = [];
+        $requestedMenuItems = [];
 
+        /*
+        * Combine duplicate menu items first.
+        * Example:
+        * Same item appears twice in cart:
+        * - Item 1 qty 3
+        * - Item 1 qty 4
+        * Total should be checked as 7.
+        */
         foreach ($items as $itemData) {
-            $menuItem = MenuItem::with('ingredients')->findOrFail($itemData['menu_item_id']);
+            $menuItemId = (int) $itemData['menu_item_id'];
+            $quantity = (int) $itemData['quantity'];
+
+            if (! isset($requestedMenuItems[$menuItemId])) {
+                $requestedMenuItems[$menuItemId] = 0;
+            }
+
+            $requestedMenuItems[$menuItemId] += $quantity;
+        }
+
+        foreach ($requestedMenuItems as $menuItemId => $orderQuantity) {
+            $menuItem = MenuItem::with('ingredients')->findOrFail($menuItemId);
+
+            $maxOrderQuantity = (int) $menuItem->max_order_quantity;
 
             if (
                 Schema::hasColumn('menu_items', 'is_available') &&
@@ -355,7 +398,17 @@ class OrderController extends Controller
                 ]);
             }
 
-            $orderQuantity = (int) $itemData['quantity'];
+            if ($maxOrderQuantity <= 0) {
+                throw ValidationException::withMessages([
+                    'inventory' => "{$menuItem->name} is out of stock.",
+                ]);
+            }
+
+            if ($orderQuantity > $maxOrderQuantity) {
+                throw ValidationException::withMessages([
+                    'inventory' => "{$menuItem->name} only has {$maxOrderQuantity} order" . ($maxOrderQuantity === 1 ? '' : 's') . " left.",
+                ]);
+            }
 
             foreach ($menuItem->ingredients as $ingredient) {
                 $requiredPerItem = (float) $ingredient->pivot->quantity_required;
@@ -376,6 +429,12 @@ class OrderController extends Controller
             }
         }
 
+        /*
+        * This second validation protects shared ingredients.
+        * Example:
+        * Item A and Item B both use rice.
+        * Individually they look okay, but together they may exceed rice stock.
+        */
         foreach ($requiredIngredients as $data) {
             $ingredient = \App\Models\Ingredient::where('id', $data['ingredient_id'])
                 ->lockForUpdate()
@@ -387,20 +446,21 @@ class OrderController extends Controller
                 ]);
             }
 
-            $availableStock = (float) $ingredient->total_stock;
+            // Use current_stock to match admin inventory display.
+            $availableStock = (float) ($ingredient->current_stock ?? 0);
             $requiredStock = (float) $data['required'];
 
             if ($availableStock < $requiredStock) {
                 $menuNames = implode(', ', array_unique($data['menu_items']));
 
                 throw ValidationException::withMessages([
-                    'inventory' => "Cannot place order. Not enough stock for {$ingredient->name}. Required: {$requiredStock} {$ingredient->unit}, Available: {$availableStock} {$ingredient->unit}. Affected item/s: {$menuNames}.",
+                    'inventory' => "Cannot place order. Not enough stock for {$ingredient->name}. Available: {$availableStock} {$ingredient->unit}. Affected item/s: {$menuNames}.",
                 ]);
             }
         }
     }
 
-    private function refreshAllMenuAvailability(): void
+   private function refreshAllMenuAvailability(): void
     {
         if (! Schema::hasColumn('menu_items', 'is_available')) {
             return;
@@ -409,20 +469,8 @@ class OrderController extends Controller
         $menuItems = MenuItem::with('ingredients')->get();
 
         foreach ($menuItems as $menuItem) {
-            $isAvailable = true;
-
-            foreach ($menuItem->ingredients as $ingredient) {
-                $requiredPerItem = (float) $ingredient->pivot->quantity_required;
-                $availableStock = (float) $ingredient->total_stock;
-
-                if ($availableStock < $requiredPerItem) {
-                    $isAvailable = false;
-                    break;
-                }
-            }
-
             $menuItem->update([
-                'is_available' => $isAvailable,
+                'is_available' => $menuItem->max_order_quantity > 0,
             ]);
         }
     }

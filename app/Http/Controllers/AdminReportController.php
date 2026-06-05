@@ -366,30 +366,56 @@ class AdminReportController extends Controller
             $forecastDetails = DB::table('order_items')
                 ->join('menu_items', 'order_items.menu_item_id', '=', 'menu_items.id')
                 ->select(
+                    'menu_items.id',
                     'menu_items.name',
                     'menu_items.category',
-                    DB::raw('SUM(order_items.quantity) as total_sold')
+                    DB::raw('SUM(order_items.quantity) as total_sold'),
+                    DB::raw('COUNT(DISTINCT DATE(order_items.created_at)) as active_sales_days')
                 )
-                ->groupBy('menu_items.name', 'menu_items.category')
+                ->whereBetween('order_items.created_at', [$startDate, $endDate])
+                ->groupBy('menu_items.id', 'menu_items.name', 'menu_items.category')
                 ->orderByDesc('total_sold')
                 ->limit(8)
                 ->get()
                 ->map(function ($item) {
-                    $avgDaily = (float) $item->total_sold / 7;
-                    $predicted = max(1, ceil($avgDaily * 1.15));
+                    $totalSold = (int) $item->total_sold;
+                    $activeSalesDays = (int) $item->active_sales_days;
+
+                    $avgDaily = $totalSold / 7;
+                    $predicted = (int) max(0, ceil($avgDaily * 1.15));
+
+                    if ($totalSold >= 20 && $activeSalesDays >= 3) {
+                        $confidence = 'High';
+                    } elseif ($totalSold >= 8 && $activeSalesDays >= 2) {
+                        $confidence = 'Medium';
+                    } else {
+                        $confidence = 'Low';
+                    }
+
+                    if ($predicted >= 15) {
+                        $recommendation = 'Prepare additional ingredients before tomorrow’s service.';
+                    } elseif ($predicted >= 8) {
+                        $recommendation = 'Prepare a moderate extra batch for tomorrow.';
+                    } elseif ($predicted >= 3) {
+                        $recommendation = 'Keep normal preparation level and monitor demand.';
+                    } elseif ($predicted >= 1) {
+                        $recommendation = 'No extra preparation needed beyond regular stock.';
+                    } else {
+                        $recommendation = 'No extra preparation needed at this time.';
+                    }
 
                     return [
                         'name' => $item->name,
                         'category' => $item->category ?: 'Uncategorized',
+                        'recent_sold_7d' => $totalSold,
+                        'active_sales_days' => $activeSalesDays,
                         'predicted_demand' => $predicted,
-                        'confidence' => 'Smart Estimate',
-                        'recommendation' => $predicted >= 5
-                            ? 'Prepare extra stock tomorrow'
-                            : 'Maintain regular prep level',
+                        'confidence' => $confidence,
+                        'recommendation' => $recommendation,
                     ];
                 });
         }
-
+        
         $businessDataForAI = [
             'total_revenue_7d' => round((float) $totalRevenue7d, 2),
             'avg_order_value' => round((float) $avgOrderValue, 2),

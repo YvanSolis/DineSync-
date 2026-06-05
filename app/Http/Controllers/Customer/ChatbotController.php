@@ -22,7 +22,7 @@ class ChatbotController extends Controller
 
         if (!$apiKey) {
             return response()->json([
-                'reply' => 'OpenAI API key is not configured yet.',
+                'reply' => 'Sorry, the assistant is not available yet. Please ask our staff for help.',
             ], 500);
         }
 
@@ -65,17 +65,44 @@ class ChatbotController extends Controller
         ];
 
         $systemInstructions = <<<TEXT
-You are DineSync Assistant, an OpenAI-powered customer chatbot for Chef Oppa restaurant.
+You are DineSync Assistant, a friendly restaurant staff assistant for Chef Oppa restaurant.
 
+Your tone:
+Speak like a real restaurant staff member, not like an AI.
+Use simple, natural, customer-friendly English.
+Be warm, helpful, and direct.
+Do not say "as an AI" or mention that you are an AI model.
+Do not use robotic phrases like "here are some good combo ideas from our available best sellers."
+
+Formatting rules:
+Do not use markdown.
+Do not use asterisks.
+Do not use bold formatting.
+Do not use numbered headings.
+Do not use tables.
+Do not use long formal paragraphs.
+Use short readable sentences.
+If listing food suggestions, write them naturally using commas or short lines.
+
+Information rules:
 Answer only using the provided restaurant context, menu items, best sellers, and reservation information.
-Keep answers simple, helpful, and customer-friendly.
-Use Philippine peso format like ₱300.00.
 Recommend only available menu items.
-If a customer asks for food under a budget, suggest available items within that budget.
-If a customer asks about unavailable food, clearly say it is currently unavailable.
-If the customer asks about reservations, explain the reservation fee, GCash payment, proof of payment, and admin approval.
-If the answer is not in the provided data, say you do not have that information yet and suggest checking the menu or contacting the restaurant.
 Do not invent menu items, prices, schedules, contact numbers, addresses, payment details, or policies.
+Use Philippine peso format like ₱300.00.
+If the customer asks about unavailable food, clearly say it is currently unavailable.
+If the answer is not in the provided data, say you do not have that information yet and suggest checking the menu or asking restaurant staff.
+
+Budget recommendation rules:
+If the customer asks for food recommendations within a budget, suggest available items that fit the budget.
+Mention the estimated total.
+Keep it practical, like what a restaurant staff would recommend.
+Avoid saying "Option A" unless the customer asks for multiple options.
+If the budget is high, suggest a good group meal but do not force spending the full amount.
+Example tone:
+"For ₱3,000, good for group sharing na yan. I recommend Bibimbap, Chicken Cheese Tteokbokki, Tuna Kimbap, and Yangnyeom Wings. Estimated total is around ₱1,250, so you still have extra budget for drinks or another dish."
+
+Reservation rules:
+If the customer asks about reservations, explain the reservation fee, GCash payment, proof of payment, and admin approval in simple terms.
 TEXT;
 
         try {
@@ -103,7 +130,7 @@ TEXT;
 
             if (!$response->successful()) {
                 return response()->json([
-                    'reply' => 'Sorry, the AI assistant could not respond right now. Please check your OpenAI key/model and try again.',
+                    'reply' => 'Sorry, the assistant cannot respond right now. Please try again later.',
                     'debug' => $response->json(),
                 ], 500);
             }
@@ -116,12 +143,14 @@ TEXT;
                 $reply = $this->extractOutputText($data['output']);
             }
 
+            $reply = $this->cleanAssistantReply($reply ?: 'Sorry, I could not generate a response. Please try again.');
+
             return response()->json([
-                'reply' => $reply ?: 'Sorry, I could not generate a response. Please try again.',
+                'reply' => $reply,
             ]);
         } catch (\Throwable $e) {
             return response()->json([
-                'reply' => 'Sorry, something went wrong while connecting to the OpenAI assistant.',
+                'reply' => 'Sorry, something went wrong while connecting to the assistant. Please try again later.',
             ], 500);
         }
     }
@@ -199,5 +228,19 @@ TEXT;
         }
 
         return count($texts) ? trim(implode("\n", $texts)) : null;
+    }
+
+    private function cleanAssistantReply(string $reply): string
+    {
+        $reply = str_replace(['**', '*', '`'], '', $reply);
+
+        $reply = preg_replace('/^#{1,6}\s*/m', '', $reply);
+        $reply = preg_replace('/^\s*[-•]\s+/m', '', $reply);
+        $reply = preg_replace('/\n{3,}/', "\n\n", $reply);
+
+        $reply = str_replace('Option A:', '', $reply);
+        $reply = str_replace('Option A', '', $reply);
+
+        return trim($reply);
     }
 }

@@ -90,4 +90,44 @@ class TableStatusController extends Controller
             ],
         ]);
     }
+
+    public function status(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user || $user->role !== 'table_customer') {
+            return response()->json([
+                'message' => 'Only table customer accounts can check table status.',
+            ], 403);
+        }
+
+        $table = \App\Models\RestaurantTable::where('table_number', $user->table_number)->first();
+
+        if (!$table) {
+            return response()->json([
+                'message' => 'Table not found.',
+                'can_order' => false,
+            ], 404);
+        }
+
+        $activeSession = null;
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('table_sessions')) {
+            $activeSession = \App\Models\TableSession::where('restaurant_table_id', $table->id)
+                ->where('status', 'active')
+                ->latest()
+                ->first();
+        }
+
+        $canOrder = $table->status === 'occupied' && $activeSession !== null;
+
+        return response()->json([
+            'message' => 'Table status loaded.',
+            'table_number' => $table->table_number,
+            'table_status' => $table->status,
+            'tablet_online' => (bool) $user->is_online,
+            'can_order' => $canOrder,
+            'active_session_id' => $activeSession?->id,
+        ]);
+    }
 }

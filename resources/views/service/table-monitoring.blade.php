@@ -88,6 +88,20 @@
                         };
 
                         $tabletAccount = $tabletAccounts[$table->table_number] ?? null;
+
+                        $tabletStatus = $tabletAccount?->display_status ?? 'offline';
+
+                        $tabletStatusClass = match($tabletStatus) {
+                            'online' => 'bg-green-50 text-green-700 border-green-200',
+                            'inactive' => 'bg-yellow-50 text-yellow-700 border-yellow-200',
+                            default => 'bg-gray-50 text-gray-600 border-gray-200',
+                        };
+
+                        $tabletDotClass = match($tabletStatus) {
+                            'online' => 'bg-green-500',
+                            'inactive' => 'bg-yellow-500',
+                            default => 'bg-gray-400',
+                        };
                     @endphp
 
                     <div class="border {{ $cardBorderClass }} rounded-2xl bg-white shadow-sm overflow-hidden">
@@ -107,6 +121,18 @@
 
                                 <span class="inline-flex px-3 py-1 rounded-full border text-xs font-semibold {{ $tableStatusClass }}">
                                     {{ ucfirst($table->status) }}
+                                </span>
+                                @php
+                                    $tabletLabel = match($tabletStatus) {
+                                        'online' => 'On',
+                                        'inactive' => 'Idle',
+                                        default => 'Off',
+                                    };
+                                @endphp
+
+                                <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-semibold {{ $tabletStatusClass }}">
+                                    <span class="w-2 h-2 rounded-full {{ $tabletDotClass }}"></span>
+                                    {{ $tabletLabel }}
                                 </span>
                             </div>
                         </div>
@@ -235,6 +261,24 @@
 </div>
 
 <script>
+    const scrollStorageKey = 'serviceTableMonitoringScrollY';
+
+    window.addEventListener('load', function () {
+        const savedScrollY = sessionStorage.getItem(scrollStorageKey);
+
+        if (savedScrollY !== null) {
+            setTimeout(() => {
+                window.scrollTo(0, parseInt(savedScrollY, 10));
+            }, 50);
+        }
+    });
+
+    function saveCurrentScrollPosition() {
+        sessionStorage.setItem(scrollStorageKey, window.scrollY.toString());
+    }
+
+    window.addEventListener('beforeunload', saveCurrentScrollPosition);
+
     setInterval(() => {
         if (document.hidden) {
             return;
@@ -253,6 +297,7 @@
             return;
         }
 
+        saveCurrentScrollPosition();
         window.location.reload();
     }, 15000);
 </script>

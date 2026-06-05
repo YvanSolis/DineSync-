@@ -139,6 +139,24 @@ class ServiceStaffController extends Controller
 
     public function tableMonitoring()
     {
+        /*
+        * Fix invalid/fake occupied tables.
+        * A table should only be occupied if service staff assigned it
+        * through walk-in or seated reservation.
+        *
+        * Tablet/mobile login should only show On/Off indicator,
+        * not change the table status to occupied.
+        */
+        RestaurantTable::where('status', 'occupied')
+            ->whereNull('current_guest_count')
+            ->whereNull('current_reservation_id')
+            ->whereNull('occupied_at')
+            ->update([
+                'status' => 'available',
+                'current_order_id' => null,
+                'notes' => null,
+            ]);
+
         $tables = RestaurantTable::orderByRaw('CAST(table_number AS INTEGER) ASC')
             ->get();
 
@@ -152,6 +170,22 @@ class ServiceStaffController extends Controller
         $tabletAccounts = User::where('role', 'table_customer')
             ->orderByRaw('CAST(table_number AS INTEGER) ASC')
             ->get()
+            ->map(function ($tablet) {
+                $lastSeen = $tablet->last_seen_at ? \Carbon\Carbon::parse($tablet->last_seen_at) : null;
+                $diffMinutes = $lastSeen ? $lastSeen->diffInMinutes(now()) : null;
+
+                if (! $tablet->is_online) {
+                    $tablet->display_status = 'offline';
+                } elseif ($diffMinutes !== null && $diffMinutes > 2) {
+                    $tablet->display_status = 'inactive';
+                } else {
+                    $tablet->display_status = 'online';
+                }
+
+                $tablet->last_seen_text = $lastSeen ? $lastSeen->diffForHumans() : 'Never';
+
+                return $tablet;
+            })
             ->keyBy('table_number');
 
         $orders = Order::with(['items.menuItem'])
@@ -184,11 +218,11 @@ class ServiceStaffController extends Controller
         foreach ($tables as $table) {
             $matchedOrder = null;
 
-            if (!empty($table->current_order_id)) {
+            if (! empty($table->current_order_id)) {
                 $matchedOrder = $orders->firstWhere('id', $table->current_order_id);
             }
 
-            if (!$matchedOrder) {
+            if (! $matchedOrder) {
                 $matchedOrder = $orders->first(function ($order) use ($table) {
                     return (string) ($order->table_number ?? '') === (string) $table->table_number;
                 });

@@ -36,18 +36,18 @@ class OpenAIForecastService
                             'content' => [
                                 [
                                     'type' => 'input_text',
-                                    'text' => 'You are an AI forecasting assistant for a Korean restaurant POS and inventory system. Return only JSON that follows the schema.'
-                                ]
-                            ]
+                                    'text' => $this->systemInstructions(),
+                                ],
+                            ],
                         ],
                         [
                             'role' => 'user',
                             'content' => [
                                 [
                                     'type' => 'input_text',
-                                    'text' => $prompt
-                                ]
-                            ]
+                                    'text' => $prompt,
+                                ],
+                            ],
                         ],
                     ],
                     'text' => [
@@ -60,14 +60,14 @@ class OpenAIForecastService
                                 'additionalProperties' => false,
                                 'properties' => [
                                     'summary' => [
-                                        'type' => 'string'
+                                        'type' => 'string',
                                     ],
                                     'forecasted_revenue_next_day' => [
-                                        'type' => 'number'
+                                        'type' => 'number',
                                     ],
                                     'forecast_confidence' => [
                                         'type' => 'string',
-                                        'enum' => ['Low', 'Medium', 'High']
+                                        'enum' => ['Low', 'Medium', 'High'],
                                     ],
                                     'menu_forecast' => [
                                         'type' => 'array',
@@ -94,7 +94,7 @@ class OpenAIForecastService
                                                 'suggested_restock' => ['type' => 'number'],
                                                 'risk_level' => [
                                                     'type' => 'string',
-                                                    'enum' => ['Low', 'Medium', 'High']
+                                                    'enum' => ['Low', 'Medium', 'High'],
                                                 ],
                                                 'reason' => ['type' => 'string'],
                                             ],
@@ -104,7 +104,7 @@ class OpenAIForecastService
                                                 'unit',
                                                 'suggested_restock',
                                                 'risk_level',
-                                                'reason'
+                                                'reason',
                                             ],
                                         ],
                                     ],
@@ -119,7 +119,7 @@ class OpenAIForecastService
                                     'forecast_confidence',
                                     'menu_forecast',
                                     'ingredient_forecast',
-                                    'recommendations'
+                                    'recommendations',
                                 ],
                             ],
                         ],
@@ -160,7 +160,6 @@ class OpenAIForecastService
             }
 
             return $this->normalizeForecast($decoded);
-
         } catch (\Throwable $e) {
             Log::error('OpenAI forecast exception', [
                 'message' => $e->getMessage(),
@@ -168,6 +167,51 @@ class OpenAIForecastService
 
             return $this->fallbackForecast('OpenAI forecast exception: ' . $e->getMessage());
         }
+    }
+
+    private function systemInstructions(): string
+    {
+        return <<<TEXT
+You are an admin forecasting assistant for DineSync, a restaurant POS and inventory management system.
+
+Return valid JSON only using the provided schema.
+
+Language and style rules:
+Respond in English only.
+Never use Korean, Tagalog, or mixed language.
+Do not use markdown.
+Do not use asterisks.
+Do not use bullet symbols inside strings.
+Do not use overly long explanations.
+Use a professional admin dashboard tone.
+Make every sentence useful for restaurant management decisions.
+
+Forecasting rules:
+Use the provided recent revenue, order trends, menu forecast, and inventory usage data only.
+If data is limited, clearly say that confidence is Low.
+Do not overstate the forecast.
+Do not invent menu items, ingredients, sales, revenue, or stock data.
+Do not recommend high preparation for items with very low predicted demand.
+Make recommendations specific and practical.
+
+Menu forecast rules:
+For high predicted demand, explain that the item should be prepared ahead.
+For medium predicted demand, recommend moderate preparation.
+For low predicted demand, recommend regular preparation only.
+Mention demand level and recent sales pattern when possible.
+
+Ingredient forecast rules:
+If current stock is low compared with forecasted usage, suggest restocking.
+If current stock is enough, suggest monitoring only.
+Risk level must match the urgency:
+High means restock is needed soon.
+Medium means monitor and prepare backup stock.
+Low means current stock is acceptable.
+
+Revenue forecast rules:
+The next-day revenue forecast should be close to the provided basic_forecasted_revenue unless trends strongly justify adjustment.
+If there are many zero-sales days or limited records, use Low confidence.
+TEXT;
     }
 
     private function buildPrompt(array $businessData): string
@@ -179,12 +223,24 @@ class OpenAIForecastService
             'basic_forecasted_revenue' => $businessData['basic_forecasted_revenue'] ?? 0,
             'sales_order_trends' => array_slice($this->toArray($businessData['sales_order_trends'] ?? []), -7),
             'revenue_by_category' => array_slice($this->toArray($businessData['revenue_by_category'] ?? []), 0, 5),
-            'inventory_usage_forecast' => array_slice($this->toArray($businessData['inventory_usage_forecast'] ?? []), 0, 5),
-            'forecast_details' => array_slice($this->toArray($businessData['forecast_details'] ?? []), 0, 5),
+            'inventory_usage_forecast' => array_slice($this->toArray($businessData['inventory_usage_forecast'] ?? []), 0, 8),
+            'forecast_details' => array_slice($this->toArray($businessData['forecast_details'] ?? []), 0, 8),
         ];
 
-        return 'Analyze this restaurant data and create a practical next-day forecast for fresh daily stocking. Use low confidence if data is limited. Restaurant data: '
-            . json_encode($compactData, JSON_PRETTY_PRINT);
+        return <<<TEXT
+Analyze this restaurant data and create a practical next-day forecast for the admin Reports & Forecast page.
+
+Use the data carefully:
+- Recent sales and order trends show actual activity.
+- Forecast details show menu-level predicted demand.
+- Inventory usage forecast shows ingredient usage, current stock, and forecast quantity.
+- If recent data is limited or inconsistent, set forecast_confidence to Low.
+
+Return JSON only.
+
+Restaurant data:
+TEXT
+            . "\n" . json_encode($compactData, JSON_PRETTY_PRINT);
     }
 
     private function toArray($value): array
@@ -246,13 +302,17 @@ class OpenAIForecastService
     private function normalizeForecast(array $forecast): array
     {
         return [
-            'summary' => $forecast['summary'] ?? 'AI forecast generated successfully.',
+            'summary' => $this->cleanText($forecast['summary'] ?? 'AI forecast generated successfully.'),
             'forecasted_revenue_next_day' => (float) ($forecast['forecasted_revenue_next_day'] ?? 0),
             'forecast_confidence' => $this->normalizeLevel($forecast['forecast_confidence'] ?? 'Low'),
             'menu_forecast' => $this->normalizeMenuForecast($forecast['menu_forecast'] ?? []),
             'ingredient_forecast' => $this->normalizeIngredientForecast($forecast['ingredient_forecast'] ?? []),
             'recommendations' => is_array($forecast['recommendations'] ?? null)
-                ? array_values($forecast['recommendations'])
+                ? collect($forecast['recommendations'])
+                    ->map(fn ($item) => $this->cleanText((string) $item))
+                    ->filter()
+                    ->values()
+                    ->toArray()
                 : [],
         ];
     }
@@ -261,9 +321,9 @@ class OpenAIForecastService
     {
         return collect($items)->map(function ($item) {
             return [
-                'menu_item' => (string) ($item['menu_item'] ?? 'Unknown Item'),
+                'menu_item' => $this->cleanText((string) ($item['menu_item'] ?? 'Unknown Item')),
                 'predicted_demand' => (float) ($item['predicted_demand'] ?? 0),
-                'reason' => (string) ($item['reason'] ?? 'Based on recent demand.'),
+                'reason' => $this->cleanText((string) ($item['reason'] ?? 'Based on recent demand.')),
             ];
         })->values()->toArray();
     }
@@ -272,12 +332,12 @@ class OpenAIForecastService
     {
         return collect($items)->map(function ($item) {
             return [
-                'ingredient' => (string) ($item['ingredient'] ?? 'Unknown Ingredient'),
+                'ingredient' => $this->cleanText((string) ($item['ingredient'] ?? 'Unknown Ingredient')),
                 'current_stock' => (float) ($item['current_stock'] ?? 0),
-                'unit' => (string) ($item['unit'] ?? ''),
+                'unit' => $this->cleanText((string) ($item['unit'] ?? '')),
                 'suggested_restock' => (float) ($item['suggested_restock'] ?? 0),
                 'risk_level' => $this->normalizeLevel($item['risk_level'] ?? 'Low'),
-                'reason' => (string) ($item['reason'] ?? 'Based on current stock and expected usage.'),
+                'reason' => $this->cleanText((string) ($item['reason'] ?? 'Based on current stock and expected usage.')),
             ];
         })->values()->toArray();
     }
@@ -295,6 +355,16 @@ class OpenAIForecastService
         }
 
         return 'Low';
+    }
+
+    private function cleanText(string $text): string
+    {
+        $text = str_replace(['**', '*', '`'], '', $text);
+        $text = preg_replace('/^#{1,6}\s*/m', '', $text);
+        $text = preg_replace('/^\s*[-•]\s+/m', '', $text);
+        $text = preg_replace('/\s+/', ' ', $text);
+
+        return trim($text);
     }
 
     private function fallbackForecast(string $reason): array

@@ -64,6 +64,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/table/online', [TableStatusController::class, 'online']);
     Route::post('/table/offline', [TableStatusController::class, 'offline']);
     Route::post('/table/heartbeat', [TableStatusController::class, 'heartbeat']);
+    Route::get('/table/status', [TableStatusController::class, 'status']);
 });
 
 /*
