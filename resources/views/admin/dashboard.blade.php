@@ -529,5 +529,6 @@ loadDashboard();
 setInterval(() => {
     loadDashboard();
 }, 30000);
+</script>
 
 @endsection
