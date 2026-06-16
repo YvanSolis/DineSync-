@@ -7,23 +7,16 @@
 <div class="space-y-6">
 
     <!-- Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <a href="{{ route('service.active-orders') }}"
-           class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:shadow transition">
-            <p class="text-sm text-gray-500">Served Today</p>
-            <p class="text-2xl font-bold text-gray-700 mt-1">{{ $orderStats['served_today'] ?? 0 }}</p>
-            <p class="text-xs text-gray-400 mt-1">Completed orders today</p>
-        </a>
-
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <a href="{{ route('service.reservations') }}"
-           class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:border-purple-300 hover:shadow transition">
+        class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:border-purple-300 hover:shadow transition">
             <p class="text-sm text-gray-500">Pending Reservations</p>
             <p class="text-2xl font-bold text-purple-500 mt-1">{{ $reservationStats['pending'] ?? 0 }}</p>
             <p class="text-xs text-gray-400 mt-1">Needs payment or approval</p>
         </a>
 
         <a href="{{ route('service.active-orders') }}"
-           class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:border-green-300 hover:shadow transition">
+        class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:border-green-300 hover:shadow transition">
             <p class="text-sm text-gray-500">Ready to Serve</p>
             <p class="text-2xl font-bold text-green-500 mt-1">
                 <span id="ready-to-serve-count">{{ $orderStats['ready'] ?? 0 }}</span>
@@ -31,10 +24,10 @@
             <p class="text-xs text-gray-400 mt-1">Waiting for service staff</p>
         </a>
 
-        <a href="{{ route('service.reservations') }}"
-           class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:shadow transition">
+        <a href="{{ route('service.table-monitoring') }}"
+        class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm hover:border-blue-300 hover:shadow transition">
             <p class="text-sm text-gray-500">Seated</p>
-            <p class="text-2xl font-bold text-purple-500 mt-1">{{ $reservationStats['seated'] ?? 0 }}</p>
+            <p class="text-2xl font-bold text-blue-500 mt-1">{{ $reservationStats['seated'] ?? 0 }}</p>
             <p class="text-xs text-gray-400 mt-1">Currently seated customers</p>
         </a>
     </div>

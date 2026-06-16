@@ -15,13 +15,19 @@ class ServiceStaffController extends Controller
     {
         $today = now()->toDateString();
 
+        $activeStatuses = [
+            'pending',
+            'new',
+            'placed',
+            'confirmed',
+            'preparing',
+            'ready',
+        ];
+
         $orderStats = [
-            'active' => Order::whereRaw("LOWER(TRIM(status)) NOT IN (?, ?)", ['cancelled', 'completed'])->count(),
+            'active' => Order::whereRaw("LOWER(TRIM(status)) IN (?, ?, ?, ?, ?, ?)", $activeStatuses)->count(),
             'preparing' => Order::whereRaw("LOWER(TRIM(status)) = ?", ['preparing'])->count(),
             'ready' => Order::whereRaw("LOWER(TRIM(status)) = ?", ['ready'])->count(),
-            'served_today' => Order::whereRaw("LOWER(TRIM(status)) = ?", ['served'])
-                ->whereDate('updated_at', $today)
-                ->count(),
         ];
 
         $reservationStats = [
@@ -34,14 +40,13 @@ class ServiceStaffController extends Controller
         ];
 
         $recentOrders = Order::with(['items.menuItem', 'payment'])
-            ->whereRaw("LOWER(TRIM(status)) NOT IN (?, ?)", ['cancelled', 'completed'])
+            ->whereRaw("LOWER(TRIM(status)) IN (?, ?, ?, ?, ?, ?)", $activeStatuses)
             ->orderByRaw("
                 CASE
                     WHEN LOWER(TRIM(status)) IN ('pending', 'new', 'placed', 'confirmed') THEN 1
                     WHEN LOWER(TRIM(status)) = 'preparing' THEN 2
                     WHEN LOWER(TRIM(status)) = 'ready' THEN 3
-                    WHEN LOWER(TRIM(status)) = 'served' THEN 4
-                    ELSE 5
+                    ELSE 4
                 END
             ")
             ->orderByDesc('id')
@@ -67,15 +72,23 @@ class ServiceStaffController extends Controller
 
     public function activeOrders()
     {
+        $activeStatuses = [
+            'pending',
+            'new',
+            'placed',
+            'confirmed',
+            'preparing',
+            'ready',
+        ];
+
         $orders = Order::with(['items.menuItem', 'payment'])
-            ->whereRaw("LOWER(TRIM(status)) NOT IN (?, ?)", ['cancelled', 'completed'])
+            ->whereRaw("LOWER(TRIM(status)) IN (?, ?, ?, ?, ?, ?)", $activeStatuses)
             ->orderByRaw("
                 CASE
                     WHEN LOWER(TRIM(status)) IN ('pending', 'new', 'placed', 'confirmed') THEN 1
                     WHEN LOWER(TRIM(status)) = 'preparing' THEN 2
                     WHEN LOWER(TRIM(status)) = 'ready' THEN 3
-                    WHEN LOWER(TRIM(status)) = 'served' THEN 4
-                    ELSE 5
+                    ELSE 4
                 END
             ")
             ->orderByDesc('id')
@@ -106,7 +119,7 @@ class ServiceStaffController extends Controller
             })
         );
 
-        $activeForStats = Order::whereRaw("LOWER(TRIM(status)) NOT IN (?, ?)", ['cancelled', 'completed'])
+        $activeForStats = Order::whereRaw("LOWER(TRIM(status)) IN (?, ?, ?, ?, ?, ?)", $activeStatuses)
             ->get()
             ->map(function ($order) {
                 return $this->normalizeOrderStatus($order);
@@ -116,9 +129,6 @@ class ServiceStaffController extends Controller
             'pending' => $activeForStats->filter(fn ($status) => $status === 'pending')->count(),
             'preparing' => $activeForStats->filter(fn ($status) => $status === 'preparing')->count(),
             'ready' => $activeForStats->filter(fn ($status) => $status === 'ready')->count(),
-            'served_today' => Order::whereRaw("LOWER(TRIM(status)) = ?", ['served'])
-                ->whereDate('updated_at', now()->toDateString())
-                ->count(),
         ];
 
         return view('service.active-orders', compact('orders', 'stats'));

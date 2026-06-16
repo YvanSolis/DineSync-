@@ -48,21 +48,21 @@ class KdsController extends Controller
             'pending' => [
                 'buttonText' => 'START PREPARING',
                 'nextStatus' => 'preparing',
-                'buttonClass' => 'bg-orange-500 hover:bg-orange-600',
+                'buttonClass' => 'bg-yellow-500 hover:bg-yellow-600',
                 'columnType' => 'pending',
                 'emptyText' => 'No new orders',
             ],
             'preparing' => [
                 'buttonText' => 'MARK READY',
                 'nextStatus' => 'ready',
-                'buttonClass' => 'bg-emerald-600 hover:bg-emerald-700',
+                'buttonClass' => 'bg-green-500 hover:bg-green-600',
                 'columnType' => 'preparing',
                 'emptyText' => 'No preparing orders',
             ],
             'ready' => [
                 'buttonText' => 'COMPLETE',
                 'nextStatus' => 'served',
-                'buttonClass' => 'bg-slate-600 hover:bg-slate-700',
+                'buttonClass' => 'bg-gray-700 hover:bg-gray-800',
                 'columnType' => 'ready',
                 'emptyText' => 'No ready orders',
             ],
@@ -71,7 +71,7 @@ class KdsController extends Controller
                 'nextStatus' => null,
                 'buttonClass' => '',
                 'columnType' => 'served',
-                'emptyText' => 'No completed orders',
+                'emptyText' => 'No completed orders today',
             ],
         ];
 
@@ -85,7 +85,7 @@ class KdsController extends Controller
 
             if ($statusOrders->isEmpty()) {
                 $html[$status] = '
-                    <div class="h-40 flex items-center justify-center text-slate-500 font-bold">
+                    <div class="h-40 flex items-center justify-center text-gray-400 font-bold">
                         ' . $config['emptyText'] . '
                     </div>
                 ';
@@ -111,23 +111,28 @@ class KdsController extends Controller
 
     private function getKdsOrders()
     {
+        $today = now()->toDateString();
+
         $orders = Order::with(['items.menuItem'])
-            ->whereRaw("LOWER(TRIM(status)) IN (?, ?, ?, ?, ?, ?, ?)", [
-                'pending',
-                'new',
-                'placed',
-                'confirmed',
-                'preparing',
-                'ready',
-                'served',
-            ])
-            ->latest()
+            ->where(function ($query) use ($today) {
+                $query->whereRaw("LOWER(TRIM(status)) IN (?, ?, ?, ?, ?, ?)", [
+                    'pending',
+                    'new',
+                    'placed',
+                    'confirmed',
+                    'preparing',
+                    'ready',
+                ])
+                ->orWhere(function ($servedQuery) use ($today) {
+                    $servedQuery->whereRaw("LOWER(TRIM(status)) = ?", ['served'])
+                        ->whereDate('updated_at', $today);
+                });
+            })
+            ->latest('updated_at')
             ->get()
             ->map(function ($order) {
                 $status = strtolower(trim($order->status ?? 'pending'));
 
-                // Only aliases for new orders.
-                // Do NOT convert preparing to pending.
                 if (in_array($status, ['new', 'placed', 'confirmed'])) {
                     $status = 'pending';
                 }

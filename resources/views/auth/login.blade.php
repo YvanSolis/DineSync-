@@ -8,13 +8,26 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 
-<body class="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+<body
+    class="min-h-screen flex items-center justify-center px-4 py-8 bg-cover bg-center bg-no-repeat"
+    style="background-image: url('{{ asset('images/customer-menu/login-bg.png') }}');"
+>
 
-    <div class="w-full max-w-md bg-white rounded-2xl shadow p-8">
+    <div class="w-full max-w-md bg-white/95 rounded-2xl shadow-xl p-8 border border-orange-100">
 
         <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-orange-500">DineSync+</h1>
-            <p class="text-gray-500 mt-2">Login to continue</p>
+            <img
+                src="{{ asset('images/customer-menu/Dinesync-logo.png') }}"
+                alt="DineSync+ Logo"
+                class="mx-auto h-24 w-auto mb-3"
+            >
+
+            <h1
+                class="text-4xl font-extrabold tracking-tight"
+                style="font-family: 'Poppins', sans-serif;"
+            >
+                <span class="text-gray-800">Dine</span><span class="text-orange-500">Sync</span><span class="text-orange-500">+</span>
+            </h1>
         </div>
 
         <x-auth-session-status class="mb-4" :status="session('status')" />
@@ -27,7 +40,7 @@
 
                 <x-text-input
                     id="email"
-                    class="block mt-2 w-full rounded-xl"
+                    class="block mt-2 w-full rounded-xl border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                     type="email"
                     name="email"
                     :value="old('email')"
@@ -45,7 +58,7 @@
 
                 <x-text-input
                     id="password"
-                    class="block mt-2 w-full rounded-xl"
+                    class="block mt-2 w-full rounded-xl border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                     type="password"
                     name="password"
                     required
@@ -72,7 +85,7 @@
 
                 @if (Route::has('password.request'))
                     <a
-                        class="text-sm text-orange-500 hover:text-orange-600"
+                        class="text-sm text-orange-500 hover:text-orange-600 font-semibold"
                         href="{{ route('password.request') }}"
                     >
                         Forgot password?
@@ -82,7 +95,7 @@
 
             <button
                 type="submit"
-                class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition"
+                class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition shadow-md"
             >
                 Log In
             </button>
@@ -98,10 +111,6 @@
                 </p>
             </div>
         @endif
-
-        <p class="text-xs text-gray-400 text-center mt-6">
-            Admin and staff accounts are managed by the system admin.
-        </p>
 
     </div>
 

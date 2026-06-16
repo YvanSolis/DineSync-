@@ -51,13 +51,21 @@
         <div class="px-5 py-5 border-b border-orange-100/70 shrink-0">
             <div class="brand-card rounded-2xl px-4 py-4 text-white shadow-lg shadow-orange-200/60">
                 <div class="flex items-center gap-3">
-                    <div class="w-11 h-11 rounded-2xl bg-white/20 border border-white/30 flex items-center justify-center text-xl">
-                        🍜
+                    <div class="w-12 h-12 rounded-2xl bg-white border border-white/60 flex items-center justify-center overflow-hidden shadow-sm shrink-0">
+                        <img
+                            src="{{ asset('images/customer-menu/chef-oppa-logo.png') }}"
+                            alt="Chef Oppa Logo"
+                            class="w-full h-full object-cover"
+                        >
                     </div>
 
-                    <div>
-                        <h1 class="text-[18px] font-extrabold leading-tight">Chef Oppa</h1>
-                        <p class="text-[11px] text-white/85">Admin Control Panel</p>
+                    <div class="min-w-0">
+                        <h1 class="text-[18px] font-extrabold leading-tight truncate">
+                            Chef Oppa
+                        </h1>
+                        <p class="text-[11px] text-white/85">
+                            Admin Control Panel
+                        </p>
                     </div>
                 </div>
             </div>
