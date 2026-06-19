@@ -6,109 +6,248 @@
     <title>DineSync+ Register</title>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <style>
+        html,
+        body {
+            min-height: 100%;
+        }
+
+        body {
+            background-image:
+                linear-gradient(
+                    135deg,
+                    rgba(15, 23, 42, 0.62),
+                    rgba(67, 31, 12, 0.50)
+                ),
+                url('{{ asset('images/customer-menu/login-bg.png') }}');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                background-attachment: scroll;
+            }
+        }
+    </style>
 </head>
 
-<body class="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+<body class="min-h-screen flex items-center justify-center px-4 sm:px-6 py-6 sm:py-10">
 
-    <div class="w-full max-w-md bg-white rounded-2xl shadow p-8">
+    <main class="w-full max-w-[460px]">
 
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-orange-500">DineSync+</h1>
-            <p class="text-gray-500 mt-2">Create your customer account</p>
+        <div class="bg-white/95 backdrop-blur rounded-2xl sm:rounded-3xl shadow-2xl p-5 sm:p-8 border border-orange-100">
+
+            <!-- LOGO / BRAND -->
+            <div class="text-center mb-6 sm:mb-8">
+                <img
+                    src="{{ asset('images/customer-menu/Dinesync-logo.png') }}"
+                    alt="DineSync+ Logo"
+                    class="mx-auto h-16 sm:h-20 md:h-24 w-auto mb-3"
+                >
+
+                <h1
+                    class="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight"
+                    style="font-family: 'Poppins', sans-serif;"
+                >
+                    <span class="text-gray-800">Dine</span><span class="text-orange-500">Sync</span><span class="text-orange-500">+</span>
+                </h1>
+
+                <p class="text-xs sm:text-sm text-gray-500 mt-2">
+                    Create your customer account
+                </p>
+            </div>
+
+            <form method="POST" action="{{ route('register') }}" class="space-y-4 sm:space-y-5">
+                @csrf
+
+                <!-- NAME -->
+                <div>
+                    <x-input-label for="name" :value="__('Name')" />
+
+                    <x-text-input
+                        id="name"
+                        class="block mt-2 w-full rounded-xl border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-sm sm:text-base"
+                        type="text"
+                        name="name"
+                        :value="old('name')"
+                        required
+                        autofocus
+                        autocomplete="name"
+                        placeholder="Enter your name"
+                    />
+
+                    <x-input-error :messages="$errors->get('name')" class="mt-2" />
+                </div>
+
+                <!-- EMAIL -->
+                <div>
+                    <x-input-label for="email" :value="__('Email')" />
+
+                    <x-text-input
+                        id="email"
+                        class="block mt-2 w-full rounded-xl border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-sm sm:text-base"
+                        type="email"
+                        name="email"
+                        :value="old('email')"
+                        required
+                        autocomplete="username"
+                        placeholder="Enter your email"
+                    />
+
+                    <x-input-error :messages="$errors->get('email')" class="mt-2" />
+                </div>
+
+                <!-- PASSWORD -->
+                <div>
+                    <x-input-label for="password" :value="__('Password')" />
+
+                    <div class="relative mt-2">
+                        <x-text-input
+                            id="password"
+                            class="block w-full rounded-xl border-gray-300 focus:border-orange-500 focus:ring-orange-500 pr-12 text-sm sm:text-base"
+                            type="password"
+                            name="password"
+                            required
+                            autocomplete="new-password"
+                            placeholder="Create a password"
+                        />
+
+                        <button
+                            type="button"
+                            id="togglePassword"
+                            class="absolute inset-y-0 right-0 flex items-center px-4 text-gray-500 hover:text-orange-500 focus:outline-none"
+                            aria-label="Show password"
+                        >
+                            <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12s-3.75 6.75-9.75 6.75S2.25 12 2.25 12z" />
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+
+                            <svg id="eyeOffIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18" />
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M10.58 10.58A2 2 0 0012 14a2 2 0 001.42-.58" />
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M9.88 5.09A9.77 9.77 0 0112 4.88C18 4.88 21.75 12 21.75 12a18.28 18.28 0 01-3.16 4.16" />
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M6.53 6.53C3.8 8.36 2.25 12 2.25 12s3.75 7.12 9.75 7.12a9.7 9.7 0 004.18-.94" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <x-input-error :messages="$errors->get('password')" class="mt-2" />
+                </div>
+
+                <!-- CONFIRM PASSWORD -->
+                <div>
+                    <x-input-label for="password_confirmation" :value="__('Confirm Password')" />
+
+                    <div class="relative mt-2">
+                        <x-text-input
+                            id="password_confirmation"
+                            class="block w-full rounded-xl border-gray-300 focus:border-orange-500 focus:ring-orange-500 pr-12 text-sm sm:text-base"
+                            type="password"
+                            name="password_confirmation"
+                            required
+                            autocomplete="new-password"
+                            placeholder="Confirm your password"
+                        />
+
+                        <button
+                            type="button"
+                            id="toggleConfirmPassword"
+                            class="absolute inset-y-0 right-0 flex items-center px-4 text-gray-500 hover:text-orange-500 focus:outline-none"
+                            aria-label="Show confirm password"
+                        >
+                            <svg id="confirmEyeIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12s-3.75 6.75-9.75 6.75S2.25 12 2.25 12z" />
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+
+                            <svg id="confirmEyeOffIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18" />
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M10.58 10.58A2 2 0 0012 14a2 2 0 001.42-.58" />
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M9.88 5.09A9.77 9.77 0 0112 4.88C18 4.88 21.75 12 21.75 12a18.28 18.28 0 01-3.16 4.16" />
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M6.53 6.53C3.8 8.36 2.25 12 2.25 12s3.75 7.12 9.75 7.12a9.7 9.7 0 004.18-.94" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
+                </div>
+
+                <!-- SUBMIT -->
+                <button
+                    type="submit"
+                    class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 sm:py-3.5 rounded-xl transition shadow-md text-sm sm:text-base"
+                >
+                    Register
+                </button>
+            </form>
+
+            <div class="mt-5 sm:mt-6 text-center">
+                <p class="text-sm text-gray-600">
+                    Already have an account?
+                    <a href="{{ route('login') }}" class="text-orange-500 font-semibold hover:text-orange-600">
+                        Log in
+                    </a>
+                </p>
+
+                <p class="text-xs text-gray-400 mt-4">
+                    Registration is for customers only.
+                </p>
+            </div>
+
         </div>
 
-        <form method="POST" action="{{ route('register') }}" class="space-y-5">
-            @csrf
+    </main>
 
-            <div>
-                <x-input-label for="name" :value="__('Name')" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            function setupPasswordToggle(buttonId, inputId, eyeId, eyeOffId) {
+                const toggleButton = document.getElementById(buttonId);
+                const passwordInput = document.getElementById(inputId);
+                const eyeIcon = document.getElementById(eyeId);
+                const eyeOffIcon = document.getElementById(eyeOffId);
 
-                <x-text-input
-                    id="name"
-                    class="block mt-2 w-full rounded-xl"
-                    type="text"
-                    name="name"
-                    :value="old('name')"
-                    required
-                    autofocus
-                    autocomplete="name"
-                    placeholder="Enter your name"
-                />
+                if (!toggleButton || !passwordInput || !eyeIcon || !eyeOffIcon) {
+                    return;
+                }
 
-                <x-input-error :messages="$errors->get('name')" class="mt-2" />
-            </div>
+                toggleButton.addEventListener('click', function () {
+                    const isPassword = passwordInput.type === 'password';
 
-            <div>
-                <x-input-label for="email" :value="__('Email')" />
+                    passwordInput.type = isPassword ? 'text' : 'password';
 
-                <x-text-input
-                    id="email"
-                    class="block mt-2 w-full rounded-xl"
-                    type="email"
-                    name="email"
-                    :value="old('email')"
-                    required
-                    autocomplete="username"
-                    placeholder="Enter your email"
-                />
+                    eyeIcon.classList.toggle('hidden', isPassword);
+                    eyeOffIcon.classList.toggle('hidden', !isPassword);
 
-                <x-input-error :messages="$errors->get('email')" class="mt-2" />
-            </div>
+                    toggleButton.setAttribute(
+                        'aria-label',
+                        isPassword ? 'Hide password' : 'Show password'
+                    );
+                });
+            }
 
-            <div>
-                <x-input-label for="password" :value="__('Password')" />
-
-                <x-text-input
-                    id="password"
-                    class="block mt-2 w-full rounded-xl"
-                    type="password"
-                    name="password"
-                    required
-                    autocomplete="new-password"
-                    placeholder="Create a password"
-                />
-
-                <x-input-error :messages="$errors->get('password')" class="mt-2" />
-            </div>
-
-            <div>
-                <x-input-label for="password_confirmation" :value="__('Confirm Password')" />
-
-                <x-text-input
-                    id="password_confirmation"
-                    class="block mt-2 w-full rounded-xl"
-                    type="password"
-                    name="password_confirmation"
-                    required
-                    autocomplete="new-password"
-                    placeholder="Confirm your password"
-                />
-
-                <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
-            </div>
-
-            <button
-                type="submit"
-                class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition"
-            >
-                Register
-            </button>
-        </form>
-
-        <div class="mt-6 text-center">
-            <p class="text-sm text-gray-600">
-                Already have an account?
-                <a href="{{ route('login') }}" class="text-orange-500 font-semibold hover:text-orange-600">
-                    Log in
-                </a>
-            </p>
-        </div>
-
-        <p class="text-xs text-gray-400 text-center mt-6">
-            Registration is for customers only.
-        </p>
-
-    </div>
+            setupPasswordToggle('togglePassword', 'password', 'eyeIcon', 'eyeOffIcon');
+            setupPasswordToggle('toggleConfirmPassword', 'password_confirmation', 'confirmEyeIcon', 'confirmEyeOffIcon');
+        });
+    </script>
 
 </body>
 </html>
