@@ -8,17 +8,34 @@
     }
 
     body {
-        overflow: hidden;
+        overflow-x: hidden;
     }
 
-    .menu-book-page {
-        height: calc(100vh - 80px);
-        width: 100%;
+    footer,
+    #customer-chatbot-root,
+    #customer-chatbot-window,
+    #customer-chatbot-button,
+    .fixed.bottom-6.right-6,
+    .fixed.bottom-8.right-8,
+    .fixed.bottom-10.right-10 {
+        display: none !important;
+    }
+
+    @media (min-width: 1024px) {
+        body {
+            overflow: hidden;
+        }
+    }
+
+    @media (max-width: 1023px) {
+        body {
+            overflow-y: auto;
+        }
+    }
+
+    .menu-bg {
         position: relative;
-        overflow: hidden;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        width: 100%;
         background:
             radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.18), transparent 18rem),
             radial-gradient(circle at 82% 20%, rgba(249, 115, 22, 0.20), transparent 20rem),
@@ -32,7 +49,7 @@
             );
     }
 
-    .menu-book-page::before {
+    .menu-bg::before {
         content: "";
         position: absolute;
         inset: 0;
@@ -49,7 +66,7 @@
         opacity: 0.9;
     }
 
-    .menu-book-page::after {
+    .menu-bg::after {
         content: "";
         position: absolute;
         inset: 0;
@@ -59,10 +76,23 @@
             linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.14) 100%);
     }
 
-    .fixed.bottom-6.right-6,
-    .fixed.bottom-8.right-8,
-    .fixed.bottom-10.right-10 {
-        display: none !important;
+    /* DESKTOP: keep the original PageFlip book */
+    .desktop-menu-book {
+        display: none;
+    }
+
+    @media (min-width: 1024px) {
+        .desktop-menu-book {
+            display: flex;
+        }
+    }
+
+    .menu-book-page {
+        height: calc(100dvh - 72px);
+        min-height: 640px;
+        overflow: hidden;
+        align-items: center;
+        justify-content: center;
     }
 
     .menu-book-stage {
@@ -75,6 +105,7 @@
         justify-content: center;
         perspective: 2600px;
         transform-style: preserve-3d;
+        padding: 24px 0;
     }
 
     .menu-book-wrap {
@@ -258,45 +289,91 @@
         margin-top: 54px;
     }
 
-    @media (max-width: 1100px) {
-        .menu-book-wrap {
-            width: min(410px, 94vw);
-            height: 560px;
-        }
+    /* MOBILE: readable menu pages, no PageFlip */
+    .mobile-menu-page {
+        display: block;
+        min-height: calc(100dvh - 72px);
+        overflow-x: hidden;
+        padding: 16px 14px 28px;
+    }
 
-        .menu-book-shell {
-            width: min(410px, 94vw);
-            height: 540px;
-        }
-
-        .menu-book-shell.single-page-mode,
-        .menu-book-shell.spread-mode {
-            transform: translateX(0);
+    @media (min-width: 1024px) {
+        .mobile-menu-page {
+            display: none;
         }
     }
 
-    @media (max-width: 768px) {
-        .menu-book-wrap {
-            height: 540px;
-        }
+    .mobile-menu-inner {
+        position: relative;
+        z-index: 5;
+        max-width: 640px;
+        margin: 0 auto;
+    }
 
-        .menu-book-shell {
-            width: min(390px, 94vw);
-            height: 520px;
-        }
+    .mobile-menu-header {
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(15, 23, 42, 0.76);
+        backdrop-filter: blur(14px);
+        box-shadow: 0 18px 40px rgba(0,0,0,0.22);
+    }
 
-        .hard-cover-inner {
-            padding: 26px;
-        }
+    .mobile-menu-card {
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.10);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 18px 40px rgba(0,0,0,0.22);
+    }
 
-        .cover-content-block {
-            margin-top: 48px;
-        }
+    .mobile-menu-card img {
+        display: block;
+        width: 100%;
+        height: auto;
+        background: white;
     }
 </style>
 
+{{-- MOBILE / TABLET PORTRAIT: readable vertical menu --}}
+<div class="menu-bg mobile-menu-page">
+    <div class="mobile-menu-inner space-y-4">
+        <div class="mobile-menu-header rounded-[1.5rem] p-5 text-white">
+            <p class="text-xs font-black text-orange-300 uppercase tracking-[0.25em]">
+                Chef Oppa Menu
+            </p>
+
+            <h1 class="mt-2 text-2xl font-black leading-tight">
+                Browse the menu clearly
+            </h1>
+
+            <p class="mt-2 text-sm leading-6 text-white/70">
+                On mobile, the menu is shown as full-width pages so every item is readable.
+            </p>
+        </div>
+
+        @for ($i = 1; $i <= 7; $i++)
+            <a
+                href="{{ asset('images/customer-menu/page-' . $i . '.jpg') }}"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="mobile-menu-card block overflow-hidden rounded-[1.25rem]"
+            >
+                <div class="flex items-center justify-between gap-3 bg-gray-950/90 px-4 py-3 text-white">
+                    <p class="text-sm font-black">Menu Page {{ $i }}</p>
+                    <p class="text-xs font-bold text-orange-300">Tap to zoom</p>
+                </div>
+
+                <img
+                    src="{{ asset('images/customer-menu/page-' . $i . '.jpg') }}"
+                    alt="DineSync+ menu page {{ $i }}"
+                    loading="{{ $i <= 2 ? 'eager' : 'lazy' }}"
+                >
+            </a>
+        @endfor
+    </div>
+</div>
+
+{{-- DESKTOP / LAPTOP: original PageFlip menu --}}
 <div
-    class="menu-book-page"
+    class="menu-bg menu-book-page desktop-menu-book"
     x-data="{
         currentPage: 0,
         totalPages: 9,
@@ -319,16 +396,14 @@
                 return;
             }
 
-            const isCompact = window.innerWidth < 1100;
-
             pageFlip = new window.St.PageFlip(book, {
                 width: 330,
                 height: 470,
                 size: 'stretch',
                 minWidth: 285,
-                maxWidth: isCompact ? 410 : 740,
+                maxWidth: 740,
                 minHeight: 400,
-                maxHeight: isCompact ? 540 : 470,
+                maxHeight: 470,
                 maxShadowOpacity: 0.24,
                 showCover: true,
                 mobileScrollSupport: false,

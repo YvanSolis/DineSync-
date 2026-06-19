@@ -22,9 +22,15 @@
             background-attachment: fixed;
         }
 
+        @media (max-width: 1023px) {
+            .service-bg {
+                background-attachment: scroll;
+            }
+        }
+
         .service-sidebar-bg {
             background:
-                linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(255, 247, 237, 0.94)),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 247, 237, 0.96)),
                 url('https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1200&q=80');
             background-size: cover;
             background-position: left center;
@@ -39,19 +45,50 @@
         }
 
         .soft-glass {
-            background: rgba(255, 255, 255, 0.82);
+            background: rgba(255, 255, 255, 0.86);
             backdrop-filter: blur(14px);
             -webkit-backdrop-filter: blur(14px);
+        }
+
+        .service-overlay {
+            background: rgba(15, 23, 42, 0.38);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
         }
     </style>
 </head>
 
-<body class="font-sans text-gray-900 h-screen overflow-hidden">
+<body class="font-sans text-gray-900 min-h-screen overflow-x-hidden">
 
-<div class="h-screen overflow-hidden service-bg">
+<div class="min-h-screen service-bg">
+
+    <!-- Mobile Overlay -->
+    <div
+        id="serviceSidebarOverlay"
+        class="fixed inset-0 z-40 service-overlay hidden lg:hidden">
+    </div>
 
     <!-- Sidebar -->
-    <aside class="fixed left-0 top-0 z-50 h-screen w-[260px] service-sidebar-bg border-r border-orange-100/70 flex flex-col overflow-y-auto shadow-[8px_0_30px_rgba(15,23,42,0.04)]">
+    <aside
+        id="serviceSidebar"
+        class="fixed left-0 top-0 z-50 h-screen w-[280px] sm:w-[300px] lg:w-[260px]
+               service-sidebar-bg border-r border-orange-100/70 flex flex-col overflow-y-auto
+               shadow-[8px_0_30px_rgba(15,23,42,0.08)]
+               transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
+
+        <!-- Mobile Close -->
+        <div class="lg:hidden flex items-center justify-between px-5 pt-5">
+            <p class="text-xs font-extrabold uppercase tracking-[0.18em] text-orange-500">
+                Service Menu
+            </p>
+
+            <button
+                type="button"
+                id="closeServiceSidebar"
+                class="w-10 h-10 rounded-2xl bg-white border border-orange-100 text-gray-700 shadow-sm flex items-center justify-center font-bold">
+                ×
+            </button>
+        </div>
 
         <!-- Brand -->
         <div class="px-5 py-5 border-b border-orange-100/70 shrink-0">
@@ -81,28 +118,28 @@
         <nav class="flex-1 px-4 py-5 space-y-2 text-[14px] font-semibold">
 
             <a href="{{ route('service.dashboard') }}"
-               class="flex items-center gap-3 px-4 py-3.5 rounded-2xl transition
+               class="service-nav-link flex items-center gap-3 px-4 py-3.5 rounded-2xl transition
                {{ request()->routeIs('service.dashboard') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600' }}">
                 <span class="w-6 text-center">⌂</span>
                 <span>Dashboard</span>
             </a>
 
             <a href="{{ route('service.active-orders') }}"
-               class="flex items-center gap-3 px-4 py-3.5 rounded-2xl transition
+               class="service-nav-link flex items-center gap-3 px-4 py-3.5 rounded-2xl transition
                {{ request()->routeIs('service.active-orders') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600' }}">
                 <span class="w-6 text-center">▤</span>
                 <span>Active Orders</span>
             </a>
 
             <a href="{{ route('service.table-monitoring') }}"
-               class="flex items-center gap-3 px-4 py-3.5 rounded-2xl transition
+               class="service-nav-link flex items-center gap-3 px-4 py-3.5 rounded-2xl transition
                {{ request()->routeIs('service.table-monitoring') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600' }}">
                 <span class="w-6 text-center">▦</span>
                 <span>Table Monitoring</span>
             </a>
 
             <a href="{{ route('service.reservations') }}"
-               class="flex items-center gap-3 px-4 py-3.5 rounded-2xl transition
+               class="service-nav-link flex items-center gap-3 px-4 py-3.5 rounded-2xl transition
                {{ request()->routeIs('service.reservations') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600' }}">
                 <span class="w-6 text-center">◷</span>
                 <span>Reservations</span>
@@ -113,7 +150,7 @@
         <div class="px-4 pb-5 space-y-3">
             <div class="rounded-2xl border border-orange-100 bg-white/80 px-4 py-4 shadow-sm">
                 <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white flex items-center justify-center text-sm font-bold shadow-md shadow-orange-200">
+                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white flex items-center justify-center text-sm font-bold shadow-md shadow-orange-200 shrink-0">
                         {{ strtoupper(substr(auth()->user()->name ?? 'S', 0, 1)) }}
                     </div>
 
@@ -142,42 +179,57 @@
     </aside>
 
     <!-- Main -->
-    <div class="ml-[260px] h-screen overflow-y-auto">
+    <div class="lg:ml-[260px] min-h-screen">
 
         <!-- Topbar -->
-        <header class="sticky top-0 z-40 soft-glass border-b border-orange-100/70 px-7 py-4">
-            <div class="flex items-center justify-between gap-4 flex-wrap">
+        <header class="sticky top-0 z-30 soft-glass border-b border-orange-100/70 px-4 sm:px-5 lg:px-7 py-3 sm:py-4">
+            <div class="flex items-center justify-between gap-3">
 
-                <div>
-                    <p class="text-xs font-bold uppercase tracking-[0.18em] text-orange-500">
-                        Service Operations
-                    </p>
+                <div class="flex items-center gap-3 min-w-0">
+                    <!-- Mobile Menu Button -->
+                    <button
+                        type="button"
+                        id="openServiceSidebar"
+                        class="lg:hidden w-11 h-11 rounded-2xl bg-white border border-orange-100 text-gray-700 shadow-sm flex items-center justify-center font-bold shrink-0">
+                        ☰
+                    </button>
 
-                    <h2 class="text-2xl font-extrabold text-gray-900 leading-tight">
-                        @yield('page-title', 'Service Staff')
-                    </h2>
+                    <div class="min-w-0">
+                        <p class="text-[10px] sm:text-xs font-bold uppercase tracking-[0.16em] sm:tracking-[0.18em] text-orange-500 truncate">
+                            Service Operations
+                        </p>
 
-                    <p class="text-sm text-gray-500 mt-1">
-                        @yield('page-subtitle', 'Manage daily restaurant service operations')
-                    </p>
+                        <h2 class="text-xl sm:text-2xl font-extrabold text-gray-900 leading-tight truncate">
+                            @yield('page-title', 'Service Staff')
+                        </h2>
+
+                        <p class="hidden sm:block text-sm text-gray-500 mt-1 truncate">
+                            @yield('page-subtitle', 'Manage daily restaurant service operations')
+                        </p>
+                    </div>
                 </div>
 
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 sm:gap-3 shrink-0">
                     <div class="hidden md:block bg-white/80 border border-orange-100 rounded-2xl px-5 py-3 shadow-sm">
                         <p class="text-xs text-gray-400">Today</p>
                         <p class="text-sm font-bold text-gray-700">{{ now()->format('M d, Y') }}</p>
                     </div>
 
-                    <div class="bg-green-50 border border-green-100 text-green-600 px-4 py-3 rounded-2xl text-sm font-bold shadow-sm flex items-center gap-2">
+                    <div class="bg-green-50 border border-green-100 text-green-600 px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl text-xs sm:text-sm font-bold shadow-sm flex items-center gap-2">
                         <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                        Online
+                        <span class="hidden xs:inline">Online</span>
+                        <span class="xs:hidden">On</span>
                     </div>
                 </div>
             </div>
+
+            <p class="sm:hidden text-xs text-gray-500 mt-2 pl-[56px] leading-snug">
+                @yield('page-subtitle', 'Manage daily restaurant service operations')
+            </p>
         </header>
 
         <!-- Content -->
-        <main class="p-7">
+        <main class="px-4 sm:px-5 lg:px-7 py-5 sm:py-6 lg:py-7">
             <div class="max-w-[1600px] mx-auto">
                 @yield('content')
             </div>
@@ -187,6 +239,58 @@
 </div>
 
 @stack('scripts')
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const sidebar = document.getElementById('serviceSidebar');
+        const overlay = document.getElementById('serviceSidebarOverlay');
+        const openButton = document.getElementById('openServiceSidebar');
+        const closeButton = document.getElementById('closeServiceSidebar');
+        const navLinks = document.querySelectorAll('.service-nav-link');
+
+        function openSidebar() {
+            sidebar.classList.remove('-translate-x-full');
+            overlay.classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
+        }
+
+        function closeSidebar() {
+            sidebar.classList.add('-translate-x-full');
+            overlay.classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        }
+
+        if (openButton) {
+            openButton.addEventListener('click', openSidebar);
+        }
+
+        if (closeButton) {
+            closeButton.addEventListener('click', closeSidebar);
+        }
+
+        if (overlay) {
+            overlay.addEventListener('click', closeSidebar);
+        }
+
+        navLinks.forEach(function (link) {
+            link.addEventListener('click', function () {
+                if (window.innerWidth < 1024) {
+                    closeSidebar();
+                }
+            });
+        });
+
+        window.addEventListener('resize', function () {
+            if (window.innerWidth >= 1024) {
+                overlay.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+                sidebar.classList.remove('-translate-x-full');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+            }
+        });
+    });
+</script>
 
 </body>
 </html>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DineSync+ Customer</title>
+    <title>Chef Oppa Customer Portal</title>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
@@ -11,6 +11,142 @@
         [x-cloak] {
             display: none !important;
         }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            overflow-x: hidden;
+        }
+
+        /* ================================
+           CUSTOMER NAVBAR
+        ================================= */
+
+        .customer-navbar {
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(229, 231, 235, 0.95);
+        }
+
+        .customer-nav-inner {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0.7rem 1.5rem;
+        }
+
+        .customer-brand-logo {
+            width: 44px;
+            height: 44px;
+            border-radius: 16px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+            box-shadow: 0 8px 20px rgba(249, 115, 22, 0.12);
+        }
+
+        .customer-brand-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .customer-menu-button {
+            width: 42px;
+            height: 42px;
+            border-radius: 15px;
+            border: 1px solid #e5e7eb;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #374151;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+        }
+
+        .customer-mobile-panel {
+            max-height: calc(100vh - 70px);
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.98);
+            border-top: 1px solid #e5e7eb;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+        }
+
+        .customer-mobile-panel-inner {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0.85rem 1rem 1rem;
+        }
+
+        .customer-mobile-links {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.45rem;
+        }
+
+        .customer-mobile-link {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-radius: 1rem;
+            padding: 0.8rem 1rem;
+            font-size: 0.92rem;
+            font-weight: 800;
+            transition: all 160ms ease;
+        }
+
+        .customer-mobile-link-active {
+            background: #fff7ed;
+            color: #f97316;
+        }
+
+        .customer-mobile-link-normal {
+            color: #4b5563;
+        }
+
+        .customer-mobile-link-normal:hover {
+            background: #fff7ed;
+            color: #f97316;
+        }
+
+        .customer-mobile-userbox {
+            margin-top: 0.85rem;
+            padding-top: 0.85rem;
+            border-top: 1px solid #f3f4f6;
+        }
+
+        .customer-mobile-user-card {
+            border-radius: 1rem;
+            background: #f9fafb;
+            border: 1px solid #f3f4f6;
+            padding: 0.8rem 1rem;
+        }
+
+        .customer-mobile-logout {
+            width: 100%;
+            margin-top: 0.65rem;
+            border-radius: 1rem;
+            background: #f97316;
+            color: white;
+            padding: 0.85rem 1rem;
+            font-size: 0.9rem;
+            font-weight: 900;
+            transition: background 160ms ease;
+        }
+
+        .customer-mobile-logout:hover {
+            background: #ea580c;
+        }
+
+        /* ================================
+           CUSTOMER CHATBOT
+        ================================= */
 
         #customer-chatbot-root {
             position: fixed !important;
@@ -42,22 +178,281 @@
             transform: none !important;
         }
 
+        /* ================================
+           COMPACT CUSTOMER FOOTER
+        ================================= */
+
+        .customer-footer {
+            margin-top: 0 !important;
+            background:
+                linear-gradient(135deg, rgba(17, 24, 39, 0.98), rgba(3, 7, 18, 0.98));
+            color: white;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .customer-footer-inner {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 18px 24px;
+        }
+
+        .customer-footer-main {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        .customer-footer-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .customer-footer-logo {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            background: #fff7ed;
+            border: 1px solid rgba(251, 146, 60, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+            box-shadow: 0 12px 24px rgba(249, 115, 22, 0.18);
+        }
+
+        .customer-footer-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .customer-footer-title {
+            font-size: 1rem;
+            font-weight: 900;
+            line-height: 1.2;
+            color: white;
+        }
+
+        .customer-footer-subtitle {
+            font-size: 0.76rem;
+            color: #9ca3af;
+            margin-top: 2px;
+        }
+
+        .customer-footer-info {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            font-size: 0.78rem;
+            color: #d1d5db;
+            font-weight: 700;
+            flex-wrap: wrap;
+        }
+
+        .customer-footer-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(34, 197, 94, 0.1);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.18);
+            white-space: nowrap;
+        }
+
+        .customer-footer-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: #4ade80;
+            flex-shrink: 0;
+        }
+
+        .customer-footer-links {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 14px;
+            font-size: 0.8rem;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .customer-footer-links a {
+            color: #d1d5db;
+            transition: color 160ms ease;
+        }
+
+        .customer-footer-links a:hover {
+            color: #fb923c;
+        }
+
+        .customer-footer-bottom {
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 0.72rem;
+            color: #6b7280;
+        }
+
+        @media (max-width: 1024px) {
+            .customer-footer-main {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 14px;
+            }
+
+            .customer-footer-info {
+                justify-content: flex-start;
+            }
+
+            .customer-footer-links {
+                justify-content: flex-start;
+            }
+        }
+
         @media (max-width: 640px) {
+            .customer-nav-inner {
+                padding: 0.55rem 0.9rem;
+            }
+
+            .customer-brand-logo {
+                width: 40px;
+                height: 40px;
+                border-radius: 14px;
+            }
+
+            .customer-brand-title {
+                font-size: 0.98rem !important;
+            }
+
+            .customer-brand-subtitle {
+                font-size: 0.68rem !important;
+            }
+
+            .customer-menu-button {
+                width: 40px;
+                height: 40px;
+                border-radius: 13px;
+            }
+
+            .customer-mobile-panel-inner {
+                padding: 0.7rem 0.9rem 0.9rem;
+            }
+
+            .customer-mobile-link {
+                padding: 0.72rem 0.85rem;
+                border-radius: 0.9rem;
+                font-size: 0.86rem;
+            }
+
+            .customer-mobile-userbox {
+                margin-top: 0.7rem;
+                padding-top: 0.7rem;
+            }
+
+            .customer-mobile-user-card {
+                padding: 0.7rem 0.85rem;
+                border-radius: 0.9rem;
+            }
+
+            .customer-mobile-logout {
+                margin-top: 0.55rem;
+                padding: 0.75rem 0.85rem;
+                border-radius: 0.9rem;
+                font-size: 0.85rem;
+            }
+
             #customer-chatbot-root {
-                right: 16px !important;
-                bottom: 16px !important;
+                right: 14px !important;
+                bottom: 14px !important;
             }
 
             #customer-chatbot-window {
-                right: 16px !important;
-                bottom: 88px !important;
-                width: calc(100vw - 32px) !important;
-                max-width: calc(100vw - 32px) !important;
+                right: 14px !important;
+                bottom: 84px !important;
+                width: calc(100vw - 28px) !important;
+                max-width: calc(100vw - 28px) !important;
+                max-height: calc(100vh - 120px) !important;
             }
 
             #customer-chatbot-button {
-                right: 16px !important;
-                bottom: 16px !important;
+                right: 14px !important;
+                bottom: 14px !important;
+                width: 50px !important;
+                height: 50px !important;
+                font-size: 0.9rem !important;
+            }
+
+            .customer-footer-inner {
+                padding: 12px 14px;
+            }
+
+            .customer-footer-main {
+                align-items: center;
+                text-align: center;
+                gap: 10px;
+            }
+
+            .customer-footer-brand {
+                justify-content: center;
+            }
+
+            .customer-footer-logo {
+                width: 34px;
+                height: 34px;
+                border-radius: 12px;
+            }
+
+            .customer-footer-title {
+                font-size: 0.86rem;
+            }
+
+            .customer-footer-subtitle {
+                font-size: 0.68rem;
+            }
+
+            .customer-footer-info {
+                gap: 8px;
+                font-size: 0.68rem;
+                line-height: 1.3;
+            }
+
+            .customer-footer-pill {
+                padding: 6px 10px;
+                font-size: 0.68rem;
+            }
+
+            .customer-footer-location,
+            .customer-footer-contact {
+                display: none;
+            }
+
+            .customer-footer-links {
+                display: none;
+            }
+
+            .customer-footer-bottom {
+                margin-top: 9px;
+                padding-top: 8px;
+                justify-content: center;
+                text-align: center;
+                font-size: 0.65rem;
+            }
+
+            .customer-footer-bottom p:last-child {
+                display: none;
             }
         }
     </style>
@@ -66,261 +461,273 @@
 <body class="bg-[#f7f7f7] text-gray-800">
 
     <!-- CUSTOMER NAVBAR -->
-    <nav class="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <nav
+        x-data="{ mobileMenuOpen: false }"
+        class="customer-navbar sticky top-0 z-50"
+    >
+        <div class="customer-nav-inner">
+            <div class="flex items-center justify-between gap-4">
 
-            <!-- Logo -->
-            <a href="{{ route('customer.home') }}" class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-orange-100 text-orange-500 flex items-center justify-center font-bold">
-                    D+
-                </div>
-
-                <div>
-                    <h1 class="text-lg font-bold leading-none">
-                        DineSync+
-                    </h1>
-                    <p class="text-xs text-gray-400">
-                        Chef Oppa Customer Portal
-                    </p>
-                </div>
-            </a>
-
-            <!-- Desktop Links -->
-            <div class="hidden md:flex items-center gap-8 text-sm font-medium">
-                <a
-                    href="{{ route('customer.home') }}"
-                    class="{{ request()->routeIs('customer.home') ? 'text-orange-500' : 'text-gray-600 hover:text-orange-500' }}"
-                >
-                    Home
-                </a>
-
-                <a
-                    href="{{ route('customer.menu') }}"
-                    class="{{ request()->routeIs('customer.menu') ? 'text-orange-500' : 'text-gray-600 hover:text-orange-500' }}"
-                >
-                    Menu
-                </a>
-
-                <a
-                    href="{{ route('customer.reservations.index') }}"
-                    class="{{ request()->routeIs('customer.reservations.*') ? 'text-orange-500' : 'text-gray-600 hover:text-orange-500' }}"
-                >
-                    Reservations
-                </a>
-            </div>
-
-            <!-- Auth Buttons -->
-            <div class="hidden md:flex items-center gap-3">
-                @guest
-                    <a href="{{ route('login') }}" class="text-sm px-4 py-2 rounded-xl border border-orange-500 text-orange-500 hover:bg-orange-50 transition">
-                        Login
-                    </a>
-
-                    <a href="{{ route('register') }}" class="text-sm px-4 py-2 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition">
-                        Register
-                    </a>
-                @endguest
-
-                @auth
-                    <div class="flex items-center gap-3">
-                        <div class="text-right">
-                            <p class="text-sm font-semibold text-gray-700">
-                                {{ auth()->user()->name }}
-                            </p>
-                            <p class="text-xs text-gray-400 capitalize">
-                                {{ auth()->user()->role }}
-                            </p>
-                        </div>
-
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-
-                            <button
-                                type="submit"
-                                class="text-sm px-4 py-2 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition"
-                            >
-                                Logout
-                            </button>
-                        </form>
+                <!-- Logo -->
+                <a href="{{ route('customer.home') }}" class="flex items-center gap-3 min-w-0">
+                    <div class="customer-brand-logo">
+                        <img
+                            src="{{ asset('images/customer-menu/chef-oppa-logo.png') }}"
+                            alt="Chef Oppa Logo"
+                        >
                     </div>
-                @endauth
-            </div>
 
-            <!-- Mobile Button -->
-            <button
-                class="md:hidden w-10 h-10 rounded-xl border border-gray-200 flex items-center justify-center text-gray-700"
-                onclick="document.getElementById('mobileMenu').classList.toggle('hidden')"
-            >
-                ☰
-            </button>
-        </div>
+                    <div class="min-w-0">
+                        <h1 class="customer-brand-title text-base sm:text-lg font-black leading-none truncate">
+                            Chef Oppa
+                        </h1>
+                        <p class="customer-brand-subtitle text-[11px] sm:text-xs text-gray-400 truncate">
+                            Powered by DineSync+
+                        </p>
+                    </div>
+                </a>
 
-        <!-- Mobile Menu -->
-        <div id="mobileMenu" class="hidden md:hidden bg-white border-t border-gray-200 px-6 py-4 space-y-3">
-            <a
-                href="{{ route('customer.home') }}"
-                class="block {{ request()->routeIs('customer.home') ? 'text-orange-500 font-medium' : 'text-gray-600 hover:text-orange-500' }}"
-            >
-                Home
-            </a>
+                <!-- Desktop Links -->
+                <div class="hidden lg:flex items-center gap-8 text-sm font-semibold">
+                    <a
+                        href="{{ route('customer.home') }}"
+                        class="{{ request()->routeIs('customer.home') ? 'text-orange-500' : 'text-gray-600 hover:text-orange-500' }} transition"
+                    >
+                        Home
+                    </a>
 
-            <a
-                href="{{ route('customer.menu') }}"
-                class="block {{ request()->routeIs('customer.menu') ? 'text-orange-500 font-medium' : 'text-gray-600 hover:text-orange-500' }}"
-            >
-                Menu
-            </a>
+                    <a
+                        href="{{ route('customer.menu') }}"
+                        class="{{ request()->routeIs('customer.menu') ? 'text-orange-500' : 'text-gray-600 hover:text-orange-500' }} transition"
+                    >
+                        Menu
+                    </a>
 
-            <a
-                href="{{ route('customer.reservations.index') }}"
-                class="block {{ request()->routeIs('customer.reservations.*') ? 'text-orange-500 font-medium' : 'text-gray-600 hover:text-orange-500' }}"
-            >
-                Reservations
-            </a>
+                    <a
+                        href="{{ route('customer.reservations.index') }}"
+                        class="{{ request()->routeIs('customer.reservations.*') ? 'text-orange-500' : 'text-gray-600 hover:text-orange-500' }} transition"
+                    >
+                        Reservations
+                    </a>
+                </div>
 
-            <div class="pt-3 border-t border-gray-100">
-                @guest
-                    <div class="flex gap-3">
-                        <a href="{{ route('login') }}" class="text-sm px-4 py-2 rounded-xl border border-orange-500 text-orange-500">
+                <!-- Desktop Auth Buttons -->
+                <div class="hidden lg:flex items-center gap-3">
+                    @guest
+                        <a
+                            href="{{ route('login') }}"
+                            class="text-sm px-4 py-2 rounded-xl border border-orange-500 text-orange-500 hover:bg-orange-50 transition font-semibold"
+                        >
                             Login
                         </a>
 
-                        <a href="{{ route('register') }}" class="text-sm px-4 py-2 rounded-xl bg-orange-500 text-white">
+                        <a
+                            href="{{ route('register') }}"
+                            class="text-sm px-4 py-2 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition font-semibold"
+                        >
                             Register
                         </a>
-                    </div>
-                @endguest
+                    @endguest
 
-                @auth
-                    <div class="space-y-3">
-                        <div>
-                            <p class="text-sm font-semibold text-gray-700">
-                                {{ auth()->user()->name }}
-                            </p>
-                            <p class="text-xs text-gray-400 capitalize">
-                                {{ auth()->user()->role }}
-                            </p>
+                    @auth
+                        <div class="flex items-center gap-3">
+                            <div class="text-right max-w-[180px]">
+                                <p class="text-sm font-bold text-gray-700 truncate">
+                                    {{ auth()->user()->name }}
+                                </p>
+                                <p class="text-xs text-gray-400 capitalize truncate">
+                                    {{ auth()->user()->role }}
+                                </p>
+                            </div>
+
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
+
+                                <button
+                                    type="submit"
+                                    class="text-sm px-4 py-2 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition font-semibold"
+                                >
+                                    Logout
+                                </button>
+                            </form>
                         </div>
+                    @endauth
+                </div>
 
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
+                <!-- Mobile Button -->
+                <button
+                    type="button"
+                    class="customer-menu-button lg:hidden"
+                    @click="mobileMenuOpen = !mobileMenuOpen"
+                    :aria-expanded="mobileMenuOpen.toString()"
+                    aria-label="Toggle menu"
+                >
+                    <span x-show="!mobileMenuOpen" class="text-lg leading-none">☰</span>
+                    <span x-cloak x-show="mobileMenuOpen" class="text-xl leading-none">×</span>
+                </button>
+            </div>
+        </div>
 
-                            <button
-                                type="submit"
-                                class="text-sm px-4 py-2 rounded-xl bg-orange-500 text-white"
+        <!-- Mobile Menu -->
+        <div
+            x-cloak
+            x-show="mobileMenuOpen"
+            x-transition
+            @click.outside="mobileMenuOpen = false"
+            class="customer-mobile-panel lg:hidden"
+        >
+            <div class="customer-mobile-panel-inner">
+
+                <div class="customer-mobile-links">
+                    <a
+                        href="{{ route('customer.home') }}"
+                        class="customer-mobile-link {{ request()->routeIs('customer.home') ? 'customer-mobile-link-active' : 'customer-mobile-link-normal' }}"
+                    >
+                        <span>Home</span>
+                        @if (request()->routeIs('customer.home'))
+                            <span class="text-xs">●</span>
+                        @endif
+                    </a>
+
+                    <a
+                        href="{{ route('customer.menu') }}"
+                        class="customer-mobile-link {{ request()->routeIs('customer.menu') ? 'customer-mobile-link-active' : 'customer-mobile-link-normal' }}"
+                    >
+                        <span>Menu</span>
+                        @if (request()->routeIs('customer.menu'))
+                            <span class="text-xs">●</span>
+                        @endif
+                    </a>
+
+                    <a
+                        href="{{ route('customer.reservations.index') }}"
+                        class="customer-mobile-link {{ request()->routeIs('customer.reservations.*') ? 'customer-mobile-link-active' : 'customer-mobile-link-normal' }}"
+                    >
+                        <span>Reservations</span>
+                        @if (request()->routeIs('customer.reservations.*'))
+                            <span class="text-xs">●</span>
+                        @endif
+                    </a>
+                </div>
+
+                <div class="customer-mobile-userbox">
+                    @guest
+                        <div class="grid grid-cols-2 gap-2">
+                            <a
+                                href="{{ route('login') }}"
+                                class="text-sm px-4 py-3 rounded-xl border border-orange-500 text-orange-500 text-center font-black"
                             >
-                                Logout
-                            </button>
-                        </form>
-                    </div>
-                @endauth
+                                Login
+                            </a>
+
+                            <a
+                                href="{{ route('register') }}"
+                                class="text-sm px-4 py-3 rounded-xl bg-orange-500 text-white text-center font-black"
+                            >
+                                Register
+                            </a>
+                        </div>
+                    @endguest
+
+                    @auth
+                        <div>
+                            <div class="customer-mobile-user-card">
+                                <p class="text-sm font-black text-gray-700 truncate">
+                                    {{ auth()->user()->name }}
+                                </p>
+                                <p class="text-xs text-gray-400 capitalize truncate mt-0.5">
+                                    {{ auth()->user()->role }}
+                                </p>
+                            </div>
+
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
+
+                                <button
+                                    type="submit"
+                                    class="customer-mobile-logout"
+                                >
+                                    Logout
+                                </button>
+                            </form>
+                        </div>
+                    @endauth
+                </div>
+
             </div>
         </div>
     </nav>
 
     <!-- PAGE CONTENT -->
-    <main>
+    <main class="min-h-[calc(100vh-73px)]">
         @yield('content')
     </main>
 
-    <!-- FOOTER -->
-    <footer id="contact" class="mt-20 bg-[#111827] text-white">
-        <div class="max-w-7xl mx-auto px-6 py-12">
+    <!-- COMPACT FOOTER -->
+    <footer id="contact" class="customer-footer">
+        <div class="customer-footer-inner">
 
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            <div class="customer-footer-main">
 
                 <!-- Brand -->
-                <div class="lg:col-span-5">
-                    <div class="flex items-center gap-4 mb-5">
-                        <div class="w-12 h-12 rounded-2xl bg-orange-500 text-white flex items-center justify-center font-bold shadow">
-                            D+
-                        </div>
-
-                        <div>
-                            <h3 class="text-2xl font-bold">DineSync+</h3>
-                            <p class="text-sm text-gray-400">Chef Oppa Customer Portal</p>
-                        </div>
+                <div class="customer-footer-brand">
+                    <div class="customer-footer-logo">
+                        <img
+                            src="{{ asset('images/customer-menu/chef-oppa-logo.png') }}"
+                            alt="Chef Oppa Logo"
+                        >
                     </div>
 
-                    <p class="text-gray-400 leading-7 max-w-md">
-                        A customer-friendly dining portal for checking available meals,
-                        viewing best sellers, and making reservations with Chef Oppa.
-                    </p>
+                    <div class="min-w-0">
+                        <p class="customer-footer-title">
+                            Chef Oppa
+                        </p>
+                        <p class="customer-footer-subtitle">
+                            Powered by DineSync+
+                        </p>
+                    </div>
+                </div>
 
-                    <div class="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/10 text-green-400 text-sm font-semibold">
-                        <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                <!-- Quick Info -->
+                <div class="customer-footer-info">
+                    <span class="customer-footer-pill">
+                        <span class="customer-footer-dot"></span>
                         Open Today • 10:00 AM - 9:00 PM
-                    </div>
+                    </span>
+
+                    <span class="customer-footer-location">
+                        Quezon City
+                    </span>
+
+                    <span class="customer-footer-contact">
+                        0912 345 6789
+                    </span>
                 </div>
 
-                <!-- Visit Info -->
-                <div class="lg:col-span-4">
-                    <h4 class="text-sm font-semibold uppercase tracking-widest text-gray-300 mb-5">
-                        Visit Information
-                    </h4>
+                <!-- Links -->
+                <div class="customer-footer-links">
+                    <a href="{{ route('customer.home') }}">
+                        Home
+                    </a>
 
-                    <div class="space-y-4 text-sm">
-                        <div>
-                            <p class="text-gray-500 mb-1">Location</p>
-                            <p class="text-gray-200">123 Sample Street, Quezon City</p>
-                        </div>
+                    <a href="{{ route('customer.menu') }}">
+                        Menu
+                    </a>
 
-                        <div>
-                            <p class="text-gray-500 mb-1">Contact Number</p>
-                            <p class="text-gray-200">0912 345 6789</p>
-                        </div>
-
-                        <div>
-                            <p class="text-gray-500 mb-1">Operating Hours</p>
-                            <p class="text-gray-200">Monday - Sunday, 10:00 AM - 9:00 PM</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Customer Actions -->
-                <div class="lg:col-span-3">
-                    <h4 class="text-sm font-semibold uppercase tracking-widest text-gray-300 mb-5">
-                        Customer Access
-                    </h4>
-
-                    <div class="space-y-3">
-                        <a href="{{ route('customer.menu') }}" class="block text-gray-400 hover:text-orange-400 transition">
-                            Browse Menu
-                        </a>
-
-                        <a href="{{ route('customer.reservations.index') }}" class="block text-gray-400 hover:text-orange-400 transition">
-                            Reservations
-                        </a>
-
-                        <a href="#contact" class="block text-gray-400 hover:text-orange-400 transition">
-                            Contact Restaurant
-                        </a>
-                    </div>
-
-                    <div class="mt-6 flex gap-3">
-                        <span class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-gray-300">
-                            f
-                        </span>
-
-                        <span class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-gray-300">
-                            ig
-                        </span>
-
-                        <span class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-gray-300">
-                            tt
-                        </span>
-                    </div>
+                    <a href="{{ route('customer.reservations.index') }}">
+                        Reservations
+                    </a>
                 </div>
 
             </div>
 
-            <div class="border-t border-white/10 mt-10 pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
-                <p class="text-sm text-gray-500">
-                    © {{ date('Y') }} DineSync+. All rights reserved.
+            <div class="customer-footer-bottom">
+                <p>
+                    © {{ date('Y') }} Chef Oppa. All rights reserved.
                 </p>
 
-                <p class="text-sm text-gray-500">
-                    Built for Chef Oppa restaurant operations.
+                <p>
+                    Customer portal powered by DineSync+.
                 </p>
             </div>
 
@@ -337,7 +744,7 @@
             messages: [
                 {
                     sender: 'bot',
-                    text: 'Hi! I am DineSync Assistant powered by OpenAI. Ask me about best sellers, food under your budget, reservation fee, GCash payment, opening hours, location, and available meals.'
+                    text: 'Hi! I am Chef Oppa Assistant powered by DineSync+. Ask me about best sellers, food under your budget, reservation fee, GCash payment, opening hours, location, and available meals.'
                 }
             ],
 
@@ -409,14 +816,14 @@
             <!-- Header -->
             <div class="bg-[#111827] text-white px-5 py-4 flex items-center justify-between">
                 <div>
-                    <h3 class="font-bold">DineSync Assistant</h3>
-                    <p class="text-xs text-gray-300">Powered by OpenAI</p>
+                    <h3 class="font-bold">Chef Oppa Assistant</h3>
+                    <p class="text-xs text-gray-300">Powered by DineSync+</p>
                 </div>
 
                 <button
                     type="button"
                     @click="open = false"
-                    class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
+                    class="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white font-bold"
                 >
                     ×
                 </button>
@@ -425,7 +832,7 @@
             <!-- Messages -->
             <div
                 x-ref="chatMessages"
-                class="h-[360px] overflow-y-auto p-4 space-y-3 bg-gray-50"
+                class="h-[330px] max-h-[42vh] overflow-y-auto bg-gray-50 px-4 py-4 space-y-3"
             >
                 <template x-for="(chat, index) in messages" :key="index">
                     <div
@@ -433,78 +840,44 @@
                         :class="chat.sender === 'user' ? 'justify-end' : 'justify-start'"
                     >
                         <div
-                            class="max-w-[82%] rounded-2xl px-4 py-3 text-sm whitespace-pre-line leading-6"
+                            class="max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-6"
                             :class="chat.sender === 'user'
                                 ? 'bg-orange-500 text-white rounded-br-md'
-                                : 'bg-white border border-gray-200 text-gray-700 rounded-bl-md'"
-                            x-text="chat.text"
-                        ></div>
+                                : 'bg-white text-gray-700 border border-gray-200 rounded-bl-md'"
+                        >
+                            <p x-text="chat.text"></p>
+                        </div>
                     </div>
                 </template>
 
                 <div x-show="loading" class="flex justify-start">
-                    <div class="bg-white border border-gray-200 text-gray-500 rounded-2xl rounded-bl-md px-4 py-3 text-sm">
-                        Thinking...
+                    <div class="max-w-[82%] rounded-2xl rounded-bl-md px-4 py-3 text-sm bg-white text-gray-500 border border-gray-200">
+                        Typing...
                     </div>
-                </div>
-            </div>
-
-            <!-- Quick Questions -->
-            <div class="px-4 py-3 border-t border-gray-100 bg-white">
-                <div class="flex gap-2 overflow-x-auto pb-1">
-                    <button
-                        type="button"
-                        @click="message = 'What are your best sellers?'; sendMessage();"
-                        class="shrink-0 px-3 py-2 rounded-full bg-orange-50 text-orange-600 text-xs font-semibold hover:bg-orange-100"
-                    >
-                        Best sellers
-                    </button>
-
-                    <button
-                        type="button"
-                        @click="message = 'What can I order under 500?'; sendMessage();"
-                        class="shrink-0 px-3 py-2 rounded-full bg-orange-50 text-orange-600 text-xs font-semibold hover:bg-orange-100"
-                    >
-                        Under ₱500
-                    </button>
-
-                    <button
-                        type="button"
-                        @click="message = 'How much is the reservation fee?'; sendMessage();"
-                        class="shrink-0 px-3 py-2 rounded-full bg-orange-50 text-orange-600 text-xs font-semibold hover:bg-orange-100"
-                    >
-                        Reservation fee
-                    </button>
-
-                    <button
-                        type="button"
-                        @click="message = 'What is your GCash?'; sendMessage();"
-                        class="shrink-0 px-3 py-2 rounded-full bg-orange-50 text-orange-600 text-xs font-semibold hover:bg-orange-100"
-                    >
-                        GCash
-                    </button>
                 </div>
             </div>
 
             <!-- Input -->
             <form
+                class="p-4 border-t border-gray-100 bg-white"
                 @submit.prevent="sendMessage"
-                class="p-4 border-t border-gray-100 bg-white flex items-center gap-2"
             >
-                <input
-                    type="text"
-                    x-model="message"
-                    placeholder="Ask something..."
-                    class="flex-1 rounded-xl border-gray-200 bg-gray-50 text-sm focus:border-orange-300 focus:ring-orange-200"
-                >
+                <div class="flex items-center gap-2">
+                    <input
+                        type="text"
+                        x-model="message"
+                        placeholder="Ask about menu or reservations..."
+                        class="flex-1 rounded-2xl border-gray-200 text-sm focus:border-orange-300 focus:ring-orange-200"
+                    >
 
-                <button
-                    type="submit"
-                    :disabled="loading"
-                    class="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white text-sm font-semibold"
-                >
-                    Send
-                </button>
+                    <button
+                        type="submit"
+                        :disabled="loading"
+                        class="px-4 py-2.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold disabled:opacity-60"
+                    >
+                        Send
+                    </button>
+                </div>
             </form>
         </div>
 
@@ -513,11 +886,11 @@
             id="customer-chatbot-button"
             type="button"
             @click="open = !open"
-            class="w-16 h-16 rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-xl flex items-center justify-center text-2xl"
+            class="w-14 h-14 rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-2xl shadow-orange-500/30 flex items-center justify-center font-black text-lg"
         >
-            💬
+            AI
         </button>
     </div>
 
 </body>
-</html>
+</html> 

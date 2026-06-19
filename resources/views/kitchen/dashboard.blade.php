@@ -10,17 +10,36 @@
     <style>
         .kds-bg {
             background:
-                linear-gradient(135deg, rgba(255, 247, 237, 0.94), rgba(255, 255, 255, 0.96)),
-                url('https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1800&q=80');
+                linear-gradient(135deg, rgba(8, 13, 24, 0.10), rgba(15, 23, 42, 0.18)),
+                url('{{ asset('images/customer-menu/kds-background.png') }}');
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
+            position: relative;
+        }
+
+        .kds-bg::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(circle at top left, rgba(249, 115, 22, 0.08), transparent 26%),
+                radial-gradient(circle at bottom right, rgba(249, 115, 22, 0.10), transparent 30%),
+                linear-gradient(180deg, rgba(5, 8, 15, 0.10), rgba(5, 8, 15, 0.18));
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .kds-page {
+            position: relative;
+            z-index: 1;
         }
 
         .kds-glass {
-            background: rgba(255, 255, 255, 0.86);
+            background: rgba(255, 255, 255, 0.90);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.35);
         }
 
         .kds-panel {
@@ -29,17 +48,26 @@
             -webkit-backdrop-filter: blur(14px);
         }
 
-        .kds-brand-card {
-            background:
-                linear-gradient(135deg, rgba(249, 115, 22, 0.96), rgba(251, 146, 60, 0.88)),
-                url('https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1200&q=80');
-            background-size: cover;
-            background-position: center;
+        .kds-column-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .kds-column-body::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .kds-column-body::-webkit-scrollbar-thumb {
+            background: rgba(249, 115, 22, 0.35);
+            border-radius: 999px;
+        }
+
+        .kds-column-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(249, 115, 22, 0.55);
         }
     </style>
 </head>
 
-<body class="kds-bg min-h-screen text-gray-900">
+<body class="kds-bg min-h-screen text-gray-900 overflow-hidden">
 
 @php
     $pendingOrders = $orders['pending'] ?? collect();
@@ -53,51 +81,56 @@
     $totalServed = $servedOrders->count();
 @endphp
 
-<div class="min-h-screen p-4 lg:p-6">
+<div class="kds-page h-screen p-4 lg:p-5 flex flex-col overflow-hidden">
 
     {{-- TOP BAR --}}
-    <div class="kds-glass border border-orange-100/80 rounded-3xl px-5 py-4 mb-5 shadow-xl shadow-orange-100/40">
-        <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+    <div class="rounded-3xl px-5 py-4 mb-4 shrink-0 border border-white/10 bg-slate-950/82 backdrop-blur-xl shadow-[0_18px_45px_rgba(0,0,0,0.30)]">
+        <div class="flex items-center justify-between gap-4">
 
-            <div class="flex items-center gap-4">
-                <div class="w-16 h-16 rounded-2xl bg-white border border-orange-100 flex items-center justify-center overflow-hidden shadow-sm shrink-0">
-                    <img
-                        src="{{ asset('images/customer-menu/chef-oppa-logo.png') }}"
-                        alt="Chef Oppa Logo"
-                        class="w-full h-full object-cover"
-                    >
+            <div class="flex items-center gap-4 min-w-0">
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 p-1 shadow-lg shadow-orange-900/30 shrink-0">
+                    <div class="w-full h-full rounded-xl bg-white flex items-center justify-center overflow-hidden">
+                        <img
+                            src="{{ asset('images/customer-menu/chef-oppa-logo.png') }}"
+                            alt="Chef Oppa Logo"
+                            class="w-full h-full object-cover"
+                        >
+                    </div>
                 </div>
 
-                <div>
-                    <p class="text-xs font-bold uppercase tracking-[0.2em] text-orange-500">
-                        Chef Oppa Kitchen
-                    </p>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="h-2 w-2 rounded-full bg-orange-400"></span>
+                        <p class="text-xs font-extrabold uppercase tracking-[0.22em] text-orange-400">
+                            Chef Oppa Kitchen
+                        </p>
+                    </div>
 
-                    <h1 class="text-2xl lg:text-3xl font-extrabold tracking-tight text-gray-900">
+                    <h1 class="text-2xl lg:text-3xl font-extrabold tracking-tight text-white leading-tight">
                         Kitchen Display System
                     </h1>
 
-                    <p class="text-sm text-gray-500 mt-1">
+                    <p class="text-sm text-slate-300 mt-1">
                         Live order preparation board for kitchen staff
                     </p>
                 </div>
             </div>
 
-            <div class="flex flex-wrap items-center gap-3">
-                <div class="inline-flex items-center gap-2 bg-green-50 text-green-600 border border-green-100 px-4 py-3 rounded-2xl text-sm font-bold shadow-sm">
-                    <span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+            <div class="flex items-center gap-3 shrink-0">
+                <div class="inline-flex items-center gap-2 bg-green-500/10 text-green-300 border border-green-400/20 px-4 py-3 rounded-2xl text-sm font-bold shadow-sm">
+                    <span class="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse"></span>
                     Online
                 </div>
 
-                <div class="bg-white/85 border border-orange-100 px-5 py-3 rounded-2xl shadow-sm">
-                    <p class="text-[11px] text-gray-400">Current Time</p>
-                    <p id="currentTime" class="text-base font-extrabold text-gray-800">--:-- --</p>
+                <div class="bg-white/8 border border-white/10 px-5 py-3 rounded-2xl shadow-sm">
+                    <p class="text-[11px] text-slate-400">Current Time</p>
+                    <p id="currentTime" class="text-base font-extrabold text-white">--:-- --</p>
                 </div>
 
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
 
-                    <button class="bg-red-500 hover:bg-red-600 px-5 py-3 rounded-2xl text-sm font-bold text-white transition shadow-md shadow-red-100">
+                    <button class="bg-red-500 hover:bg-red-600 px-5 py-3 rounded-2xl text-sm font-bold text-white transition shadow-lg shadow-red-950/30">
                         Logout
                     </button>
                 </form>
@@ -105,78 +138,23 @@
         </div>
     </div>
 
-    {{-- STATS --}}
-    <div class="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
-        <div class="bg-white border border-orange-100 rounded-2xl px-5 py-4 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-sm text-gray-500 font-semibold">New Orders</p>
-                <span class="w-3 h-3 rounded-full bg-orange-400"></span>
-            </div>
-
-            <h2 class="text-4xl font-extrabold text-orange-500 mt-2">
-                <span id="pending-count">{{ $totalPending }}</span>
-            </h2>
-
-            <p class="text-xs text-gray-400 mt-1">Waiting to start</p>
-        </div>
-
-        <div class="bg-white border border-yellow-100 rounded-2xl px-5 py-4 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-sm text-gray-500 font-semibold">Preparing</p>
-                <span class="w-3 h-3 rounded-full bg-yellow-400"></span>
-            </div>
-
-            <h2 class="text-4xl font-extrabold text-yellow-500 mt-2">
-                <span id="preparing-count">{{ $totalPreparing }}</span>
-            </h2>
-
-            <p class="text-xs text-gray-400 mt-1">Currently in kitchen</p>
-        </div>
-
-        <div class="bg-white border border-green-100 rounded-2xl px-5 py-4 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-sm text-gray-500 font-semibold">Ready</p>
-                <span class="w-3 h-3 rounded-full bg-green-400"></span>
-            </div>
-
-            <h2 class="text-4xl font-extrabold text-green-500 mt-2">
-                <span id="ready-count">{{ $totalReady }}</span>
-            </h2>
-
-            <p class="text-xs text-gray-400 mt-1">Waiting for service</p>
-        </div>
-
-        <div class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="text-sm text-gray-500 font-semibold">Completed</p>
-                <span class="w-3 h-3 rounded-full bg-gray-400"></span>
-            </div>
-
-            <h2 class="text-4xl font-extrabold text-gray-700 mt-2">
-                <span id="served-count">{{ $totalServed }}</span>
-            </h2>
-
-            <p class="text-xs text-gray-400 mt-1">Served orders</p>
-        </div>
-    </div>
-
-    {{-- KDS BOARD --}}
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+    {{-- KDS BOARD - FIT TO ONE SCREEN --}}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
 
         {{-- NEW --}}
-        <div class="kds-panel border border-orange-100 rounded-3xl overflow-hidden shadow-xl shadow-orange-100/40">
-            <div class="border-t-4 border-orange-500 px-5 py-4 bg-orange-50 flex justify-between items-center">
+        <div class="border border-orange-400/20 rounded-3xl overflow-hidden shadow-[0_18px_45px_rgba(0,0,0,0.30)] flex flex-col min-h-0 bg-slate-950/82 backdrop-blur-xl">
+            <div class="border-t-4 border-orange-500 px-5 py-3 bg-orange-500/10 flex justify-between items-center shrink-0">
                 <div>
-                    <h2 class="text-base font-extrabold tracking-wide text-gray-900 uppercase">New</h2>
-                    <p class="text-xs text-gray-500">Waiting to start</p>
+                    <h2 class="text-base font-extrabold tracking-wide text-orange-300 uppercase">New Orders</h2>
+                    <p class="text-xs text-slate-300">Waiting to start</p>
                 </div>
 
-                <span id="pending-header-count" class="bg-orange-100 text-orange-600 border border-orange-200 px-3 py-1 rounded-full text-sm font-bold">
+                <span id="pending-header-count" class="bg-orange-500/15 text-orange-300 border border-orange-400/25 px-3 py-1 rounded-full text-sm font-bold">
                     {{ $totalPending }}
                 </span>
             </div>
 
-            <div id="pending-column" class="p-4 h-[430px] overflow-y-auto space-y-3 bg-orange-50/30">
+            <div id="pending-column" class="kds-column-body p-2.5 overflow-y-auto space-y-2 bg-slate-950/40 flex-1 min-h-0">
                 @forelse ($pendingOrders as $order)
                     @include('kitchen.partials.order-card', [
                         'order' => $order,
@@ -186,7 +164,8 @@
                         'columnType' => 'pending'
                     ])
                 @empty
-                    <div class="h-full min-h-[220px] flex items-center justify-center text-gray-400 text-base font-bold">
+                    <div class="h-full flex flex-col items-center justify-center text-slate-400 text-base font-bold">
+                        <div class="text-4xl mb-3 opacity-40">🍽️</div>
                         No new orders
                     </div>
                 @endforelse
@@ -194,19 +173,19 @@
         </div>
 
         {{-- PREPARING --}}
-        <div class="kds-panel border border-yellow-100 rounded-3xl overflow-hidden shadow-xl shadow-orange-100/40">
-            <div class="border-t-4 border-yellow-500 px-5 py-4 bg-yellow-50 flex justify-between items-center">
+        <div class="border border-yellow-400/20 rounded-3xl overflow-hidden shadow-[0_18px_45px_rgba(0,0,0,0.30)] flex flex-col min-h-0 bg-slate-950/82 backdrop-blur-xl">
+            <div class="border-t-4 border-yellow-500 px-5 py-3 bg-yellow-500/10 flex justify-between items-center shrink-0">
                 <div>
-                    <h2 class="text-base font-extrabold tracking-wide text-gray-900 uppercase">Preparing</h2>
-                    <p class="text-xs text-gray-500">Currently in kitchen</p>
+                    <h2 class="text-base font-extrabold tracking-wide text-yellow-300 uppercase">Preparing</h2>
+                    <p class="text-xs text-slate-300">Currently in kitchen</p>
                 </div>
 
-                <span id="preparing-header-count" class="bg-yellow-100 text-yellow-700 border border-yellow-200 px-3 py-1 rounded-full text-sm font-bold">
+                <span id="preparing-header-count" class="bg-yellow-500/15 text-yellow-300 border border-yellow-400/25 px-3 py-1 rounded-full text-sm font-bold">
                     {{ $totalPreparing }}
                 </span>
             </div>
 
-            <div id="preparing-column" class="p-4 h-[430px] overflow-y-auto space-y-3 bg-yellow-50/30">
+            <div id="preparing-column" class="kds-column-body p-2 overflow-y-auto space-y-1.5 bg-slate-950/40 flex-1 min-h-0">
                 @forelse ($preparingOrders as $order)
                     @include('kitchen.partials.order-card', [
                         'order' => $order,
@@ -216,7 +195,8 @@
                         'columnType' => 'preparing'
                     ])
                 @empty
-                    <div class="h-full min-h-[220px] flex items-center justify-center text-gray-400 text-base font-bold">
+                    <div class="h-full flex flex-col items-center justify-center text-slate-400 text-base font-bold">
+                        <div class="text-4xl mb-3 opacity-40">👨‍🍳</div>
                         No preparing orders
                     </div>
                 @endforelse
@@ -224,19 +204,19 @@
         </div>
 
         {{-- READY --}}
-        <div class="kds-panel border border-green-100 rounded-3xl overflow-hidden shadow-xl shadow-orange-100/40">
-            <div class="border-t-4 border-green-500 px-5 py-4 bg-green-50 flex justify-between items-center">
+        <div class="border border-green-400/20 rounded-3xl overflow-hidden shadow-[0_18px_45px_rgba(0,0,0,0.30)] flex flex-col min-h-0 bg-slate-950/82 backdrop-blur-xl">
+            <div class="border-t-4 border-green-500 px-5 py-3 bg-green-500/10 flex justify-between items-center shrink-0">
                 <div>
-                    <h2 class="text-base font-extrabold tracking-wide text-gray-900 uppercase">Ready</h2>
-                    <p class="text-xs text-gray-500">Waiting for service</p>
+                    <h2 class="text-base font-extrabold tracking-wide text-green-300 uppercase">Ready</h2>
+                    <p class="text-xs text-slate-300">Waiting for service</p>
                 </div>
 
-                <span id="ready-header-count" class="bg-green-100 text-green-700 border border-green-200 px-3 py-1 rounded-full text-sm font-bold">
+                <span id="ready-header-count" class="bg-green-500/15 text-green-300 border border-green-400/25 px-3 py-1 rounded-full text-sm font-bold">
                     {{ $totalReady }}
                 </span>
             </div>
 
-            <div id="ready-column" class="p-4 h-[430px] overflow-y-auto space-y-3 bg-green-50/30">
+            <div id="ready-column" class="kds-column-body p-4 overflow-y-auto space-y-3 bg-slate-950/40 flex-1 min-h-0">
                 @forelse ($readyOrders as $order)
                     @include('kitchen.partials.order-card', [
                         'order' => $order,
@@ -246,7 +226,8 @@
                         'columnType' => 'ready'
                     ])
                 @empty
-                    <div class="h-full min-h-[220px] flex items-center justify-center text-gray-400 text-base font-bold">
+                    <div class="h-full flex flex-col items-center justify-center text-slate-400 text-base font-bold">
+                        <div class="text-4xl mb-3 opacity-40">✅</div>
                         No ready orders
                     </div>
                 @endforelse
@@ -254,19 +235,19 @@
         </div>
 
         {{-- COMPLETED --}}
-        <div class="kds-panel border border-gray-200 rounded-3xl overflow-hidden shadow-xl shadow-orange-100/40">
-            <div class="border-t-4 border-gray-400 px-5 py-4 bg-gray-50 flex justify-between items-center">
+        <div class="border border-white/10 rounded-3xl overflow-hidden shadow-[0_18px_45px_rgba(0,0,0,0.30)] flex flex-col min-h-0 bg-slate-950/82 backdrop-blur-xl">
+            <div class="border-t-4 border-slate-400 px-5 py-3 bg-white/5 flex justify-between items-center shrink-0">
                 <div>
-                    <h2 class="text-base font-extrabold tracking-wide text-gray-900 uppercase">Completed</h2>
-                    <p class="text-xs text-gray-500">Served orders</p>
+                    <h2 class="text-base font-extrabold tracking-wide text-slate-200 uppercase">Completed</h2>
+                    <p class="text-xs text-slate-300">Served orders today</p>
                 </div>
 
-                <span id="served-header-count" class="bg-gray-100 text-gray-700 border border-gray-200 px-3 py-1 rounded-full text-sm font-bold">
+                <span id="served-header-count" class="bg-white/10 text-slate-200 border border-white/15 px-3 py-1 rounded-full text-sm font-bold">
                     {{ $totalServed }}
                 </span>
             </div>
 
-            <div id="served-column" class="p-4 h-[430px] overflow-y-auto space-y-3 bg-gray-50/60">
+            <div id="served-column" class="kds-column-body p-4 overflow-y-auto space-y-3 bg-slate-950/40 flex-1 min-h-0">
                 @forelse ($servedOrders as $order)
                     @include('kitchen.partials.order-card', [
                         'order' => $order,
@@ -276,32 +257,31 @@
                         'columnType' => 'served'
                     ])
                 @empty
-                    <div class="h-full min-h-[220px] flex items-center justify-center text-gray-400 text-base font-bold">
+                    <div class="h-full flex flex-col items-center justify-center text-slate-400 text-base font-bold">
+                        <div class="text-4xl mb-3 opacity-40">📋</div>
                         No completed orders
                     </div>
                 @endforelse
             </div>
         </div>
 
-    </div>
 
-    <p class="text-center text-gray-400 text-xs mt-4">
-        Board updates automatically every few seconds.
-    </p>
+    </div>
 </div>
 
 <script>
     let isUpdatingOrder = false;
 
-    function updateClock() {
+        function updateClock() {
         const now = new Date();
 
-        document.getElementById('currentTime').textContent = now.toLocaleTimeString([], {
+        document.getElementById('currentTime').textContent = new Intl.DateTimeFormat('en-PH', {
+            timeZone: 'Asia/Manila',
             hour: 'numeric',
             minute: '2-digit',
             second: '2-digit',
             hour12: true
-        });
+        }).format(now);
     }
 
     updateClock();
@@ -409,6 +389,14 @@
         }
     }
 
+    function setTextIfExists(id, value) {
+        const element = document.getElementById(id);
+
+        if (element) {
+            element.textContent = value;
+        }
+    }
+
     async function silentRefreshBoard() {
         if (isUpdatingOrder || document.hidden) {
             return;
@@ -433,15 +421,15 @@
             document.getElementById('ready-column').innerHTML = data.html.ready;
             document.getElementById('served-column').innerHTML = data.html.served;
 
-            document.getElementById('pending-count').textContent = data.counts.pending;
-            document.getElementById('preparing-count').textContent = data.counts.preparing;
-            document.getElementById('ready-count').textContent = data.counts.ready;
-            document.getElementById('served-count').textContent = data.counts.served;
+            setTextIfExists('pending-count', data.counts.pending);
+            setTextIfExists('preparing-count', data.counts.preparing);
+            setTextIfExists('ready-count', data.counts.ready);
+            setTextIfExists('served-count', data.counts.served);
 
-            document.getElementById('pending-header-count').textContent = data.counts.pending;
-            document.getElementById('preparing-header-count').textContent = data.counts.preparing;
-            document.getElementById('ready-header-count').textContent = data.counts.ready;
-            document.getElementById('served-header-count').textContent = data.counts.served;
+            setTextIfExists('pending-header-count', data.counts.pending);
+            setTextIfExists('preparing-header-count', data.counts.preparing);
+            setTextIfExists('ready-header-count', data.counts.ready);
+            setTextIfExists('served-header-count', data.counts.served);
 
         } catch (error) {
             console.log('Silent refresh failed.');

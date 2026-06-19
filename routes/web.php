@@ -166,6 +166,9 @@ Route::middleware(['auth', 'role:staff'])->prefix('service')->name('service.')->
     Route::patch('/active-orders/{order}/status', [ServiceStaffController::class, 'updateOrderStatus'])
         ->name('active-orders.update-status');
 
+    Route::patch('/orders/{order}/mark-paid', [ServiceStaffController::class, 'markOrderPaid'])
+    ->name('orders.mark-paid');
+
     Route::get('/table-monitoring', [ServiceStaffController::class, 'tableMonitoring'])
         ->name('table-monitoring');
 

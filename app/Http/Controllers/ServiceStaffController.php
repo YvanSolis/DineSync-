@@ -147,16 +147,38 @@ class ServiceStaffController extends Controller
         return back()->with('success', 'Order status updated successfully.');
     }
 
+    public function markOrderPaid(Order $order)
+    {
+        $paymentMethod = strtolower(trim($order->payment_method ?? ''));
+        $paymentMethod = str_replace(['_', '-'], ' ', $paymentMethod);
+
+        $allowedManualMethods = [
+            'pay at counter',
+            'pay later',
+            'cash',
+        ];
+
+        if (!in_array($paymentMethod, $allowedManualMethods, true)) {
+            return back()->with('error', 'Only Pay at Counter or Pay Later orders can be manually marked as paid.');
+        }
+
+        $paymentStatus = strtolower(trim($order->payment_status ?? 'pending'));
+
+        if (in_array($paymentStatus, ['paid', 'verified'], true)) {
+            return back()->with('error', 'This order is already paid.');
+        }
+
+        $order->update([
+            'payment_status' => 'paid',
+            'paid_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return back()->with('success', 'Order payment marked as paid. Kitchen status was not changed.');
+    }
+
     public function tableMonitoring()
     {
-        /*
-        * Fix invalid/fake occupied tables.
-        * A table should only be occupied if service staff assigned it
-        * through walk-in or seated reservation.
-        *
-        * Tablet/mobile login should only show On/Off indicator,
-        * not change the table status to occupied.
-        */
         RestaurantTable::where('status', 'occupied')
             ->whereNull('current_guest_count')
             ->whereNull('current_reservation_id')
@@ -165,6 +187,7 @@ class ServiceStaffController extends Controller
                 'status' => 'available',
                 'current_order_id' => null,
                 'notes' => null,
+                'updated_at' => now(),
             ]);
 
         $tables = RestaurantTable::orderByRaw('CAST(table_number AS INTEGER) ASC')
@@ -198,15 +221,17 @@ class ServiceStaffController extends Controller
             })
             ->keyBy('table_number');
 
+        $activeStatuses = [
+            'pending',
+            'new',
+            'placed',
+            'confirmed',
+            'preparing',
+            'ready',
+        ];
+
         $orders = Order::with(['items.menuItem'])
-            ->whereRaw("LOWER(TRIM(status)) IN (?, ?, ?, ?, ?, ?)", [
-                'pending',
-                'new',
-                'placed',
-                'confirmed',
-                'preparing',
-                'ready',
-            ])
+            ->whereRaw("LOWER(TRIM(status)) IN (?, ?, ?, ?, ?, ?)", $activeStatuses)
             ->orderByRaw("
                 CASE
                     WHEN LOWER(TRIM(status)) IN ('pending', 'new', 'placed', 'confirmed') THEN 1
@@ -221,22 +246,34 @@ class ServiceStaffController extends Controller
                 $order->display_status = $this->normalizeOrderStatus($order);
                 $order->status = $order->display_status;
                 return $order;
-            });
+            })
+            ->keyBy('id');
 
         $activeOrders = collect();
 
         foreach ($tables as $table) {
-            $matchedOrder = null;
+            /*
+                Important:
+                Do not search orders by table_number here.
 
-            if (! empty($table->current_order_id)) {
-                $matchedOrder = $orders->firstWhere('id', $table->current_order_id);
+                Reason:
+                Old orders still keep their table_number even after the table session is done.
+                If we match by table_number, an available/cleaned table can still show the old
+                payment/order card.
+
+                The table card should only show an active order when the table itself is still
+                linked to that order through current_order_id.
+            */
+
+            if ($table->status !== 'occupied') {
+                continue;
             }
 
-            if (! $matchedOrder) {
-                $matchedOrder = $orders->first(function ($order) use ($table) {
-                    return (string) ($order->table_number ?? '') === (string) $table->table_number;
-                });
+            if (empty($table->current_order_id)) {
+                continue;
             }
+
+            $matchedOrder = $orders->get($table->current_order_id);
 
             if ($matchedOrder) {
                 $activeOrders[$table->table_number] = $matchedOrder;
@@ -295,6 +332,7 @@ class ServiceStaffController extends Controller
             'current_reservation_id' => null,
             'occupied_at' => null,
             'notes' => 'Needs cleaning',
+            'updated_at' => now(),
         ]);
 
         return back()->with('success', 'Table marked for cleaning. Tablet session has been reset.');
@@ -313,6 +351,7 @@ class ServiceStaffController extends Controller
             'current_reservation_id' => null,
             'occupied_at' => null,
             'notes' => null,
+            'updated_at' => now(),
         ]);
 
         return back()->with('success', 'Table is now available.');
@@ -489,6 +528,7 @@ class ServiceStaffController extends Controller
             ->update([
                 'status' => 'closed',
                 'ended_at' => now(),
+                'updated_at' => now(),
             ]);
     }
 
