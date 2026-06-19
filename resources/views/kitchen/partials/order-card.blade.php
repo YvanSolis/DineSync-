@@ -40,66 +40,66 @@
         : 'No time';
 
     $items = $order->items ?? collect();
-    $visibleItems = $items->take(3);
-    $remainingItemCount = max($items->count() - 3, 0);
+    $visibleItems = $items->take(2);
+    $remainingItemCount = max($items->count() - 2, 0);
 @endphp
 
 <div id="order-card-{{ $order->id }}"
      class="order-card relative overflow-hidden rounded-2xl bg-white shadow-md border border-white/80">
 
     {{-- Accent line --}}
-    <div class="h-1.5 bg-gradient-to-r {{ $accentClass }}"></div>
+    <div class="h-1 bg-gradient-to-r {{ $accentClass }}"></div>
 
-    <div class="p-3">
+    <div class="p-2.5">
 
         {{-- HEADER --}}
-        <div class="flex items-start justify-between gap-3">
+        <div class="flex items-start justify-between gap-2">
             <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2 min-w-0">
-                    <span class="w-2.5 h-2.5 rounded-full {{ $statusDotClass }} shrink-0"></span>
+                    <span class="w-2 h-2 rounded-full {{ $statusDotClass }} shrink-0"></span>
 
-                    <h3 class="text-[15px] font-extrabold text-gray-900 truncate leading-tight">
+                    <h3 class="text-[13px] lg:text-[14px] font-extrabold text-gray-900 truncate leading-tight">
                         #{{ $orderNumber }}
                     </h3>
                 </div>
 
-                <div class="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span class="rounded-lg border border-orange-200 bg-orange-50 px-2 py-0.5 text-[10px] font-extrabold text-orange-700">
+                <div class="mt-1.5 flex flex-wrap items-center gap-1">
+                    <span class="rounded-lg border border-orange-200 bg-orange-50 px-2 py-0.5 text-[9px] font-extrabold text-orange-700">
                         {{ $tableNumber ? 'Table ' . $tableNumber : 'No Table' }}
                     </span>
 
-                    <span class="rounded-lg border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-bold text-gray-600">
+                    <span class="rounded-lg border border-gray-200 bg-gray-50 px-2 py-0.5 text-[9px] font-bold text-gray-600">
                         {{ $orderTime }}
                     </span>
 
-                    <span class="rounded-lg border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-bold text-gray-600">
+                    <span class="rounded-lg border border-gray-200 bg-gray-50 px-2 py-0.5 text-[9px] font-bold text-gray-600">
                         {{ $items->count() }} item{{ $items->count() !== 1 ? 's' : '' }}
                     </span>
                 </div>
             </div>
 
-            <span class="{{ $statusBadgeClass }} border px-2 py-0.5 rounded-lg text-[9px] font-extrabold uppercase whitespace-nowrap">
+            <span class="{{ $statusBadgeClass }} border px-2 py-0.5 rounded-lg text-[8px] font-extrabold uppercase whitespace-nowrap">
                 {{ ucfirst($currentStatus) }}
             </span>
         </div>
 
         {{-- ITEMS --}}
-        <div class="mt-3 space-y-1.5">
+        <div class="mt-2 space-y-1">
             @forelse ($visibleItems as $item)
-                <div class="flex items-center justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50/90 px-3 py-2">
+                <div class="flex items-center justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50/90 px-2.5 py-1.5">
                     <div class="min-w-0 flex-1">
-                        <p class="text-[13px] font-bold text-gray-900 truncate leading-tight">
+                        <p class="text-[12px] lg:text-[13px] font-bold text-gray-900 truncate leading-tight">
                             {{ $item->menuItem->name ?? 'Menu Item Deleted' }}
                         </p>
 
                         @if (!empty($item->notes))
-                            <p class="text-[10px] text-yellow-600 font-semibold truncate mt-0.5">
+                            <p class="text-[9px] text-yellow-600 font-semibold truncate mt-0.5">
                                 Note: {{ $item->notes }}
                             </p>
                         @endif
                     </div>
 
-                    <span class="shrink-0 rounded-lg bg-orange-100 px-2 py-0.5 text-[11px] font-extrabold text-orange-700">
+                    <span class="shrink-0 rounded-lg bg-orange-100 px-2 py-0.5 text-[10px] font-extrabold text-orange-700">
                         {{ $item->quantity }}x
                     </span>
                 </div>
@@ -110,7 +110,7 @@
             @endforelse
 
             @if ($remainingItemCount > 0)
-                <div class="rounded-xl border border-dashed border-gray-200 bg-white px-2 py-1.5 text-center text-[10px] font-bold text-gray-500">
+                <div class="rounded-xl border border-dashed border-gray-200 bg-white px-2 py-1 text-center text-[9px] font-bold text-gray-500">
                     +{{ $remainingItemCount }} more item{{ $remainingItemCount !== 1 ? 's' : '' }}
                 </div>
             @endif
@@ -118,15 +118,15 @@
 
         {{-- SPECIAL INSTRUCTIONS --}}
         @if ($notes)
-            <div class="mt-2 rounded-xl border border-yellow-100 bg-yellow-50 px-3 py-2">
-                <p class="text-[10px] font-semibold leading-relaxed text-yellow-700 line-clamp-1">
+            <div class="mt-1.5 rounded-xl border border-yellow-100 bg-yellow-50 px-2.5 py-1.5">
+                <p class="text-[9px] font-semibold leading-relaxed text-yellow-700 truncate">
                     Note: {{ $notes }}
                 </p>
             </div>
         @endif
 
         {{-- ACTION --}}
-        <div class="mt-3">
+        <div class="mt-2">
             @if (!empty($buttonText) && !empty($nextStatus))
                 <form method="POST"
                       action="{{ route('kitchen.orders.status', $order) }}"
@@ -137,12 +137,12 @@
 
                     <input type="hidden" name="status" value="{{ $nextStatus }}">
 
-                    <button class="w-full {{ $buttonClass }} text-white py-2.5 rounded-xl font-extrabold text-[11px] uppercase tracking-wide transition active:scale-[0.98] shadow-sm">
+                    <button class="w-full {{ $buttonClass }} text-white py-2 rounded-xl font-extrabold text-[10px] lg:text-[11px] uppercase tracking-wide transition active:scale-[0.98] shadow-sm">
                         {{ $buttonText }}
                     </button>
                 </form>
             @else
-                <div class="w-full rounded-xl border border-gray-200 bg-gray-100 py-2.5 text-center text-[11px] font-extrabold text-gray-500 uppercase">
+                <div class="w-full rounded-xl border border-gray-200 bg-gray-100 py-2 text-center text-[10px] lg:text-[11px] font-extrabold text-gray-500 uppercase">
                     Completed
                 </div>
             @endif
