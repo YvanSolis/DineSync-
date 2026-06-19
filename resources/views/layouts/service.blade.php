@@ -71,10 +71,10 @@
     <!-- Sidebar -->
     <aside
         id="serviceSidebar"
-        class="fixed left-0 top-0 z-50 h-screen w-[280px] sm:w-[300px] lg:w-[260px]
-               service-sidebar-bg border-r border-orange-100/70 flex flex-col overflow-y-auto
-               shadow-[8px_0_30px_rgba(15,23,42,0.08)]
-               transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
+        class="fixed left-0 top-0 z-50 h-screen w-72 lg:w-64
+            service-sidebar-bg border-r border-orange-100/70 flex flex-col overflow-y-auto
+            shadow-xl
+            transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out"
 
         <!-- Mobile Close -->
         <div class="lg:hidden flex items-center justify-between px-5 pt-5">
@@ -179,7 +179,7 @@
     </aside>
 
     <!-- Main -->
-    <div class="lg:ml-[260px] min-h-screen">
+    <div class="lg:ml-64 min-h-screen overflow-x-hidden">
 
         <!-- Topbar -->
         <header class="sticky top-0 z-30 soft-glass border-b border-orange-100/70 px-4 sm:px-5 lg:px-7 py-3 sm:py-4">
@@ -217,8 +217,8 @@
 
                     <div class="bg-green-50 border border-green-100 text-green-600 px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl text-xs sm:text-sm font-bold shadow-sm flex items-center gap-2">
                         <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                        <span class="hidden xs:inline">Online</span>
-                        <span class="xs:hidden">On</span>
+                        <span class="hidden sm:inline">Online</span>
+                        <span class="sm:hidden">On</span>
                     </div>
                 </div>
             </div>
@@ -229,7 +229,7 @@
         </header>
 
         <!-- Content -->
-        <main class="px-4 sm:px-5 lg:px-7 py-5 sm:py-6 lg:py-7">
+        <main class="w-full overflow-x-hidden px-4 sm:px-5 lg:px-7 py-5 sm:py-6 lg:py-7">
             <div class="max-w-[1600px] mx-auto">
                 @yield('content')
             </div>
