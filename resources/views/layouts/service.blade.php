@@ -13,6 +13,12 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     <style>
+        html,
+        body {
+            min-height: 100%;
+            overflow-x: hidden;
+        }
+
         .service-bg {
             background:
                 linear-gradient(135deg, rgba(255, 247, 237, 0.94), rgba(255, 255, 255, 0.96)),
@@ -55,6 +61,66 @@
             backdrop-filter: blur(4px);
             -webkit-backdrop-filter: blur(4px);
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | IMPORTANT FIX
+        |--------------------------------------------------------------------------
+        | This makes the service content move away from the fixed sidebar using
+        | normal CSS instead of Tailwind arbitrary classes.
+        */
+        .service-sidebar {
+            width: 280px;
+        }
+
+        .service-main-wrapper {
+            min-height: 100vh;
+            width: 100%;
+            min-width: 0;
+            overflow-x: hidden;
+        }
+
+        .service-content-container {
+            width: 100%;
+            max-width: 1600px;
+            margin-left: auto;
+            margin-right: auto;
+            min-width: 0;
+        }
+
+        @media (min-width: 640px) {
+            .service-sidebar {
+                width: 300px;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .service-sidebar {
+                width: 260px;
+                transform: translateX(0) !important;
+            }
+
+            .service-main-wrapper {
+                margin-left: 260px;
+                width: calc(100% - 260px);
+            }
+        }
+
+        @media (max-width: 1023px) {
+            .service-main-wrapper {
+                margin-left: 0;
+                width: 100%;
+            }
+        }
+
+        .service-main-wrapper table {
+            max-width: 100%;
+        }
+
+        .service-main-wrapper .overflow-x-auto {
+            max-width: 100%;
+            overflow-x: auto;
+        }
     </style>
 </head>
 
@@ -71,10 +137,10 @@
     <!-- Sidebar -->
     <aside
         id="serviceSidebar"
-        class="fixed left-0 top-0 z-50 h-screen w-72 lg:w-64
-            service-sidebar-bg border-r border-orange-100/70 flex flex-col overflow-y-auto
-            shadow-xl
-            transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out"
+        class="service-sidebar fixed left-0 top-0 z-50 h-screen
+               service-sidebar-bg border-r border-orange-100/70 flex flex-col overflow-y-auto
+               shadow-xl
+               transform -translate-x-full transition-transform duration-300 ease-in-out">
 
         <!-- Mobile Close -->
         <div class="lg:hidden flex items-center justify-between px-5 pt-5">
@@ -179,7 +245,7 @@
     </aside>
 
     <!-- Main -->
-    <div class="lg:ml-64 min-h-screen overflow-x-hidden">
+    <div class="service-main-wrapper">
 
         <!-- Topbar -->
         <header class="sticky top-0 z-30 soft-glass border-b border-orange-100/70 px-4 sm:px-5 lg:px-7 py-3 sm:py-4">
@@ -229,8 +295,8 @@
         </header>
 
         <!-- Content -->
-        <main class="w-full overflow-x-hidden px-4 sm:px-5 lg:px-7 py-5 sm:py-6 lg:py-7">
-            <div class="max-w-[1600px] mx-auto">
+        <main class="px-4 sm:px-5 lg:px-7 py-5 sm:py-6 lg:py-7 overflow-x-hidden">
+            <div class="service-content-container">
                 @yield('content')
             </div>
         </main>
@@ -249,13 +315,20 @@
         const navLinks = document.querySelectorAll('.service-nav-link');
 
         function openSidebar() {
+            if (!sidebar || !overlay) return;
+
             sidebar.classList.remove('-translate-x-full');
             overlay.classList.remove('hidden');
             document.body.classList.add('overflow-hidden');
         }
 
         function closeSidebar() {
-            sidebar.classList.add('-translate-x-full');
+            if (!sidebar || !overlay) return;
+
+            if (window.innerWidth < 1024) {
+                sidebar.classList.add('-translate-x-full');
+            }
+
             overlay.classList.add('hidden');
             document.body.classList.remove('overflow-hidden');
         }
@@ -280,7 +353,9 @@
             });
         });
 
-        window.addEventListener('resize', function () {
+        function handleResize() {
+            if (!sidebar || !overlay) return;
+
             if (window.innerWidth >= 1024) {
                 overlay.classList.add('hidden');
                 document.body.classList.remove('overflow-hidden');
@@ -288,7 +363,10 @@
             } else {
                 sidebar.classList.add('-translate-x-full');
             }
-        });
+        }
+
+        window.addEventListener('resize', handleResize);
+        handleResize();
     });
 </script>
 
