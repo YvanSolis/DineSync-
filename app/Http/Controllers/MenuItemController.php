@@ -13,6 +13,7 @@ class MenuItemController extends Controller
         'Authentic Ala Carte Meals',
         'Dishes',
         'Korean Kitchen Specials',
+        'Chef Oppa Special',
         'Noodles',
         'Salad',
         'Maki & Sushi',
@@ -59,6 +60,12 @@ class MenuItemController extends Controller
         'alcohol',
     ];
 
+    private array $inventoryTypes = [
+        'per_order',
+        'per_head',
+        'custom',
+    ];
+
     public function index(Request $request)
     {
         $selectedCategory = $request->query('category');
@@ -80,6 +87,7 @@ class MenuItemController extends Controller
             'categories' => $this->categories,
             'flavor_tags_options' => $this->flavorTags,
             'meal_type_options' => $this->mealTypes,
+            'inventory_type_options' => $this->inventoryTypes,
             'selected_category' => $selectedCategory,
             'menu_items' => $menuItems->map(function ($item) {
                 return $this->formatMenuItemResponse($item);
@@ -99,6 +107,9 @@ class MenuItemController extends Controller
             'flavor_tags' => 'nullable|array',
             'flavor_tags.*' => 'string|in:' . implode(',', $this->flavorTags),
             'meal_type' => 'nullable|string|in:' . implode(',', $this->mealTypes),
+
+            'inventory_type' => 'nullable|string|in:' . implode(',', $this->inventoryTypes),
+            'daily_limit' => 'nullable|integer|min:0',
         ]);
 
         if (!in_array($validated['category'], $this->categories)) {
@@ -106,6 +117,14 @@ class MenuItemController extends Controller
                 'message' => 'Invalid menu category selected.',
             ], 422);
         }
+
+        $inventoryType = $validated['inventory_type'] ?? (
+            $validated['category'] === 'Chef Oppa Special' ? 'custom' : 'per_order'
+        );
+
+        $dailyLimit = $inventoryType === 'custom'
+            ? null
+            : ($validated['daily_limit'] ?? null);
 
         $imageUrl = null;
 
@@ -123,13 +142,22 @@ class MenuItemController extends Controller
             'flavor_tags' => $validated['flavor_tags'] ?? [],
             'meal_type' => $validated['meal_type'] ?? null,
 
-            // New food item should be unavailable first
-            // because it has no linked ingredients yet.
-            'is_available' => false,
+            'inventory_type' => $inventoryType,
+            'daily_limit' => $dailyLimit,
+
+            /*
+             * Daily Menu Inventory logic:
+             * - Custom items are available by default because staff confirms them.
+             * - Per order/per head items can be available if no daily limit is set yet.
+             * - If daily limit is set, availability will be refreshed below.
+             */
+            'is_available' => true,
         ]);
 
+        $this->refreshAvailability($menuItem);
+
         return response()->json(
-            $this->formatMenuItemResponse($menuItem->load('ingredients')),
+            $this->formatMenuItemResponse($menuItem->fresh()->load('ingredients')),
             201
         );
     }
@@ -156,6 +184,9 @@ class MenuItemController extends Controller
             'flavor_tags' => 'sometimes|nullable|array',
             'flavor_tags.*' => 'string|in:' . implode(',', $this->flavorTags),
             'meal_type' => 'sometimes|nullable|string|in:' . implode(',', $this->mealTypes),
+
+            'inventory_type' => 'sometimes|nullable|string|in:' . implode(',', $this->inventoryTypes),
+            'daily_limit' => 'sometimes|nullable|integer|min:0',
         ]);
 
         if (isset($validated['category']) && !in_array($validated['category'], $this->categories)) {
@@ -166,10 +197,25 @@ class MenuItemController extends Controller
 
         $updateData = [];
 
-        foreach (['name', 'category', 'description', 'price', 'meal_type'] as $field) {
+        foreach (['name', 'category', 'description', 'price', 'meal_type', 'inventory_type', 'daily_limit'] as $field) {
             if ($request->has($field)) {
                 $updateData[$field] = $validated[$field] ?? null;
             }
+        }
+
+        /*
+         * Auto-set Chef Oppa Special as custom inventory.
+         */
+        if (($validated['category'] ?? $menuItem->category) === 'Chef Oppa Special') {
+            $updateData['inventory_type'] = 'custom';
+            $updateData['daily_limit'] = null;
+        }
+
+        /*
+         * Custom / No Fixed Limit should not have a daily limit.
+         */
+        if (($updateData['inventory_type'] ?? $menuItem->inventory_type) === 'custom') {
+            $updateData['daily_limit'] = null;
         }
 
         if ($request->has('flavor_tags')) {
@@ -184,7 +230,7 @@ class MenuItemController extends Controller
 
         /*
          * If admin manually turns it OFF, allow it.
-         * If admin manually turns it ON, still check ingredients and stock first.
+         * Otherwise, refresh using Daily Menu Inventory logic.
          */
         if ($request->has('is_available') && $request->boolean('is_available') === false) {
             $menuItem->update([
@@ -276,6 +322,47 @@ class MenuItemController extends Controller
     {
         $menuItem->load('ingredients');
 
+        $inventoryType = $menuItem->inventory_type ?? (
+            $menuItem->category === 'Chef Oppa Special' ? 'custom' : 'per_order'
+        );
+
+        /*
+         * Chef Oppa Special / Custom:
+         * Staff will confirm the request, so it should not depend on ingredients.
+         */
+        if ($inventoryType === 'custom' || $menuItem->category === 'Chef Oppa Special') {
+            $menuItem->update([
+                'is_available' => true,
+            ]);
+
+            return;
+        }
+
+        /*
+         * Daily Menu Inventory:
+         * Per Order and Per Head depend on daily limit.
+         * If daily_limit is null, item remains available until admin sets a limit or disables it manually.
+         */
+        if (in_array($inventoryType, ['per_order', 'per_head'])) {
+            if ($menuItem->daily_limit === null) {
+                $menuItem->update([
+                    'is_available' => true,
+                ]);
+
+                return;
+            }
+
+            $menuItem->update([
+                'is_available' => $menuItem->remaining_today > 0,
+            ]);
+
+            return;
+        }
+
+        /*
+         * Old fallback ingredient-based logic.
+         * This only runs if an item somehow has an old/unknown inventory type.
+         */
         if ($menuItem->ingredients->isEmpty()) {
             $menuItem->update([
                 'is_available' => false,
@@ -312,10 +399,19 @@ class MenuItemController extends Controller
             'category' => $item->category,
             'price' => (float) $item->price,
             'image' => $item->image,
+            'image_url' => $item->image_url,
             'is_available' => (bool) $item->is_available,
 
             'flavor_tags' => $item->flavor_tags ?? [],
             'meal_type' => $item->meal_type,
+
+            'inventory_type' => $item->inventory_type,
+            'daily_limit' => $item->daily_limit,
+            'sold_today' => $item->sold_today,
+            'remaining_today' => $item->remaining_today,
+            'daily_inventory_label' => $item->daily_inventory_label,
+            'stock_label' => $item->stock_label,
+            'max_order_quantity' => $item->max_order_quantity,
 
             'ingredients' => $item->ingredients,
             'created_at' => $item->created_at,

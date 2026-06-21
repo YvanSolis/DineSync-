@@ -2,197 +2,216 @@
 
 @section('content')
 
-<div class="space-y-6">
+<div class="space-y-5 sm:space-y-6">
     <!-- Header -->
-    <div class="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-            <h1 class="text-3xl font-bold mb-1">Reports & Forecast</h1>
-            <p class="text-gray-500">Analytics and predictive insights.</p>
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div class="min-w-0">
+            <h1 class="text-2xl sm:text-3xl font-bold mb-1 text-gray-900">Reports & Forecast</h1>
+            <p class="text-sm sm:text-base text-gray-500">
+                Analytics based on sales, orders, and 7-day menu demand.
+            </p>
         </div>
 
-        <div class="flex items-center gap-3">
-            <button class="border rounded px-4 py-2 text-sm bg-white text-gray-700">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full sm:w-auto">
+            <button type="button"
+                class="border rounded-xl px-4 py-2.5 text-sm bg-white text-gray-700 font-semibold">
                 Last 7 Days
             </button>
 
-            <button onclick="refreshAIForecast(event)"
-                class="border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 px-4 py-2 rounded font-medium text-sm">
-                Generate AI Forecast
-            </button>
-
-            <button onclick="downloadReportsCsv()"
-                class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded font-medium text-sm">
-                Download Report
+            <button onclick="refreshForecast(event)"
+                class="border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 px-4 py-2.5 rounded-xl font-semibold text-sm">
+                Refresh Forecast
             </button>
         </div>
     </div>
 
     <!-- Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div class="bg-white rounded-xl border shadow-sm p-5">
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
             <p class="text-sm text-gray-500 mb-2">Total Revenue (7d)</p>
-            <h2 id="cardRevenue7d" class="text-3xl font-bold">₱0.00</h2>
-            <p class="text-xs text-green-500 mt-2">Recent revenue summary</p>
+            <h2 id="cardRevenue7d" class="text-2xl sm:text-3xl font-bold">₱0.00</h2>
+            <p class="text-xs text-green-500 mt-2">Recent completed sales</p>
         </div>
 
-        <div class="bg-white rounded-xl border shadow-sm p-5">
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
             <p class="text-sm text-gray-500 mb-2">Avg Order Value</p>
-            <h2 id="cardAvgOrderValue" class="text-3xl font-bold">₱0.00</h2>
-            <p class="text-xs text-green-500 mt-2">Average per transaction/order</p>
+            <h2 id="cardAvgOrderValue" class="text-2xl sm:text-3xl font-bold">₱0.00</h2>
+            <p class="text-xs text-green-500 mt-2">Average per order/payment</p>
         </div>
 
-        <div class="bg-white rounded-xl border shadow-sm p-5">
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
             <p class="text-sm text-gray-500 mb-2">Total Orders (7d)</p>
-            <h2 id="cardOrders7d" class="text-3xl font-bold">0</h2>
-            <p class="text-xs text-green-500 mt-2">Based on recent activity</p>
+            <h2 id="cardOrders7d" class="text-2xl sm:text-3xl font-bold">0</h2>
+            <p class="text-xs text-green-500 mt-2">Based on recent orders</p>
         </div>
 
-        <div class="bg-white rounded-xl border shadow-sm p-5">
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
             <p class="text-sm text-gray-500 mb-2">Forecasted Revenue</p>
-            <h2 id="cardForecastRevenue" class="text-3xl font-bold">₱0.00</h2>
-            <p id="forecastModeText" class="text-xs text-gray-500 mt-2">Smart estimate mode</p>
+            <h2 id="cardForecastRevenue" class="text-2xl sm:text-3xl font-bold">₱0.00</h2>
+            <p id="forecastModeText" class="text-xs text-gray-500 mt-2">System forecast</p>
         </div>
     </div>
 
-    <!-- OpenAI Forecast Insight -->
-    <div class="bg-white rounded-xl border shadow-sm p-5">
-        <div class="flex items-start justify-between gap-4 flex-wrap mb-4">
-            <div>
-                <h3 class="font-bold text-lg">OpenAI Forecast Insight</h3>
-                <p id="aiForecastMode" class="text-sm text-gray-500">Loading AI forecast...</p>
+    <!-- Forecast Insight -->
+    <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+            <div class="min-w-0">
+                <h3 class="font-bold text-base sm:text-lg">Menu Demand Forecast Insight</h3>
+                <p id="forecastMode" class="text-sm text-gray-500">Loading forecast...</p>
             </div>
 
-            <span id="aiConfidenceBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-600">
+            <span id="confidenceBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-600 w-fit">
                 Confidence: -
             </span>
         </div>
 
-        <p id="aiSummaryText" class="text-gray-700 leading-7">
+        <p id="summaryText" class="text-sm sm:text-base text-gray-700 leading-7">
             Waiting for forecast...
         </p>
 
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
-            <div class="border rounded-lg p-4 bg-orange-50 border-orange-100">
-                <h4 class="font-bold mb-3">AI Recommendations</h4>
-                <div id="aiRecommendationsList" class="space-y-2 text-sm text-gray-700">
+            <div class="border rounded-2xl p-4 bg-orange-50 border-orange-100">
+                <h4 class="font-bold mb-3">Preparation Recommendations</h4>
+                <div id="recommendationsList" class="space-y-2 text-sm text-gray-700">
                     <p class="text-gray-400">No recommendations yet.</p>
                 </div>
             </div>
 
-            <div class="border rounded-lg p-4 bg-blue-50 border-blue-100">
+            <div class="border rounded-2xl p-4 bg-blue-50 border-blue-100">
                 <h4 class="font-bold mb-3">Next-Day Revenue Forecast</h4>
-                <p class="text-sm text-gray-500">OpenAI predicted revenue for the next operating day.</p>
-                <h2 id="aiRevenueForecast" class="text-3xl font-bold mt-3">₱0.00</h2>
+                <p class="text-sm text-gray-500">Estimated revenue for the next operating day.</p>
+                <h2 id="revenueForecast" class="text-2xl sm:text-3xl font-bold mt-3">₱0.00</h2>
             </div>
         </div>
     </div>
 
     <!-- Main Trend Chart -->
-    <div class="bg-white rounded-xl border shadow-sm p-5">
+    <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5 min-w-0">
         <div class="mb-4">
-            <h3 class="font-bold text-lg">Sales & Order Trends</h3>
+            <h3 class="font-bold text-base sm:text-lg">Sales & Order Trends</h3>
             <p class="text-sm text-gray-500">Recent sales and order performance over the last 7 days.</p>
         </div>
 
-        <div class="h-96">
+        <div class="h-72 sm:h-96">
             <canvas id="salesOrdersTrendChart"></canvas>
         </div>
     </div>
 
     <!-- Two Smaller Charts -->
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div class="bg-white rounded-xl border shadow-sm p-5">
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5 min-w-0">
             <div class="mb-4">
-                <h3 class="font-bold text-lg">Revenue by Category</h3>
-                <p class="text-sm text-gray-500">Which menu categories contribute most to revenue.</p>
+                <h3 class="font-bold text-base sm:text-lg">Revenue by Category</h3>
+                <p class="text-sm text-gray-500">Which menu categories contributed most to revenue in the last 7 days.</p>
             </div>
 
-            <div class="h-80">
+            <div class="h-72 sm:h-80">
                 <canvas id="revenueByCategoryChart"></canvas>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl border shadow-sm p-5">
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5 min-w-0">
             <div class="mb-4">
-                <h3 class="font-bold text-lg">Inventory Usage vs Forecast</h3>
-                <p class="text-sm text-gray-500">Actual recent ingredient usage compared with forecasted demand.</p>
+                <h3 class="font-bold text-base sm:text-lg">7-Day Menu Demand Forecast</h3>
+                <p class="text-sm text-gray-500">Sold in the last 7 days compared with forecasted demand.</p>
             </div>
 
-            <div class="h-80">
-                <canvas id="inventoryForecastChart"></canvas>
+            <div class="h-[360px] sm:h-[420px]">
+                <canvas id="capacityForecastChart"></canvas>
             </div>
         </div>
     </div>
 
-    <!-- AI Tables -->
+    <!-- Forecast Tables -->
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div class="bg-white rounded-xl border shadow-sm">
-            <div class="p-5 border-b">
-                <h3 class="font-bold text-lg">AI Menu Demand Forecast</h3>
-                <p class="text-sm text-gray-500">Predicted demand for menu items.</p>
+        <!-- Menu Demand Forecast -->
+        <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+            <div class="p-4 sm:p-5 border-b">
+                <h3 class="font-bold text-base sm:text-lg">Menu Demand Forecast</h3>
+                <p class="text-sm text-gray-500">Predicted demand for menu items based on recent orders.</p>
             </div>
 
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
+            <!-- Desktop Table -->
+            <div class="hidden md:block overflow-x-auto">
+                <table class="w-full min-w-[760px] text-sm">
                     <thead class="bg-gray-50 text-gray-600">
                         <tr>
                             <th class="text-left px-6 py-4 font-semibold">Menu Item</th>
+                            <th class="text-left px-6 py-4 font-semibold">7-Day Sold</th>
                             <th class="text-left px-6 py-4 font-semibold">Predicted Demand</th>
-                            <th class="text-left px-6 py-4 font-semibold">Reason</th>
+                            <th class="text-left px-6 py-4 font-semibold">Recommendation</th>
                         </tr>
                     </thead>
-                    <tbody id="aiMenuForecastBody">
+                    <tbody id="menuForecastBody">
                         <tr>
-                            <td colspan="3" class="px-6 py-8 text-center text-gray-400">
-                                Loading AI menu forecast...
+                            <td colspan="4" class="px-6 py-8 text-center text-gray-400">
+                                Loading menu forecast...
                             </td>
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Mobile Cards -->
+            <div id="menuForecastMobileList" class="md:hidden p-4 space-y-3">
+                <div class="px-4 py-8 text-center text-gray-400">
+                    Loading menu forecast...
+                </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl border shadow-sm">
-            <div class="p-5 border-b">
-                <h3 class="font-bold text-lg">AI Ingredient Restock Forecast</h3>
-                <p class="text-sm text-gray-500">Suggested restocking for fresh daily operations.</p>
+        <!-- Daily Capacity Alerts -->
+        <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+            <div class="p-4 sm:p-5 border-b">
+                <h3 class="font-bold text-base sm:text-lg">Daily Capacity Alerts</h3>
+                <p class="text-sm text-gray-500">Low or sold-out daily menu capacity.</p>
             </div>
 
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
+            <!-- Desktop Table -->
+            <div class="hidden md:block overflow-x-auto">
+                <table class="w-full min-w-[680px] text-sm">
                     <thead class="bg-gray-50 text-gray-600">
                         <tr>
-                            <th class="text-left px-6 py-4 font-semibold">Ingredient</th>
-                            <th class="text-left px-6 py-4 font-semibold">Current Stock</th>
-                            <th class="text-left px-6 py-4 font-semibold">Suggested Restock</th>
+                            <th class="text-left px-6 py-4 font-semibold">Menu Item</th>
+                            <th class="text-left px-6 py-4 font-semibold">Type</th>
+                            <th class="text-left px-6 py-4 font-semibold">Remaining</th>
                             <th class="text-left px-6 py-4 font-semibold">Risk</th>
                         </tr>
                     </thead>
-                    <tbody id="aiIngredientForecastBody">
+                    <tbody id="capacityAlertsBody">
                         <tr>
                             <td colspan="4" class="px-6 py-8 text-center text-gray-400">
-                                Loading AI ingredient forecast...
+                                Loading capacity alerts...
                             </td>
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Mobile Cards -->
+            <div id="capacityAlertsMobileList" class="md:hidden p-4 space-y-3">
+                <div class="px-4 py-8 text-center text-gray-400">
+                    Loading capacity alerts...
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Forecast Detail Table -->
-    <div class="bg-white rounded-xl border shadow-sm">
-        <div class="p-5 border-b">
-            <h3 class="font-bold text-lg">Detailed Forecast Recommendations</h3>
-            <p class="text-sm text-gray-500">System-generated forecast based on recent activity.</p>
+    <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+        <div class="p-4 sm:p-5 border-b">
+            <h3 class="font-bold text-base sm:text-lg">Detailed Forecast Recommendations</h3>
+            <p class="text-sm text-gray-500">System-generated forecast based on sales, orders, and daily capacity.</p>
         </div>
 
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+        <!-- Desktop Table -->
+        <div class="hidden lg:block overflow-x-auto">
+            <table class="w-full min-w-[1040px] text-sm">
                 <thead class="bg-gray-50 text-gray-600">
                     <tr>
                         <th class="text-left px-6 py-4 font-semibold">Menu Item</th>
                         <th class="text-left px-6 py-4 font-semibold">Category</th>
+                        <th class="text-left px-6 py-4 font-semibold">Sold (7d)</th>
                         <th class="text-left px-6 py-4 font-semibold">Predicted Demand</th>
                         <th class="text-left px-6 py-4 font-semibold">Confidence</th>
                         <th class="text-left px-6 py-4 font-semibold">Recommendation</th>
@@ -200,12 +219,19 @@
                 </thead>
                 <tbody id="forecastDetailsBody">
                     <tr>
-                        <td colspan="5" class="px-6 py-8 text-center text-gray-400">
+                        <td colspan="6" class="px-6 py-8 text-center text-gray-400">
                             Loading forecast details...
                         </td>
                     </tr>
                 </tbody>
             </table>
+        </div>
+
+        <!-- Mobile / Tablet Cards -->
+        <div id="forecastDetailsMobileList" class="lg:hidden p-4 space-y-3">
+            <div class="px-4 py-8 text-center text-gray-400">
+                Loading forecast details...
+            </div>
         </div>
     </div>
 </div>
@@ -216,14 +242,7 @@
 let reportsData = {};
 let salesOrdersTrendChart = null;
 let revenueByCategoryChart = null;
-let inventoryForecastChart = null;
-
-function formatMoney(value) {
-    return `₱${Number(value || 0).toLocaleString(undefined, {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2
-    })}`;
-}
+let capacityForecastChart = null;
 
 function safeText(value) {
     return String(value ?? '')
@@ -234,141 +253,138 @@ function safeText(value) {
         .replaceAll("'", '&#039;');
 }
 
-function riskBadge(risk) {
-    const value = String(risk || 'Low').toLowerCase();
-
-    if (value === 'high') {
-        return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-600">High</span>';
-    }
-
-    if (value === 'medium') {
-        return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">Medium</span>';
-    }
-
-    return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-600">Low</span>';
+function formatMoney(value) {
+    return `₱${Number(value || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+    })}`;
 }
 
-function renderSummaryCards(data) {
-    document.getElementById('cardRevenue7d').textContent = formatMoney(data.total_revenue_7d);
-    document.getElementById('cardAvgOrderValue').textContent = formatMoney(data.avg_order_value);
-    document.getElementById('cardOrders7d').textContent = Number(data.total_orders_7d || 0).toLocaleString();
+function formatNumber(value) {
+    return Number(value || 0).toLocaleString();
+}
 
-    const forecastRevenue = data.ai_forecasted_revenue_next_day || data.forecasted_revenue || 0;
+function pick(obj, keys, fallback = null) {
+    for (const key of keys) {
+        if (obj && obj[key] !== undefined && obj[key] !== null) {
+            return obj[key];
+        }
+    }
+
+    return fallback;
+}
+
+function shortLabel(value, max = 20) {
+    const text = String(value ?? 'Unknown');
+
+    if (text.length <= max) {
+        return text;
+    }
+
+    return text.substring(0, max - 3) + '...';
+}
+
+function formatInventoryType(value) {
+    switch (value) {
+        case 'per_head':
+            return 'Per Head';
+        case 'custom':
+            return 'Custom';
+        case 'per_order':
+        default:
+            return 'Per Order';
+    }
+}
+
+function renderCards(data) {
+    const revenue = pick(data, ['total_revenue_7d', 'total_revenue', 'revenue_7d'], 0);
+    const avgOrder = pick(data, ['avg_order_value', 'average_order_value'], 0);
+    const orders = pick(data, ['total_orders_7d', 'total_orders', 'orders_7d'], 0);
+    const forecastRevenue = pick(data, ['forecasted_revenue', 'revenue_forecast', 'next_day_revenue_forecast'], 0);
+
+    document.getElementById('cardRevenue7d').textContent = formatMoney(revenue);
+    document.getElementById('cardAvgOrderValue').textContent = formatMoney(avgOrder);
+    document.getElementById('cardOrders7d').textContent = formatNumber(orders);
     document.getElementById('cardForecastRevenue').textContent = formatMoney(forecastRevenue);
+    document.getElementById('revenueForecast').textContent = formatMoney(forecastRevenue);
 
-    document.getElementById('forecastModeText').textContent = data.forecast_mode || 'Smart estimate mode';
+    const mode = pick(data, ['forecast_mode'], 'System forecast');
+    document.getElementById('forecastModeText').textContent = mode;
 }
 
-function renderAIForecast(data) {
-    document.getElementById('aiForecastMode').textContent =
-        data.forecast_mode || 'OpenAI-powered forecast';
+function renderInsight(data) {
+    const summary = pick(data, ['summary', 'ai_summary'], 'No forecast summary available yet.');
+    const mode = pick(data, ['forecast_mode'], 'Based on last 7 days of available order and sales data.');
+    const confidence = pick(data, ['forecast_confidence', 'ai_forecast_confidence'], 'N/A');
+    const recommendations = pick(data, ['recommendations', 'ai_recommendations'], []);
 
-    document.getElementById('aiSummaryText').textContent =
-        data.ai_summary || 'No AI summary available yet.';
+    document.getElementById('summaryText').textContent = summary;
+    document.getElementById('forecastMode').textContent = mode;
+    document.getElementById('confidenceBadge').textContent = `Confidence: ${confidence}`;
 
-    document.getElementById('aiConfidenceBadge').textContent =
-        `Confidence: ${data.ai_forecast_confidence || 'Low'}`;
+    const list = document.getElementById('recommendationsList');
 
-    document.getElementById('aiRevenueForecast').textContent =
-        formatMoney(data.ai_forecasted_revenue_next_day || 0);
-
-    const list = document.getElementById('aiRecommendationsList');
-    const recommendations = data.ai_recommendations || [];
-
-    if (!recommendations.length) {
+    if (!Array.isArray(recommendations) || recommendations.length === 0) {
         list.innerHTML = '<p class="text-gray-400">No recommendations yet.</p>';
         return;
     }
 
     list.innerHTML = recommendations.map(item => `
-        <div class="p-3 rounded-lg bg-white border border-orange-100">
+        <div class="rounded-xl bg-white/70 border border-orange-100 px-3 py-2">
             ${safeText(item)}
         </div>
     `).join('');
 }
 
-function renderAIMenuForecast(data) {
-    const tbody = document.getElementById('aiMenuForecastBody');
-    const rows = data.ai_menu_forecast || [];
+function normalizeTrendData(data) {
+    const raw = pick(data, ['sales_order_trends', 'sales_orders_trend', 'trend_data'], []);
 
-    if (!rows.length) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="3" class="px-6 py-8 text-center text-gray-400">
-                    No AI menu forecast available yet.
-                </td>
-            </tr>
-        `;
-        return;
+    if (Array.isArray(raw)) {
+        return {
+            labels: raw.map(item => pick(item, ['label', 'date', 'day'], '')),
+            sales: raw.map(item => Number(pick(item, ['sales', 'revenue', 'total_sales'], 0))),
+            orders: raw.map(item => Number(pick(item, ['orders', 'order_count', 'total_orders'], 0)))
+        };
     }
 
-    tbody.innerHTML = rows.map(item => `
-        <tr class="border-t hover:bg-gray-50">
-            <td class="px-6 py-4 font-medium">${safeText(item.menu_item)}</td>
-            <td class="px-6 py-4">${safeText(item.predicted_demand)}</td>
-            <td class="px-6 py-4">${safeText(item.reason)}</td>
-        </tr>
-    `).join('');
+    return {
+        labels: [],
+        sales: [],
+        orders: []
+    };
 }
 
-function renderAIIngredientForecast(data) {
-    const tbody = document.getElementById('aiIngredientForecastBody');
-    const rows = data.ai_ingredient_forecast || [];
+function renderSalesOrdersTrendChart(data) {
+    const normalized = normalizeTrendData(data);
+    const canvas = document.getElementById('salesOrdersTrendChart');
 
-    if (!rows.length) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="4" class="px-6 py-8 text-center text-gray-400">
-                    No AI ingredient forecast available yet.
-                </td>
-            </tr>
-        `;
-        return;
-    }
-
-    tbody.innerHTML = rows.map(item => `
-        <tr class="border-t hover:bg-gray-50">
-            <td class="px-6 py-4 font-medium">${safeText(item.ingredient)}</td>
-            <td class="px-6 py-4">${Number(item.current_stock || 0).toFixed(2)} ${safeText(item.unit)}</td>
-            <td class="px-6 py-4">${Number(item.suggested_restock || 0).toFixed(2)} ${safeText(item.unit)}</td>
-            <td class="px-6 py-4">${riskBadge(item.risk_level)}</td>
-        </tr>
-    `).join('');
-}
-
-function renderSalesOrdersTrend(data) {
-    const labels = (data.sales_order_trends || []).map(item => item.label);
-    const sales = (data.sales_order_trends || []).map(item => Number(item.sales || 0));
-    const orders = (data.sales_order_trends || []).map(item => Number(item.orders || 0));
-
-    const ctx = document.getElementById('salesOrdersTrendChart').getContext('2d');
+    if (!canvas || typeof Chart === 'undefined') return;
 
     if (salesOrdersTrendChart) {
         salesOrdersTrendChart.destroy();
     }
 
-    salesOrdersTrendChart = new Chart(ctx, {
+    salesOrdersTrendChart = new Chart(canvas.getContext('2d'), {
         type: 'line',
         data: {
-            labels,
+            labels: normalized.labels,
             datasets: [
                 {
-                    label: 'Sales (₱)',
-                    data: sales,
+                    label: 'Sales',
+                    data: normalized.sales,
                     borderColor: '#fb923c',
-                    backgroundColor: 'rgba(251, 146, 60, 0.18)',
+                    backgroundColor: 'rgba(251, 146, 60, 0.12)',
                     fill: true,
                     tension: 0.35,
-                    pointRadius: 4
+                    yAxisID: 'y'
                 },
                 {
                     label: 'Orders',
-                    data: orders,
-                    borderColor: '#f59e0b',
-                    backgroundColor: 'rgba(245, 158, 11, 0.10)',
+                    data: normalized.orders,
+                    borderColor: '#60a5fa',
+                    backgroundColor: 'rgba(96, 165, 250, 0.12)',
                     fill: false,
                     tension: 0.35,
-                    pointRadius: 4,
                     yAxisID: 'y1'
                 }
             ]
@@ -382,12 +398,24 @@ function renderSalesOrdersTrend(data) {
             },
             plugins: {
                 legend: {
-                    display: true
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: item => {
+                            if (item.dataset.label === 'Sales') {
+                                return `Sales: ${formatMoney(item.raw)}`;
+                            }
+
+                            return `Orders: ${item.raw}`;
+                        }
+                    }
                 }
             },
             scales: {
                 y: {
                     beginAtZero: true,
+                    position: 'left',
                     ticks: {
                         callback: value => `₱${value}`
                     }
@@ -397,6 +425,9 @@ function renderSalesOrdersTrend(data) {
                     position: 'right',
                     grid: {
                         drawOnChartArea: false
+                    },
+                    ticks: {
+                        precision: 0
                     }
                 }
             }
@@ -404,25 +435,42 @@ function renderSalesOrdersTrend(data) {
     });
 }
 
-function renderRevenueByCategory(data) {
-    const labels = (data.revenue_by_category || []).map(item => item.category);
-    const values = (data.revenue_by_category || []).map(item => Number(item.revenue || 0));
+function renderRevenueByCategoryChart(data) {
+    const raw = pick(data, ['revenue_by_category', 'category_revenue'], []);
+    const canvas = document.getElementById('revenueByCategoryChart');
 
-    const ctx = document.getElementById('revenueByCategoryChart').getContext('2d');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    let labels = [];
+    let values = [];
+
+    if (Array.isArray(raw)) {
+        labels = raw.map(item => pick(item, ['category', 'name'], 'Unknown'));
+        values = raw.map(item => Number(pick(item, ['revenue', 'total', 'amount'], 0)));
+    } else if (raw && typeof raw === 'object') {
+        labels = Object.keys(raw);
+        values = Object.values(raw).map(Number);
+    }
+
+    if (!labels.length) {
+        labels = ['No data'];
+        values = [0];
+    }
 
     if (revenueByCategoryChart) {
         revenueByCategoryChart.destroy();
     }
 
-    revenueByCategoryChart = new Chart(ctx, {
+    revenueByCategoryChart = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
-            labels,
+            labels: labels.map(label => shortLabel(label, 18)),
             datasets: [{
                 label: 'Revenue',
                 data: values,
                 backgroundColor: '#fb923c',
-                borderRadius: 6
+                borderRadius: 8,
+                maxBarThickness: 42
             }]
         },
         options: {
@@ -431,6 +479,12 @@ function renderRevenueByCategory(data) {
             plugins: {
                 legend: {
                     display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        title: items => labels[items[0].dataIndex] || items[0].label,
+                        label: item => `Revenue: ${formatMoney(item.raw)}`
+                    }
                 }
             },
             scales: {
@@ -445,146 +499,349 @@ function renderRevenueByCategory(data) {
     });
 }
 
-function renderInventoryForecast(data) {
-    const labels = (data.inventory_usage_forecast || []).map(item => item.ingredient);
-    const used = (data.inventory_usage_forecast || []).map(item => Number(item.used_quantity || 0));
-    const forecast = (data.inventory_usage_forecast || []).map(item => Number(item.forecast_quantity || 0));
+function getMenuForecastRows(data) {
+    const rows = pick(data, [
+        'menu_demand_forecast',
+        'menu_capacity_forecast',
+        'forecast_details',
+        'capacity_forecast'
+    ], []);
 
-    const ctx = document.getElementById('inventoryForecastChart').getContext('2d');
+    return Array.isArray(rows) ? rows : [];
+}
 
-    if (inventoryForecastChart) {
-        inventoryForecastChart.destroy();
+function getSold7d(item) {
+    return Number(pick(item, [
+        'recent_sold_7d',
+        'sold_7d',
+        'total_sold_7d',
+        'total_sold',
+        'quantity_sold',
+        'sold_today'
+    ], 0));
+}
+
+function getPredictedDemand(item) {
+    return Number(pick(item, [
+        'predicted_demand',
+        'forecast_demand',
+        'forecast_quantity',
+        'prediction',
+        'recommended_quantity'
+    ], 0));
+}
+
+function renderCapacityForecastChart(data) {
+    const rows = getMenuForecastRows(data)
+        .filter(item => getSold7d(item) > 0 || getPredictedDemand(item) > 0)
+        .slice(0, 8);
+
+    const canvas = document.getElementById('capacityForecastChart');
+
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const originalLabels = rows.map(item => pick(item, ['menu_item', 'item_name', 'name'], 'Unknown Item'));
+    const labels = originalLabels.map(label => shortLabel(label, 24));
+    const sold = rows.map(item => getSold7d(item));
+    const predicted = rows.map(item => getPredictedDemand(item));
+
+    if (capacityForecastChart) {
+        capacityForecastChart.destroy();
     }
 
-    inventoryForecastChart = new Chart(ctx, {
+    capacityForecastChart = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
-            labels,
+            labels: labels.length ? labels : ['No forecast data'],
             datasets: [
                 {
-                    label: 'Used Quantity',
-                    data: used,
-                    backgroundColor: '#d6a46f',
-                    borderRadius: 6
+                    label: 'Sold in Last 7 Days',
+                    data: sold.length ? sold : [0],
+                    backgroundColor: '#60a5fa',
+                    borderRadius: 8,
+                    maxBarThickness: 24
                 },
                 {
-                    label: 'Forecast Quantity',
-                    data: forecast,
+                    label: 'Forecast Demand',
+                    data: predicted.length ? predicted : [0],
                     backgroundColor: '#fb923c',
-                    borderRadius: 6
+                    borderRadius: 8,
+                    maxBarThickness: 24
                 }
             ]
         },
         options: {
+            indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    display: true
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        title: items => originalLabels[items[0].dataIndex] || items[0].label
+                    }
                 }
             },
             scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        precision: 0
+                    }
+                },
                 y: {
-                    beginAtZero: true
+                    ticks: {
+                        autoSkip: false
+                    }
                 }
             }
         }
     });
 }
 
-function renderForecastTable(data) {
-    const tbody = document.getElementById('forecastDetailsBody');
-    const rows = data.forecast_details || [];
+function renderMenuForecast(data) {
+    const tbody = document.getElementById('menuForecastBody');
+    const mobileList = document.getElementById('menuForecastMobileList');
+
+    const rows = getMenuForecastRows(data).slice(0, 8);
 
     if (!rows.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="px-6 py-8 text-center text-gray-400">
-                    No forecast details available yet.
+                <td colspan="4" class="px-6 py-8 text-center text-gray-400">
+                    No menu forecast data available.
                 </td>
             </tr>
+        `;
+
+        mobileList.innerHTML = `
+            <div class="px-4 py-8 text-center text-gray-400">
+                No menu forecast data available.
+            </div>
         `;
         return;
     }
 
-    tbody.innerHTML = rows.map(item => `
-        <tr class="border-t hover:bg-gray-50">
-            <td class="px-6 py-4 font-medium">${safeText(item.name)}</td>
-            <td class="px-6 py-4">${safeText(item.category)}</td>
-            <td class="px-6 py-4">${safeText(item.predicted_demand)}</td>
-            <td class="px-6 py-4">
-                <span class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-600">
-                    ${safeText(item.confidence)}
-                </span>
-            </td>
-            <td class="px-6 py-4">${safeText(item.recommendation)}</td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = rows.map(item => {
+        const name = pick(item, ['menu_item', 'item_name', 'name'], 'Unknown Item');
+        const sold = getSold7d(item);
+        const predicted = getPredictedDemand(item);
+        const unit = pick(item, ['unit'], 'orders');
+        const recommendation = pick(item, ['recommendation', 'suggestion'], 'Monitor demand');
+
+        return `
+            <tr class="border-t hover:bg-gray-50">
+                <td class="px-6 py-4 font-semibold">${safeText(name)}</td>
+                <td class="px-6 py-4">${formatNumber(sold)}</td>
+                <td class="px-6 py-4">${formatNumber(predicted)} ${safeText(unit)}</td>
+                <td class="px-6 py-4">${safeText(recommendation)}</td>
+            </tr>
+        `;
+    }).join('');
+
+    mobileList.innerHTML = rows.map(item => {
+        const name = pick(item, ['menu_item', 'item_name', 'name'], 'Unknown Item');
+        const sold = getSold7d(item);
+        const predicted = getPredictedDemand(item);
+        const unit = pick(item, ['unit'], 'orders');
+        const recommendation = pick(item, ['recommendation', 'suggestion'], 'Monitor demand');
+
+        return `
+            <div class="rounded-2xl border bg-white p-4 shadow-sm">
+                <h4 class="font-bold text-gray-900 leading-snug">${safeText(name)}</h4>
+
+                <div class="mt-3 rounded-xl bg-gray-50 border px-3 py-2 space-y-1">
+                    <p class="text-xs text-gray-600">
+                        <span class="font-semibold">7-Day Sold:</span>
+                        ${formatNumber(sold)}
+                    </p>
+
+                    <p class="text-xs text-gray-600">
+                        <span class="font-semibold">Predicted Demand:</span>
+                        ${formatNumber(predicted)} ${safeText(unit)}
+                    </p>
+
+                    <p class="text-xs text-gray-600">
+                        <span class="font-semibold">Recommendation:</span>
+                        ${safeText(recommendation)}
+                    </p>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
-function downloadReportsCsv() {
-    if (!reportsData) {
-        alert('No report data to export yet.');
+function renderCapacityAlerts(data) {
+    const tbody = document.getElementById('capacityAlertsBody');
+    const mobileList = document.getElementById('capacityAlertsMobileList');
+
+    const alerts = pick(data, ['capacity_alerts', 'low_capacity_alerts', 'low_stock_alerts'], []);
+
+    if (!Array.isArray(alerts) || !alerts.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="px-6 py-8 text-center text-gray-400">
+                    No daily capacity alerts.
+                </td>
+            </tr>
+        `;
+
+        mobileList.innerHTML = `
+            <div class="px-4 py-8 text-center text-gray-400">
+                No daily capacity alerts.
+            </div>
+        `;
         return;
     }
 
-    const rows = [
-        ['Reports & Forecast'],
-        ['Total Revenue (7d)', reportsData.total_revenue_7d || 0],
-        ['Avg Order Value', reportsData.avg_order_value || 0],
-        ['Total Orders (7d)', reportsData.total_orders_7d || 0],
-        ['Forecasted Revenue', reportsData.ai_forecasted_revenue_next_day || reportsData.forecasted_revenue || 0],
-        ['Forecast Mode', reportsData.forecast_mode || 'Smart estimate'],
-        ['AI Summary', reportsData.ai_summary || ''],
-        [],
-        ['AI Recommendations']
-    ];
+    tbody.innerHTML = alerts.map(item => {
+        const name = pick(item, ['menu_item', 'item_name', 'name'], 'Unknown Item');
+        const type = pick(item, ['inventory_type', 'type'], 'per_order');
+        const remaining = pick(item, ['remaining_today', 'remaining', 'stock'], 0);
+        const unit = pick(item, ['unit'], type === 'per_head' ? 'heads' : 'orders');
+        const risk = pick(item, ['risk', 'status'], Number(remaining) <= 0 ? 'High' : 'Low');
 
-    (reportsData.ai_recommendations || []).forEach(item => {
-        rows.push([item]);
-    });
+        return `
+            <tr class="border-t hover:bg-gray-50">
+                <td class="px-6 py-4 font-semibold">${safeText(name)}</td>
+                <td class="px-6 py-4">${safeText(formatInventoryType(type))}</td>
+                <td class="px-6 py-4">${safeText(remaining)} ${safeText(unit)}</td>
+                <td class="px-6 py-4">${riskBadge(risk)}</td>
+            </tr>
+        `;
+    }).join('');
 
-    rows.push([]);
-    rows.push(['Menu Item', 'Category', 'Predicted Demand', 'Confidence', 'Recommendation']);
+    mobileList.innerHTML = alerts.map(item => {
+        const name = pick(item, ['menu_item', 'item_name', 'name'], 'Unknown Item');
+        const type = pick(item, ['inventory_type', 'type'], 'per_order');
+        const remaining = pick(item, ['remaining_today', 'remaining', 'stock'], 0);
+        const unit = pick(item, ['unit'], type === 'per_head' ? 'heads' : 'orders');
+        const risk = pick(item, ['risk', 'status'], Number(remaining) <= 0 ? 'High' : 'Low');
 
-    (reportsData.forecast_details || []).forEach(item => {
-        rows.push([
-            item.name,
-            item.category,
-            item.predicted_demand,
-            item.confidence,
-            item.recommendation
-        ]);
-    });
+        return `
+            <div class="rounded-2xl border bg-white p-4 shadow-sm">
+                <div class="flex items-start justify-between gap-3">
+                    <h4 class="font-bold text-gray-900 leading-snug">${safeText(name)}</h4>
+                    ${riskBadge(risk)}
+                </div>
 
-    const csv = rows.map(row =>
-        row.map(value => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')
-    ).join('\n');
+                <div class="mt-3 rounded-xl bg-gray-50 border px-3 py-2 space-y-1">
+                    <p class="text-xs text-gray-600">
+                        <span class="font-semibold">Type:</span>
+                        ${safeText(formatInventoryType(type))}
+                    </p>
 
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'reports_forecast.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+                    <p class="text-xs text-gray-600">
+                        <span class="font-semibold">Remaining:</span>
+                        ${safeText(remaining)} ${safeText(unit)}
+                    </p>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
-function renderAllReports(data) {
-    reportsData = data;
+function riskBadge(risk) {
+    const value = String(risk || '').toLowerCase();
 
-    renderSummaryCards(data);
+    if (value.includes('high') || value.includes('sold')) {
+        return '<span class="px-3 py-1 rounded-full bg-red-100 text-red-600 text-xs font-semibold">High Risk</span>';
+    }
 
-    try { renderAIForecast(data); } catch (e) { console.error('AI forecast render error:', e); }
-    try { renderAIMenuForecast(data); } catch (e) { console.error('AI menu forecast render error:', e); }
-    try { renderAIIngredientForecast(data); } catch (e) { console.error('AI ingredient forecast render error:', e); }
+    if (value.includes('low')) {
+        return '<span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-semibold">Low</span>';
+    }
 
-    try { renderSalesOrdersTrend(data); } catch (e) { console.error('Trend chart error:', e); }
-    try { renderRevenueByCategory(data); } catch (e) { console.error('Category chart error:', e); }
-    try { renderInventoryForecast(data); } catch (e) { console.error('Inventory forecast chart error:', e); }
-    try { renderForecastTable(data); } catch (e) { console.error('Forecast table error:', e); }
+    return '<span class="px-3 py-1 rounded-full bg-green-100 text-green-600 text-xs font-semibold">Normal</span>';
+}
+
+function renderForecastDetails(data) {
+    const tbody = document.getElementById('forecastDetailsBody');
+    const mobileList = document.getElementById('forecastDetailsMobileList');
+
+    const rows = pick(data, ['forecast_details', 'detailed_forecast', 'menu_demand_forecast'], []);
+
+    if (!Array.isArray(rows) || !rows.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="px-6 py-8 text-center text-gray-400">
+                    No detailed forecast data available.
+                </td>
+            </tr>
+        `;
+
+        mobileList.innerHTML = `
+            <div class="px-4 py-8 text-center text-gray-400">
+                No detailed forecast data available.
+            </div>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = rows.map(item => {
+        const name = pick(item, ['menu_item', 'item_name', 'name'], 'Unknown Item');
+        const category = pick(item, ['category'], 'Uncategorized');
+        const sold = getSold7d(item);
+        const predicted = getPredictedDemand(item);
+        const unit = pick(item, ['unit'], 'orders');
+        const confidence = pick(item, ['confidence', 'confidence_level'], 'N/A');
+        const recommendation = pick(item, ['recommendation', 'suggestion'], 'Monitor demand');
+
+        return `
+            <tr class="border-t hover:bg-gray-50">
+                <td class="px-6 py-4 font-semibold">${safeText(name)}</td>
+                <td class="px-6 py-4">${safeText(category)}</td>
+                <td class="px-6 py-4">${formatNumber(sold)}</td>
+                <td class="px-6 py-4">${formatNumber(predicted)} ${safeText(unit)}</td>
+                <td class="px-6 py-4">${safeText(confidence)}</td>
+                <td class="px-6 py-4">${safeText(recommendation)}</td>
+            </tr>
+        `;
+    }).join('');
+
+    mobileList.innerHTML = rows.map(item => {
+        const name = pick(item, ['menu_item', 'item_name', 'name'], 'Unknown Item');
+        const category = pick(item, ['category'], 'Uncategorized');
+        const sold = getSold7d(item);
+        const predicted = getPredictedDemand(item);
+        const unit = pick(item, ['unit'], 'orders');
+        const confidence = pick(item, ['confidence', 'confidence_level'], 'N/A');
+        const recommendation = pick(item, ['recommendation', 'suggestion'], 'Monitor demand');
+
+        return `
+            <div class="rounded-2xl border bg-white p-4 shadow-sm">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <h4 class="font-bold text-gray-900 leading-snug">${safeText(name)}</h4>
+                        <p class="text-xs text-gray-500 mt-1">${safeText(category)}</p>
+                    </div>
+
+                    <span class="shrink-0 px-3 py-1 rounded-full bg-blue-100 text-blue-600 text-xs font-semibold">
+                        ${safeText(confidence)}
+                    </span>
+                </div>
+
+                <div class="mt-3 rounded-xl bg-gray-50 border px-3 py-2 space-y-1">
+                    <p class="text-xs text-gray-600">
+                        <span class="font-semibold">Sold (7d):</span>
+                        ${formatNumber(sold)}
+                    </p>
+
+                    <p class="text-xs text-gray-600">
+                        <span class="font-semibold">Predicted Demand:</span>
+                        ${formatNumber(predicted)} ${safeText(unit)}
+                    </p>
+
+                    <p class="text-xs text-gray-600">
+                        <span class="font-semibold">Recommendation:</span>
+                        ${safeText(recommendation)}
+                    </p>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 async function loadReportsForecast() {
@@ -596,75 +853,46 @@ async function loadReportsForecast() {
         });
 
         if (!res.ok) {
-            throw new Error(`API returned ${res.status}`);
+            console.error('Reports Forecast API failed:', res.status);
+            return;
         }
 
         const data = await res.json();
+        reportsData = data;
 
-        console.log('Reports & Forecast API:', data);
-
-        renderAllReports(data);
-
+        renderCards(data);
+        renderInsight(data);
+        renderSalesOrdersTrendChart(data);
+        renderRevenueByCategoryChart(data);
+        renderCapacityForecastChart(data);
+        renderMenuForecast(data);
+        renderCapacityAlerts(data);
+        renderForecastDetails(data);
     } catch (error) {
-        console.error('Failed to load reports & forecast:', error);
-
-        document.getElementById('aiSummaryText').textContent = 'Failed to load AI forecast.';
-        document.getElementById('forecastDetailsBody').innerHTML = `
-            <tr>
-                <td colspan="5" class="px-6 py-8 text-center text-red-500">
-                    Failed to load reports & forecast data.
-                </td>
-            </tr>
-        `;
+        console.error('Reports Forecast load failed:', error);
     }
 }
 
-async function refreshAIForecast(event) {
-    const button = event?.target;
-    const originalText = button ? button.textContent : 'Generate AI Forecast';
+function refreshForecast(event) {
+    const button = event?.currentTarget;
 
     if (button) {
-        button.textContent = 'Generating...';
+        button.dataset.originalText = button.textContent;
+        button.textContent = 'Refreshing...';
         button.disabled = true;
-        button.classList.add('opacity-60', 'cursor-not-allowed');
+        button.classList.add('opacity-70', 'cursor-not-allowed');
     }
 
-    try {
-        const res = await fetch('/api/admin/reports-forecast?refresh_ai=1', {
-            headers: {
-                'Accept': 'application/json'
-            }
-        });
-
-        if (!res.ok) {
-            throw new Error(`API returned ${res.status}`);
-        }
-
-        const data = await res.json();
-
-        console.log('Reports & Forecast refreshed API:', data);
-
-        renderAllReports(data);
-
-    } catch (error) {
-        console.error('Failed to refresh AI forecast:', error);
-        alert('Failed to generate AI forecast. Please check Laravel logs.');
-    } finally {
+    loadReportsForecast().finally(() => {
         if (button) {
-            button.textContent = originalText;
+            button.textContent = button.dataset.originalText || 'Refresh Forecast';
             button.disabled = false;
-            button.classList.remove('opacity-60', 'cursor-not-allowed');
+            button.classList.remove('opacity-70', 'cursor-not-allowed');
         }
-    }
+    });
 }
 
-let reportsAutoRefresh = null;
-
 loadReportsForecast();
-
-reportsAutoRefresh = setInterval(() => {
-    loadReportsForecast();
-}, 60000);
 </script>
 
 @endsection

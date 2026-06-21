@@ -4,15 +4,41 @@ namespace App\Http\Controllers;
 
 use App\Models\Reservation;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class AdminReservationController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $reservations = Reservation::latest()
-            ->paginate(10);
+        $selectedDate = $request->query('date', now()->toDateString());
 
-        return view('admin.reservations', compact('reservations'));
+        try {
+            $selectedDate = Carbon::parse($selectedDate)->toDateString();
+        } catch (\Exception $e) {
+            $selectedDate = now()->toDateString();
+        }
+
+        $baseQuery = Reservation::query()
+            ->whereDate('reservation_date', $selectedDate);
+
+        $totalReservations = (clone $baseQuery)->count();
+        $pendingCount = (clone $baseQuery)->where('status', 'pending')->count();
+        $approvedCount = (clone $baseQuery)->where('status', 'approved')->count();
+        $cancelledCount = (clone $baseQuery)->whereIn('status', ['cancelled', 'declined'])->count();
+
+        $reservations = $baseQuery
+            ->orderBy('reservation_time', 'asc')
+            ->paginate(10)
+            ->appends($request->query());
+
+        return view('admin.reservations', compact(
+            'reservations',
+            'selectedDate',
+            'totalReservations',
+            'pendingCount',
+            'approvedCount',
+            'cancelledCount'
+        ));
     }
 
     public function updateStatus(Request $request, Reservation $reservation)

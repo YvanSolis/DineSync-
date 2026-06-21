@@ -4,16 +4,56 @@ namespace App\Http\Controllers;
 
 use App\Models\Payment;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class PaymentController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(
-            Payment::with('order')
-                ->latest()
-                ->get()
-        );
+        $mode = $request->query('mode', 'daily');
+        $selectedDate = $request->query('date', now()->toDateString());
+
+        try {
+            $selectedDate = \Carbon\Carbon::parse($selectedDate)->toDateString();
+        } catch (\Exception $e) {
+            $selectedDate = now()->toDateString();
+        }
+
+        $query = Payment::with('order');
+
+        if ($mode !== 'all') {
+            $query->where(function ($query) use ($selectedDate) {
+                $query->whereDate('created_at', $selectedDate)
+                    ->orWhere(function ($subQuery) use ($selectedDate) {
+                        $subQuery->whereNull('created_at')
+                            ->whereHas('order', function ($orderQuery) use ($selectedDate) {
+                                $orderQuery->whereDate('created_at', $selectedDate);
+                            });
+                    });
+            });
+        }
+
+        $payments = $query->latest()->get();
+
+        return response()->json([
+            'mode' => $mode,
+            'selected_date' => $selectedDate,
+            'payments' => $payments,
+            'summary' => [
+                'total_transactions' => $payments->count(),
+                'completed' => $payments->filter(function ($payment) {
+                    return in_array(strtolower($payment->status ?? ''), [
+                        'completed', 'paid', 'success', 'successful',
+                    ]);
+                })->count(),
+                'pending' => $payments->filter(function ($payment) {
+                    return in_array(strtolower($payment->status ?? ''), [
+                        'pending', 'processing',
+                    ]);
+                })->count(),
+                'total_amount' => $payments->sum('amount'),
+            ],
+        ]);
     }
 
     public function show(Payment $payment)
@@ -35,7 +75,7 @@ class PaymentController extends Controller
 
         $payment = Payment::create($validated);
 
-        return response()->json($payment, 201);
+        return response()->json($payment->load('order'), 201);
     }
 
     public function update(Request $request, Payment $payment)
@@ -49,7 +89,7 @@ class PaymentController extends Controller
 
         $payment->update($validated);
 
-        return response()->json($payment);
+        return response()->json($payment->load('order'));
     }
 
     public function destroy(Payment $payment)

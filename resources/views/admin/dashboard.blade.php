@@ -2,62 +2,75 @@
 
 @section('content')
 
-<div class="space-y-6">
+<div class="space-y-5 sm:space-y-6">
     <!-- Header -->
-    <div>
-        <h1 class="text-3xl font-bold mb-1">Dashboard Overview</h1>
-        <p class="text-gray-500">Welcome back! Here’s what’s happening today.</p>
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div class="min-w-0">
+            <h1 class="text-2xl sm:text-3xl font-bold mb-1 text-gray-900">Dashboard Overview</h1>
+            <p class="text-sm sm:text-base text-gray-500">
+                Today’s restaurant operations, sales, orders, and menu capacity status.
+            </p>
+        </div>
+
+        <div class="bg-white border rounded-2xl px-4 py-3 shadow-sm w-full sm:w-auto">
+            <p class="text-xs text-gray-500">Dashboard Scope</p>
+            <p class="text-sm font-bold text-orange-500">Today / Daily Monitoring</p>
+        </div>
     </div>
 
     <!-- Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div class="bg-white rounded-xl border shadow-sm p-5">
-            <div class="flex items-start justify-between">
-                <div>
-                    <p class="text-sm text-gray-500 mb-2">Total Orders Today</p>
-                    <h2 id="cardOrdersToday" class="text-3xl font-bold">0</h2>
-                    <p id="cardOrdersSub" class="text-xs text-gray-400 mt-2">Updated from dashboard data</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <p class="text-sm text-gray-500 mb-2">Orders Today</p>
+                    <h2 id="cardOrdersToday" class="text-2xl sm:text-3xl font-bold">0</h2>
+                    <p id="cardOrdersSub" class="text-xs text-gray-400 mt-2">Today's order count</p>
                 </div>
-                <div class="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500">
+
+                <div class="w-11 h-11 rounded-xl bg-orange-50 flex items-center justify-center text-orange-500 shrink-0">
                     📦
                 </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl border shadow-sm p-5">
-            <div class="flex items-start justify-between">
-                <div>
-                    <p class="text-sm text-gray-500 mb-2">Total Sales Today</p>
-                    <h2 id="cardSalesToday" class="text-3xl font-bold">₱0.00</h2>
-                    <p id="cardSalesSub" class="text-xs text-gray-400 mt-2">Updated from dashboard data</p>
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <p class="text-sm text-gray-500 mb-2">Sales Today</p>
+                    <h2 id="cardSalesToday" class="text-2xl sm:text-3xl font-bold">₱0.00</h2>
+                    <p id="cardSalesSub" class="text-xs text-gray-400 mt-2">Today's completed sales</p>
                 </div>
-                <div class="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center text-green-500">
+
+                <div class="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center text-green-500 shrink-0">
                     ₱
                 </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl border shadow-sm p-5">
-            <div class="flex items-start justify-between">
-                <div>
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
                     <p class="text-sm text-gray-500 mb-2">Active Orders</p>
-                    <h2 id="cardActiveOrders" class="text-3xl font-bold">0</h2>
-                    <p id="cardActiveSub" class="text-xs text-gray-400 mt-2">Currently active / pending orders</p>
+                    <h2 id="cardActiveOrders" class="text-2xl sm:text-3xl font-bold">0</h2>
+                    <p id="cardActiveSub" class="text-xs text-gray-400 mt-2">Pending / preparing orders</p>
                 </div>
-                <div class="w-10 h-10 rounded-lg bg-yellow-50 flex items-center justify-center text-yellow-500">
+
+                <div class="w-11 h-11 rounded-xl bg-yellow-50 flex items-center justify-center text-yellow-500 shrink-0">
                     ⏳
                 </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl border shadow-sm p-5">
-            <div class="flex items-start justify-between">
-                <div>
-                    <p class="text-sm text-gray-500 mb-2">Low Stock Items</p>
-                    <h2 id="cardLowStock" class="text-3xl font-bold">0</h2>
-                    <p id="cardLowStockSub" class="text-xs text-red-400 mt-2">Needs attention</p>
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <p class="text-sm text-gray-500 mb-2">Low Capacity Alerts</p>
+                    <h2 id="cardLowStock" class="text-2xl sm:text-3xl font-bold">0</h2>
+                    <p id="cardLowStockSub" class="text-xs text-red-400 mt-2">Menu items low for today</p>
                 </div>
-                <div class="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center text-red-500">
+
+                <div class="w-11 h-11 rounded-xl bg-red-50 flex items-center justify-center text-red-500 shrink-0">
                     ⚠️
                 </div>
             </div>
@@ -66,78 +79,89 @@
 
     <!-- Charts -->
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div class="bg-white rounded-xl border shadow-sm p-5">
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5 min-w-0">
             <div class="mb-4">
-                <h3 class="font-bold text-lg">Sales This Week</h3>
-                <p class="text-sm text-gray-500">Daily sales performance overview.</p>
+                <h3 class="font-bold text-base sm:text-lg">7-Day Sales</h3>
+                <p class="text-sm text-gray-500">
+                    Quick recent sales reference. Full analysis is available in Reports & Forecast.
+                </p>
             </div>
-            <div class="h-80">
+
+            <div class="h-72 sm:h-80">
                 <canvas id="salesWeekChart"></canvas>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl border shadow-sm p-5">
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5 min-w-0">
             <div class="mb-4">
-                <h3 class="font-bold text-lg">Top Selling Items</h3>
-                <p class="text-sm text-gray-500">Most ordered menu items today / this week.</p>
+                <h3 class="font-bold text-base sm:text-lg">Top Selling Items Today</h3>
+                <p class="text-sm text-gray-500">Most ordered menu items for today’s operations.</p>
             </div>
-            <div class="h-80">
+
+            <div class="h-72 sm:h-80">
                 <canvas id="topItemsChart"></canvas>
             </div>
         </div>
     </div>
 
-    <!-- Middle Panels -->
+    <!-- Daily Operations Panels -->
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div class="bg-white rounded-xl border shadow-sm p-5">
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5 min-w-0">
             <div class="mb-4">
-                <h3 class="font-bold text-lg">Ingredient Usage Today</h3>
-                <p class="text-sm text-gray-500">Ingredients consumed based on orders.</p>
+                <h3 class="font-bold text-base sm:text-lg">Menu Capacity Usage Today</h3>
+                <p class="text-sm text-gray-500">Menu items consumed today based on orders, heads, and requests.</p>
             </div>
-            <div id="ingredientUsageList" class="space-y-3">
-                <p class="text-sm text-gray-400">No ingredient usage yet.</p>
+
+            <div id="menuCapacityList" class="space-y-3">
+                <p class="text-sm text-gray-400">No menu capacity usage yet.</p>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl border shadow-sm p-5">
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5 min-w-0">
             <div class="mb-4">
-                <h3 class="font-bold text-lg">Low Stock Alerts</h3>
-                <p class="text-sm text-gray-500">Ingredients that need restocking.</p>
+                <h3 class="font-bold text-base sm:text-lg">Low Capacity Alerts Today</h3>
+                <p class="text-sm text-gray-500">Menu items with 5 or fewer orders/heads left today.</p>
             </div>
+
             <div id="lowStockList" class="space-y-3">
-                <p class="text-sm text-gray-400">No low stock alerts.</p>
+                <p class="text-sm text-gray-400">No low capacity alerts.</p>
             </div>
         </div>
     </div>
 
-    <!-- Bottom Panels -->
+    <!-- Preparation + Quick Forecast -->
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div class="bg-white rounded-xl border shadow-sm p-5">
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5 min-w-0">
             <div class="mb-4">
-                <h3 class="font-bold text-lg">Restock Suggestions</h3>
-                <p class="text-sm text-gray-500">Recommended restocking based on current stock and usage.</p>
+                <h3 class="font-bold text-base sm:text-lg">Preparation Suggestions Today</h3>
+                <p class="text-sm text-gray-500">Suggested preparation based on today’s remaining menu capacity.</p>
             </div>
+
             <div id="restockSuggestionsList" class="space-y-3">
-                <p class="text-sm text-gray-400">No restock suggestions available.</p>
+                <p class="text-sm text-gray-400">No preparation suggestions available.</p>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl border shadow-sm p-5">
+        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5 min-w-0">
             <div class="mb-4">
-                <h3 class="font-bold text-lg">AI Demand Forecast</h3>
-                <p class="text-sm text-gray-500">Forecasted item demand for the next day.</p>
+                <h3 class="font-bold text-base sm:text-lg">Quick Tomorrow Prep Snapshot</h3>
+                <p class="text-sm text-gray-500">
+                    Short demand preview. Use Reports & Forecast for complete 7-day analysis.
+                </p>
             </div>
 
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
+            <!-- Desktop / Tablet Table -->
+            <div class="hidden sm:block overflow-x-auto rounded-xl border">
+                <table class="w-full min-w-[680px] text-sm">
                     <thead class="bg-gray-50 text-gray-600">
                         <tr>
                             <th class="text-left px-4 py-3 font-semibold">Item</th>
-                            <th class="text-left px-4 py-3 font-semibold">Predicted Demand</th>
+                            <th class="text-left px-4 py-3 font-semibold">Predicted</th>
                             <th class="text-left px-4 py-3 font-semibold">Confidence</th>
                             <th class="text-left px-4 py-3 font-semibold">Recommendation</th>
                         </tr>
                     </thead>
+
                     <tbody id="forecastTableBody">
                         <tr>
                             <td colspan="4" class="px-4 py-6 text-center text-gray-400">
@@ -146,6 +170,11 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Mobile Cards -->
+            <div id="forecastMobileList" class="sm:hidden space-y-3">
+                <p class="text-sm text-gray-400">No forecast data available.</p>
             </div>
         </div>
     </div>
@@ -188,6 +217,16 @@ function safeText(value) {
         .replaceAll("'", '&#039;');
 }
 
+function shortLabel(value, max = 18) {
+    const text = String(value ?? 'Unknown');
+
+    if (text.length <= max) {
+        return text;
+    }
+
+    return text.substring(0, max - 3) + '...';
+}
+
 function normalizeSalesWeek(data) {
     const raw = pick(data, ['sales_this_week', 'weekly_sales', 'sales_chart', 'sales_week'], []);
 
@@ -224,12 +263,16 @@ function normalizeTopItems(data) {
     if (!Array.isArray(raw)) {
         return {
             labels: [],
+            originalLabels: [],
             values: []
         };
     }
 
+    const originalLabels = raw.map(item => pick(item, ['name', 'item_name', 'menu_item'], 'Unknown'));
+
     return {
-        labels: raw.map(item => pick(item, ['name', 'item_name', 'menu_item'], 'Unknown')),
+        labels: originalLabels.map(label => shortLabel(label, 24)),
+        originalLabels,
         values: raw.map(item => Number(pick(item, ['quantity', 'total_sold', 'count', 'orders'], 0)))
     };
 }
@@ -255,13 +298,13 @@ function renderCards(data) {
     const activeChange = pick(data, ['active_orders_change', 'active_orders_growth'], null);
 
     document.getElementById('cardOrdersSub').textContent =
-        ordersChange !== null ? `${ordersChange}% vs yesterday` : 'Updated from dashboard data';
+        ordersChange !== null ? `${ordersChange}% vs yesterday` : 'Today’s order count';
 
     document.getElementById('cardSalesSub').textContent =
-        salesChange !== null ? `${salesChange}% vs yesterday` : 'Updated from dashboard data';
+        salesChange !== null ? `${salesChange}% vs yesterday` : 'Today’s completed sales';
 
     document.getElementById('cardActiveSub').textContent =
-        activeChange !== null ? `${activeChange}% from last hour` : 'Currently active / pending orders';
+        activeChange !== null ? `${activeChange}% from last hour` : 'Pending / preparing orders';
 }
 
 function renderSalesChart(data) {
@@ -297,6 +340,11 @@ function renderSalesChart(data) {
             plugins: {
                 legend: {
                     display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: item => `Sales: ${formatMoney(item.raw)}`
+                    }
                 }
             },
             scales: {
@@ -323,55 +371,85 @@ function renderTopItemsChart(data) {
         topItemsChart.destroy();
     }
 
+    const labels = normalized.labels.length ? normalized.labels : ['No items yet'];
+    const values = normalized.values.length ? normalized.values : [0];
+
     topItemsChart = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: normalized.labels,
+            labels,
             datasets: [{
-                label: 'Orders',
-                data: normalized.values,
+                label: 'Orders Today',
+                data: values,
                 backgroundColor: '#fb923c',
-                borderRadius: 6
+                borderRadius: 6,
+                maxBarThickness: 34
             }]
         },
         options: {
+            indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
                 legend: {
                     display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        title: items => normalized.originalLabels[items[0].dataIndex] || items[0].label,
+                        label: item => `Orders Today: ${item.raw}`
+                    }
                 }
             },
             scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        precision: 0
+                    }
+                },
                 y: {
-                    beginAtZero: true
+                    ticks: {
+                        autoSkip: false
+                    }
                 }
             }
         }
     });
 }
 
-function renderIngredientUsage(data) {
-    const container = document.getElementById('ingredientUsageList');
-    const usage = pick(data, ['ingredient_usage_today', 'ingredient_usage'], []);
+function renderMenuCapacityUsage(data) {
+    const container = document.getElementById('menuCapacityList');
+    const usage = pick(data, ['menu_usage_today', 'menu_capacity_usage', 'ingredient_usage_today', 'ingredient_usage'], []);
 
     if (!Array.isArray(usage) || usage.length === 0) {
-        container.innerHTML = '<p class="text-sm text-gray-400">No ingredient usage yet.</p>';
+        container.innerHTML = '<p class="text-sm text-gray-400">No menu capacity usage yet.</p>';
         return;
     }
 
-    container.innerHTML = usage.map(item => `
-        <div class="flex items-center justify-between p-3 rounded-lg border bg-gray-50">
-            <div>
-                <p class="font-medium">${safeText(pick(item, ['name', 'ingredient_name'], 'Unknown Ingredient'))}</p>
-                <p class="text-xs text-gray-500">Used today</p>
+    container.innerHTML = usage.slice(0, 6).map(item => {
+        const type = pick(item, ['inventory_type'], 'per_order');
+        const unit = pick(item, ['unit'], type === 'per_head' ? 'heads' : type === 'custom' ? 'requests' : 'orders');
+        const used = pick(item, ['quantity_used', 'used', 'sold_today'], 0);
+        const name = pick(item, ['name', 'item_name', 'menu_item'], 'Unknown Item');
+        const category = pick(item, ['category'], 'Menu item');
+
+        return `
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-xl border bg-gray-50">
+                <div class="min-w-0">
+                    <p class="font-medium truncate">${safeText(name)}</p>
+                    <p class="text-xs text-gray-500 truncate">${safeText(category)}</p>
+                </div>
+
+                <div class="sm:text-right shrink-0">
+                    <p class="text-sm font-semibold">
+                        ${formatNumber(used)} ${safeText(unit)}
+                    </p>
+                    <p class="text-xs text-gray-500">Used today</p>
+                </div>
             </div>
-            <div class="text-sm font-semibold">
-                ${Number(pick(item, ['quantity_used', 'quantity', 'used'], 0)).toFixed(2)}
-                ${safeText(pick(item, ['unit'], ''))}
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function renderLowStockAlerts(data) {
@@ -379,58 +457,73 @@ function renderLowStockAlerts(data) {
     const alerts = pick(data, ['low_stock_alerts', 'low_stock_items'], []);
 
     if (!Array.isArray(alerts) || alerts.length === 0) {
-        container.innerHTML = '<p class="text-sm text-gray-400">No low stock alerts.</p>';
+        container.innerHTML = '<p class="text-sm text-gray-400">No low capacity alerts.</p>';
         return;
     }
 
-    container.innerHTML = alerts.map(item => `
-        <div class="flex items-center justify-between p-3 rounded-lg border bg-red-50 border-red-100">
-            <div>
-                <p class="font-medium">${safeText(pick(item, ['name', 'ingredient_name'], 'Unknown Ingredient'))}</p>
-                <p class="text-xs text-gray-500">
-                    Threshold:
-                    ${Number(pick(item, ['threshold'], 0)).toFixed(2)}
-                    ${safeText(pick(item, ['unit'], ''))}
-                </p>
+    container.innerHTML = alerts.slice(0, 6).map(item => {
+        const unit = pick(item, ['unit'], 'orders');
+        const remaining = pick(item, ['remaining_today', 'remaining', 'current_stock', 'stock'], 0);
+        const limit = pick(item, ['daily_limit'], null);
+        const sold = pick(item, ['sold_today'], 0);
+        const name = pick(item, ['name', 'item_name', 'menu_item'], 'Unknown Item');
+
+        return `
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-xl border bg-red-50 border-red-100">
+                <div class="min-w-0">
+                    <p class="font-medium truncate">${safeText(name)}</p>
+                    <p class="text-xs text-gray-500">
+                        ${limit !== null ? `Sold: ${formatNumber(sold)} / Limit: ${formatNumber(limit)}` : 'Daily capacity alert'}
+                    </p>
+                </div>
+
+                <div class="sm:text-right shrink-0">
+                    <p class="text-sm font-semibold text-red-600">
+                        ${formatNumber(remaining)} ${safeText(unit)} left
+                    </p>
+                    <p class="text-xs text-red-500">Low capacity</p>
+                </div>
             </div>
-            <div class="text-right">
-                <p class="text-sm font-semibold text-red-600">
-                    ${Number(pick(item, ['current_stock', 'stock', 'remaining'], 0)).toFixed(2)}
-                    ${safeText(pick(item, ['unit'], ''))}
-                </p>
-                <p class="text-xs text-red-500">Low Stock</p>
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function renderRestockSuggestions(data) {
     const container = document.getElementById('restockSuggestionsList');
-    const suggestions = pick(data, ['restock_suggestions', 'restock'], []);
+    const suggestions = pick(data, ['preparation_suggestions', 'restock_suggestions', 'restock'], []);
 
     if (!Array.isArray(suggestions) || suggestions.length === 0) {
-        container.innerHTML = '<p class="text-sm text-gray-400">No restock suggestions available.</p>';
+        container.innerHTML = '<p class="text-sm text-gray-400">No preparation suggestions available.</p>';
         return;
     }
 
-    container.innerHTML = suggestions.map(item => `
-        <div class="flex items-center justify-between p-3 rounded-lg border bg-gray-50">
-            <div>
-                <p class="font-medium">${safeText(pick(item, ['name', 'ingredient_name'], 'Unknown Ingredient'))}</p>
-                <p class="text-xs text-gray-500">
-                    ${safeText(pick(item, ['reason'], 'Suggested for restocking'))}
-                </p>
+    container.innerHTML = suggestions.slice(0, 6).map(item => {
+        const unit = pick(item, ['unit'], 'orders');
+        const suggested = pick(item, ['suggested_quantity', 'quantity', 'recommended_quantity'], 0);
+        const name = pick(item, ['name', 'item_name', 'menu_item'], 'Unknown Item');
+        const reason = pick(item, ['reason', 'recommendation'], 'Prepare additional capacity if demand continues.');
+
+        return `
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-xl border bg-gray-50">
+                <div class="min-w-0">
+                    <p class="font-medium truncate">${safeText(name)}</p>
+                    <p class="text-xs text-gray-500">${safeText(reason)}</p>
+                </div>
+
+                <div class="sm:text-right shrink-0">
+                    <p class="text-sm font-semibold text-orange-600">
+                        +${formatNumber(suggested)} ${safeText(unit)}
+                    </p>
+                    <p class="text-xs text-gray-500">Suggested</p>
+                </div>
             </div>
-            <div class="text-sm font-semibold text-orange-600">
-                ${Number(pick(item, ['suggested_quantity', 'quantity', 'recommended_quantity'], 0)).toFixed(2)}
-                ${safeText(pick(item, ['unit'], ''))}
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function renderForecast(data) {
     const tbody = document.getElementById('forecastTableBody');
+    const mobileList = document.getElementById('forecastMobileList');
     const forecast = pick(data, ['ai_demand_forecast', 'forecast', 'demand_forecast', 'simple_forecast'], []);
 
     if (!Array.isArray(forecast) || forecast.length === 0) {
@@ -441,25 +534,56 @@ function renderForecast(data) {
                 </td>
             </tr>
         `;
+
+        mobileList.innerHTML = '<p class="text-sm text-gray-400">No forecast data available.</p>';
         return;
     }
 
-    tbody.innerHTML = forecast.map(item => `
-        <tr class="border-t">
-            <td class="px-4 py-3 font-medium">
-                ${safeText(pick(item, ['name', 'item_name', 'menu_item'], 'Unknown Item'))}
-            </td>
-            <td class="px-4 py-3">
-                ${Number(pick(item, ['predicted_demand', 'forecast_quantity', 'prediction'], 0)).toFixed(0)}
-            </td>
-            <td class="px-4 py-3">
-                ${safeText(pick(item, ['confidence', 'confidence_level'], 'N/A'))}
-            </td>
-            <td class="px-4 py-3">
-                ${safeText(pick(item, ['recommendation', 'suggestion'], 'Monitor demand'))}
-            </td>
-        </tr>
-    `).join('');
+    const rows = forecast.slice(0, 5);
+
+    tbody.innerHTML = rows.map(item => {
+        const unit = pick(item, ['unit'], 'orders');
+        const name = pick(item, ['name', 'item_name', 'menu_item'], 'Unknown Item');
+        const predicted = Number(pick(item, ['predicted_demand', 'forecast_quantity', 'prediction'], 0)).toFixed(0);
+        const confidence = pick(item, ['confidence', 'confidence_level'], 'N/A');
+        const recommendation = pick(item, ['recommendation', 'suggestion'], 'Monitor demand');
+
+        return `
+            <tr class="border-t">
+                <td class="px-4 py-3 font-medium">${safeText(name)}</td>
+                <td class="px-4 py-3">${predicted} ${safeText(unit)}</td>
+                <td class="px-4 py-3">${safeText(confidence)}</td>
+                <td class="px-4 py-3">${safeText(recommendation)}</td>
+            </tr>
+        `;
+    }).join('');
+
+    mobileList.innerHTML = rows.map(item => {
+        const unit = pick(item, ['unit'], 'orders');
+        const name = pick(item, ['name', 'item_name', 'menu_item'], 'Unknown Item');
+        const predicted = Number(pick(item, ['predicted_demand', 'forecast_quantity', 'prediction'], 0)).toFixed(0);
+        const confidence = pick(item, ['confidence', 'confidence_level'], 'N/A');
+        const recommendation = pick(item, ['recommendation', 'suggestion'], 'Monitor demand');
+
+        return `
+            <div class="rounded-xl border bg-gray-50 p-3">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="font-semibold text-gray-900">${safeText(name)}</p>
+                        <p class="text-xs text-gray-500 mt-1">${safeText(recommendation)}</p>
+                    </div>
+
+                    <span class="shrink-0 px-2.5 py-1 rounded-full bg-blue-100 text-blue-600 text-xs font-bold">
+                        ${safeText(confidence)}
+                    </span>
+                </div>
+
+                <p class="text-sm font-semibold text-orange-600 mt-3">
+                    Predicted: ${predicted} ${safeText(unit)}
+                </p>
+            </div>
+        `;
+    }).join('');
 }
 
 async function loadDashboard() {
@@ -476,48 +600,17 @@ async function loadDashboard() {
         }
 
         const data = await res.json();
-
         console.log('Dashboard API data:', data);
 
         dashboardData = data;
 
-        renderCards(data);
-
-        try {
-            renderSalesChart(data);
-        } catch (e) {
-            console.error('Sales chart error:', e);
-        }
-
-        try {
-            renderTopItemsChart(data);
-        } catch (e) {
-            console.error('Top items chart error:', e);
-        }
-
-        try {
-            renderIngredientUsage(data);
-        } catch (e) {
-            console.error('Ingredient usage error:', e);
-        }
-
-        try {
-            renderLowStockAlerts(data);
-        } catch (e) {
-            console.error('Low stock error:', e);
-        }
-
-        try {
-            renderRestockSuggestions(data);
-        } catch (e) {
-            console.error('Restock suggestions error:', e);
-        }
-
-        try {
-            renderForecast(data);
-        } catch (e) {
-            console.error('Forecast error:', e);
-        }
+        try { renderCards(data); } catch (e) { console.error('Cards render error:', e); }
+        try { renderSalesChart(data); } catch (e) { console.error('Sales chart error:', e); }
+        try { renderTopItemsChart(data); } catch (e) { console.error('Top items chart error:', e); }
+        try { renderMenuCapacityUsage(data); } catch (e) { console.error('Menu capacity usage error:', e); }
+        try { renderLowStockAlerts(data); } catch (e) { console.error('Low stock error:', e); }
+        try { renderRestockSuggestions(data); } catch (e) { console.error('Preparation suggestions error:', e); }
+        try { renderForecast(data); } catch (e) { console.error('Forecast error:', e); }
 
     } catch (error) {
         console.error('Dashboard load failed:', error);

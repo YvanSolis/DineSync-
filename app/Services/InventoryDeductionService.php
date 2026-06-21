@@ -36,6 +36,26 @@ class InventoryDeductionService
                     continue;
                 }
 
+                /*
+                * NEW DAILY MENU INVENTORY LOGIC
+                * per_order = ala carte, counted by order quantity
+                * per_head = unlimited, counted by heads/persons
+                * custom = Chef Oppa Special, staff confirms
+                *
+                * These new inventory types should NOT deduct old ingredient stock.
+                */
+                if (Schema::hasColumn('menu_items', 'inventory_type')) {
+                    $inventoryType = $menuItem->inventory_type ?? 'per_order';
+
+                    if (in_array($inventoryType, ['per_order', 'per_head', 'custom'])) {
+                        continue;
+                    }
+                }
+
+                /*
+                * OLD INGREDIENT DEDUCTION FALLBACK
+                * This only runs for old menu items without the new inventory_type logic.
+                */
                 foreach ($menuItem->ingredients as $ingredient) {
                     $quantityRequired = (float) $ingredient->pivot->quantity_required;
                     $orderQuantity = (float) $orderItem->quantity;

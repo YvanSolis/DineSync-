@@ -15,26 +15,41 @@ class MenuItem extends Model
         'is_available',
         'flavor_tags',
         'meal_type',
+        'inventory_type',
+        'daily_limit',
     ];
 
     protected $casts = [
         'is_available' => 'boolean',
         'price' => 'decimal:2',
         'flavor_tags' => 'array',
+        'daily_limit' => 'integer',
     ];
 
     protected $appends = [
         'image_url',
         'max_order_quantity',
         'stock_label',
+        'sold_today',
+        'remaining_today',
+        'daily_inventory_label',
     ];
 
     protected static function booted()
     {
         static::creating(function ($menuItem) {
-            // New menu items should be unavailable first
-            // until ingredients are linked and stock is enough.
-            $menuItem->is_available = false;
+            if (!$menuItem->inventory_type) {
+                $menuItem->inventory_type = $menuItem->category === 'Chef Oppa Special'
+                    ? 'custom'
+                    : 'per_order';
+            }
+
+            if ($menuItem->inventory_type === 'custom' || $menuItem->category === 'Chef Oppa Special') {
+                $menuItem->is_available = true;
+                return;
+            }
+
+            $menuItem->is_available = true;
         });
     }
 
@@ -43,6 +58,11 @@ class MenuItem extends Model
         return $this->belongsToMany(Ingredient::class, 'menu_item_ingredients')
             ->withPivot('quantity_required')
             ->withTimestamps();
+    }
+
+    public function orderItems()
+    {
+        return $this->hasMany(OrderItem::class);
     }
 
     public function getImageUrlAttribute(): ?string
@@ -58,13 +78,59 @@ class MenuItem extends Model
         return asset('storage/' . $this->image);
     }
 
+    public function getSoldTodayAttribute(): int
+    {
+        return (int) $this->orderItems()
+            ->whereDate('created_at', now()->toDateString())
+            ->sum('quantity');
+    }
+
+    public function getRemainingTodayAttribute(): ?int
+    {
+        if ($this->inventory_type === 'custom') {
+            return null;
+        }
+
+        if ($this->daily_limit === null) {
+            return null;
+        }
+
+        return max(0, (int) $this->daily_limit - (int) $this->sold_today);
+    }
+
+    public function getDailyInventoryLabelAttribute(): string
+    {
+        if ($this->inventory_type === 'custom') {
+            return 'Staff confirms';
+        }
+
+        if ($this->daily_limit === null) {
+            return 'No daily limit set';
+        }
+
+        $unit = $this->inventory_type === 'per_head' ? 'heads' : 'orders';
+
+        return "{$this->remaining_today} {$unit} left today";
+    }
+
     public function getMaxOrderQuantityAttribute(): int
     {
+        if ($this->inventory_type === 'custom' || $this->category === 'Chef Oppa Special') {
+            return 99;
+        }
+
+        if (in_array($this->inventory_type, ['per_order', 'per_head'])) {
+            if ($this->daily_limit === null) {
+                return 99;
+            }
+
+            return max(0, (int) $this->remaining_today);
+        }
+
         $ingredients = $this->relationLoaded('ingredients')
             ? $this->ingredients
             : $this->ingredients()->get();
 
-        // No linked ingredients = cannot order
         if ($ingredients->isEmpty()) {
             return 0;
         }
@@ -78,10 +144,6 @@ class MenuItem extends Model
                 return 0;
             }
 
-            /*
-             * Use current_stock because this is what your admin inventory page displays.
-             * This makes the customer ordering limit match what admin sees.
-             */
             $availableStock = (float) ($ingredient->current_stock ?? 0);
 
             $possibleQuantities[] = (int) floor($availableStock / $requiredForOneOrder);
@@ -96,6 +158,14 @@ class MenuItem extends Model
 
     public function getStockLabelAttribute(): string
     {
+        if ($this->inventory_type === 'custom') {
+            return 'Staff confirms';
+        }
+
+        if (in_array($this->inventory_type, ['per_order', 'per_head'])) {
+            return $this->daily_inventory_label;
+        }
+
         $maxOrderQuantity = $this->max_order_quantity;
 
         if ($maxOrderQuantity <= 0) {
@@ -131,6 +201,18 @@ class MenuItem extends Model
 
     public function computeAvailability(): bool
     {
+        if ($this->inventory_type === 'custom' || $this->category === 'Chef Oppa Special') {
+            return true;
+        }
+
+        if (in_array($this->inventory_type, ['per_order', 'per_head'])) {
+            if ($this->daily_limit === null) {
+                return true;
+            }
+
+            return $this->remaining_today > 0;
+        }
+
         return $this->max_order_quantity > 0;
     }
 }

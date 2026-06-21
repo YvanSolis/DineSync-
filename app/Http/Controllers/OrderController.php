@@ -387,6 +387,55 @@ class OrderController extends Controller
         foreach ($requestedMenuItems as $menuItemId => $orderQuantity) {
             $menuItem = MenuItem::with('ingredients')->findOrFail($menuItemId);
 
+            $inventoryType = Schema::hasColumn('menu_items', 'inventory_type')
+                ? ($menuItem->inventory_type ?? 'per_order')
+                : null;
+
+            /*
+            * NEW DAILY INVENTORY LOGIC
+            * per_order = ala carte, count by order quantity
+            * per_head = unlimited, count by head/person quantity
+            * custom = Chef Oppa Special, staff confirms, no stock limit
+            */
+            if (in_array($inventoryType, ['per_order', 'per_head', 'custom'])) {
+                if (
+                    Schema::hasColumn('menu_items', 'is_available') &&
+                    ! $menuItem->is_available
+                ) {
+                    throw ValidationException::withMessages([
+                        'inventory' => "{$menuItem->name} is currently unavailable.",
+                    ]);
+                }
+
+                if ($inventoryType === 'custom') {
+                    continue;
+                }
+
+                if ($menuItem->daily_limit !== null) {
+                    $remainingToday = (int) $menuItem->remaining_today;
+
+                    if ($remainingToday <= 0) {
+                        throw ValidationException::withMessages([
+                            'inventory' => "{$menuItem->name} is sold out for today.",
+                        ]);
+                    }
+
+                    if ($orderQuantity > $remainingToday) {
+                        $unit = $inventoryType === 'per_head' ? 'head' : 'order';
+
+                        throw ValidationException::withMessages([
+                            'inventory' => "{$menuItem->name} only has {$remainingToday} {$unit}" . ($remainingToday === 1 ? '' : 's') . " left today.",
+                        ]);
+                    }
+                }
+
+                continue;
+            }
+
+            /*
+            * OLD FALLBACK INGREDIENT LOGIC
+            * This only runs for old items without inventory_type.
+            */
             $maxOrderQuantity = (int) $menuItem->max_order_quantity;
 
             if (
@@ -429,12 +478,6 @@ class OrderController extends Controller
             }
         }
 
-        /*
-        * This second validation protects shared ingredients.
-        * Example:
-        * Item A and Item B both use rice.
-        * Individually they look okay, but together they may exceed rice stock.
-        */
         foreach ($requiredIngredients as $data) {
             $ingredient = \App\Models\Ingredient::where('id', $data['ingredient_id'])
                 ->lockForUpdate()
@@ -446,7 +489,6 @@ class OrderController extends Controller
                 ]);
             }
 
-            // Use current_stock to match admin inventory display.
             $availableStock = (float) ($ingredient->current_stock ?? 0);
             $requiredStock = (float) $data['required'];
 
@@ -469,6 +511,37 @@ class OrderController extends Controller
         $menuItems = MenuItem::with('ingredients')->get();
 
         foreach ($menuItems as $menuItem) {
+            if (Schema::hasColumn('menu_items', 'inventory_type')) {
+                $inventoryType = $menuItem->inventory_type ?? 'per_order';
+
+                if ($inventoryType === 'custom') {
+                    $menuItem->update([
+                        'is_available' => true,
+                    ]);
+
+                    continue;
+                }
+
+                if (in_array($inventoryType, ['per_order', 'per_head'])) {
+                    if ($menuItem->daily_limit === null) {
+                        $menuItem->update([
+                            'is_available' => true,
+                        ]);
+
+                        continue;
+                    }
+
+                    $menuItem->update([
+                        'is_available' => $menuItem->remaining_today > 0,
+                    ]);
+
+                    continue;
+                }
+            }
+
+            /*
+            * Old fallback ingredient-based logic.
+            */
             $menuItem->update([
                 'is_available' => $menuItem->max_order_quantity > 0,
             ]);

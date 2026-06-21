@@ -2,251 +2,162 @@
 
 @section('content')
 
-<div class="space-y-6">
-    <div class="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-            <h1 class="text-3xl font-bold mb-1">Inventory Management</h1>
-            <p class="text-gray-500">Track and manage ingredient stock levels.</p>
+<div class="space-y-5 sm:space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div class="min-w-0">
+            <h1 class="text-2xl sm:text-3xl font-bold mb-1 text-gray-900">Daily Menu Inventory</h1>
+            <p class="text-sm sm:text-base text-gray-500">
+                Track today’s menu capacity by category, type, and daily availability.
+            </p>
         </div>
 
-        <button onclick="openIngredientModal()"
-            class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded font-medium">
-            + Add Ingredient
+        <button onclick="loadMenuInventory()"
+            class="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl font-semibold shadow-sm">
+            Refresh
         </button>
     </div>
 
     <!-- Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="border border-red-200 bg-red-50 rounded-lg p-4">
-            <div class="flex items-start gap-3">
-                <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-bold">
-                    !
-                </div>
-                <div>
-                    <p class="font-semibold text-red-700">Critical Stock Alert</p>
-                    <p class="text-sm text-gray-600" id="criticalSummaryText">0 items are critically low and need immediate restocking</p>
-                </div>
-            </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="border border-green-200 bg-green-50 rounded-2xl p-4 sm:p-5">
+            <p class="font-semibold text-green-700">Available Items</p>
+            <p class="text-2xl sm:text-3xl font-bold mt-1" id="availableCount">0</p>
+            <p class="text-sm text-gray-600 mt-1">Items still available today</p>
         </div>
 
-        <div class="border border-yellow-200 bg-yellow-50 rounded-lg p-4">
-            <div class="flex items-start gap-3">
-                <div class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-700 font-bold">
-                    !
-                </div>
-                <div>
-                    <p class="font-semibold text-yellow-700">Low Stock Warning</p>
-                    <p class="text-sm text-gray-600" id="warningSummaryText">0 items are running low and should be restocked soon</p>
-                </div>
-            </div>
+        <div class="border border-yellow-200 bg-yellow-50 rounded-2xl p-4 sm:p-5">
+            <p class="font-semibold text-yellow-700">Low Capacity Alerts</p>
+            <p class="text-2xl sm:text-3xl font-bold mt-1" id="limitedCount">0</p>
+            <p class="text-sm text-gray-600 mt-1">Items with 5 or fewer orders/heads left today</p>
+        </div>
+
+        <div class="border border-red-200 bg-red-50 rounded-2xl p-4 sm:p-5">
+            <p class="font-semibold text-red-700">Sold Out</p>
+            <p class="text-2xl sm:text-3xl font-bold mt-1" id="soldOutCount">0</p>
+            <p class="text-sm text-gray-600 mt-1">Items unavailable for today</p>
         </div>
     </div>
 
-    <!-- Inventory Table -->
-    <div class="bg-white rounded-lg shadow border">
-        <div class="p-5 border-b">
-            <div class="flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                    <h2 class="text-lg font-bold">Ingredient Inventory</h2>
-                    <p class="text-sm text-gray-500">Overview of current stock levels and status.</p>
-                </div>
-
-                <div class="flex items-center gap-3 flex-wrap">
-                    <input
-                        id="inventorySearch"
-                        type="text"
-                        placeholder="Search ingredients..."
-                        class="border rounded px-3 py-2 w-64"
-                    >
-
-                    <select id="statusFilter" class="border rounded px-3 py-2">
-                        <option value="all">All Status</option>
-                        <option value="active">Normal</option>
-                        <option value="low_stock">Low Stock</option>
-                        <option value="reorder_soon">Reorder Soon</option>
-                        <option value="near_expiry">Near Expiry</option>
-                        <option value="out_of_stock">Out of Stock</option>
-                        <option value="expired">Expired</option>
-                    </select>
-                </div>
+    <!-- Filter Panel -->
+    <div class="bg-white rounded-2xl shadow-sm border p-4 sm:p-5">
+        <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-4">
+            <div class="min-w-0">
+                <h2 class="text-lg font-bold">Menu Capacity</h2>
+                <p class="text-sm text-gray-500">View menu inventory grouped by category for easier monitoring.</p>
             </div>
         </div>
 
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead class="bg-gray-50 text-gray-600">
-                    <tr>
-                        <th class="text-left px-6 py-4 font-semibold">Ingredient</th>
-                        <th class="text-left px-6 py-4 font-semibold">Current Stock</th>
-                        <th class="text-left px-6 py-4 font-semibold">Unit</th>
-                        <th class="text-left px-6 py-4 font-semibold">Threshold</th>
-                        <th class="text-left px-6 py-4 font-semibold">Status</th>
-                        <th class="text-left px-6 py-4 font-semibold">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="inventoryTableBody">
-                    <tr>
-                        <td colspan="6" class="px-6 py-8 text-center text-gray-400">Loading inventory...</td>
-                    </tr>
-                </tbody>
-            </table>
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+            <input
+                id="inventorySearch"
+                type="text"
+                placeholder="Search menu item..."
+                class="border rounded-xl px-4 py-2.5 w-full"
+            >
+
+            <select id="categoryFilter" class="border rounded-xl px-4 py-2.5 w-full">
+                <option value="all">All Categories</option>
+            </select>
+
+            <select id="typeFilter" class="border rounded-xl px-4 py-2.5 w-full">
+                <option value="all">All Types</option>
+                <option value="per_order">Per Order</option>
+                <option value="per_head">Per Head</option>
+                <option value="custom">Custom</option>
+            </select>
+
+            <select id="statusFilter" class="border rounded-xl px-4 py-2.5 w-full">
+                <option value="all">All Status</option>
+                <option value="available">Available</option>
+                <option value="limited">Low Capacity</option>
+                <option value="sold_out">Sold Out</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Grouped Inventory -->
+    <div id="inventoryGroupsContainer" class="space-y-5">
+        <div class="bg-white rounded-2xl shadow-sm border">
+            <div class="px-6 py-8 text-center text-gray-400">
+                Loading daily menu inventory...
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Add / Edit Ingredient Modal -->
-<div id="ingredientModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg">
-        <div class="flex items-center justify-between p-5 border-b">
-            <h3 id="ingredientModalTitle" class="text-lg font-bold">Add Ingredient</h3>
-            <button onclick="closeIngredientModal()" class="text-gray-500 hover:text-black text-xl">&times;</button>
+<!-- Edit Daily Limit Modal -->
+<div id="limitModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-3 sm:p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[92vh] overflow-hidden flex flex-col">
+        <div class="flex items-center justify-between gap-3 p-4 sm:p-5 border-b shrink-0">
+            <div class="min-w-0">
+                <h3 id="limitModalTitle" class="text-lg font-bold truncate">Update Daily Limit</h3>
+                <p class="text-xs text-gray-500 mt-1">Update capacity type and daily limit.</p>
+            </div>
+
+            <button onclick="closeLimitModal()"
+                class="w-9 h-9 rounded-full hover:bg-gray-100 text-gray-500 hover:text-black text-xl shrink-0">
+                &times;
+            </button>
         </div>
 
-        <form id="ingredientForm" class="p-5 space-y-4">
-            <div>
-                <label class="block text-sm font-medium mb-1">Ingredient Name</label>
-                <input id="ingredientName" type="text" class="w-full border rounded px-3 py-2" required>
-            </div>
+        <form id="limitForm" class="p-4 sm:p-5 space-y-4 overflow-y-auto">
+            <input type="hidden" id="limitMenuItemId">
 
             <div>
-                <label class="block text-sm font-medium mb-1">Alert When Stock Reaches</label>
-                <input id="ingredientThreshold" type="number" step="0.01" class="w-full border rounded px-3 py-2" required>
+                <label class="block text-sm font-semibold mb-1">Inventory Type</label>
+                <select id="limitInventoryType" class="w-full border rounded-xl px-3 py-2.5" required>
+                    <option value="per_order">Per Order / Ala Carte</option>
+                    <option value="per_head">Per Head / Unlimited</option>
+                    <option value="custom">Custom / No Fixed Limit</option>
+                </select>
             </div>
 
-            <div class="flex justify-end gap-2 pt-2">
-                <button type="button" onclick="closeIngredientModal()" class="px-4 py-2 rounded bg-gray-200 text-gray-700">
+            <div id="limitInputWrapper">
+                <label class="block text-sm font-semibold mb-1">Daily Limit</label>
+                <input
+                    id="limitDailyLimit"
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="Example: 30"
+                    class="w-full border rounded-xl px-3 py-2.5"
+                >
+                <p id="limitHelpText" class="text-xs text-gray-400 mt-1">
+                    Leave blank for no limit.
+                </p>
+            </div>
+
+            <div class="border-t pt-4 flex flex-col sm:flex-row sm:justify-end gap-2">
+                <button type="button" onclick="closeLimitModal()"
+                    class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium">
                     Cancel
                 </button>
-                <button id="ingredientSaveBtn" type="submit" class="px-4 py-2 rounded bg-orange-500 text-white">
-                    Save Ingredient
+
+                <button id="limitSaveBtn" type="submit"
+                    class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold disabled:opacity-70 disabled:cursor-not-allowed">
+                    Save Changes
                 </button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- Manage Stock Modal -->
-<div id="stockModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-xl shadow-xl w-full max-w-6xl max-h-[92vh] overflow-y-auto">
-        <div class="flex items-start justify-between p-5 border-b">
-            <div>
-                <h3 id="stockModalTitle" class="text-xl font-bold">Manage Stock</h3>
-                <p id="stockModalSubtitle" class="text-sm text-gray-500 mt-1"></p>
-            </div>
-
-            <button onclick="closeStockModal()" class="text-gray-500 hover:text-black text-xl">&times;</button>
-        </div>
-
-        <div class="p-5 space-y-6">
-            <!-- Ingredient Info Actions -->
-            <div class="flex items-center justify-between gap-4 flex-wrap">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
-                    <div class="bg-gray-50 rounded p-3">
-                        <p class="text-gray-500">Current Stock</p>
-                        <p id="stockInfoCurrent" class="font-semibold">0</p>
-                    </div>
-                    <div class="bg-gray-50 rounded p-3">
-                        <p class="text-gray-500">Threshold</p>
-                        <p id="stockInfoThreshold" class="font-semibold">0</p>
-                    </div>
-                    <div class="bg-gray-50 rounded p-3">
-                        <p class="text-gray-500">Stock Value</p>
-                        <p id="stockInfoValue" class="font-semibold">₱0.00</p>
-                    </div>
-                    <div class="bg-gray-50 rounded p-3">
-                        <p class="text-gray-500">Nearest Expiry</p>
-                        <p id="stockInfoExpiry" class="font-semibold">N/A</p>
-                    </div>
-                </div>
-
-                <div class="flex gap-2">
-                    <button type="button" onclick="editCurrentIngredient()" class="px-4 py-2 rounded bg-blue-500 text-white text-sm">
-                        Edit Ingredient
-                    </button>
-                    <button type="button" onclick="deleteCurrentIngredient()" class="px-4 py-2 rounded bg-red-500 text-white text-sm">
-                        Delete Ingredient
-                    </button>
-                </div>
-            </div>
-
-            <!-- Batch Form -->
-            <div class="border rounded-lg p-4">
-                <h4 id="batchFormTitle" class="font-bold mb-4">Add Stock Batch</h4>
-
-                <form id="batchForm" class="grid grid-cols-1 md:grid-cols-5 gap-3">
-                    <input id="batchQuantity" type="number" step="0.01" placeholder="Batch Quantity" class="border rounded px-3 py-2" required>
-
-                    <select id="batchUnit" class="border rounded px-3 py-2" required>
-                        <option value="">Select Unit</option>
-                        <option value="kg">kg</option>
-                        <option value="g">g</option>
-                        <option value="pcs">pcs</option>
-                        <option value="pack">pack</option>
-                        <option value="bottle">bottle</option>
-                        <option value="liter">liter</option>
-                        <option value="ml">ml</option>
-                    </select>
-
-                    <input id="batchUnitCost" type="number" step="0.01" placeholder="Unit Cost" class="border rounded px-3 py-2" required>
-
-                    <input id="batchExpiryDate" type="date" class="border rounded px-3 py-2" required>
-
-                    <input id="batchSupplier" type="text" placeholder="Supplier (optional)" class="border rounded px-3 py-2">
-                </form>
-
-                <div class="flex gap-2 mt-4">
-                    <button id="batchSaveBtn" onclick="saveBatch()" class="px-4 py-2 rounded bg-orange-500 text-white">
-                        Save Batch
-                    </button>
-
-                    <button id="batchCancelBtn" onclick="cancelBatchEdit()" class="px-4 py-2 rounded bg-gray-200 text-gray-700 hidden">
-                        Cancel Edit
-                    </button>
-
-                    <button id="batchDeleteBtn" onclick="deleteSelectedBatch()" class="px-4 py-2 rounded bg-red-500 text-white hidden">
-                        Delete Selected Batch
-                    </button>
-                </div>
-            </div>
-
-            <!-- Batch History -->
-            <div class="border rounded-lg">
-                <div class="p-4 border-b">
-                    <h4 class="font-bold">Stock Batch History</h4>
-                    <p class="text-sm text-gray-500">Click a row to edit that batch.</p>
-                </div>
-
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="text-left px-4 py-3">Remaining</th>
-                                <th class="text-left px-4 py-3">Batch Quantity</th>
-                                <th class="text-left px-4 py-3">Unit Cost</th>
-                                <th class="text-left px-4 py-3">Expiry Date</th>
-                                <th class="text-left px-4 py-3">Supplier</th>
-                                <th class="text-left px-4 py-3">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="batchHistoryBody">
-                            <tr>
-                                <td colspan="6" class="px-4 py-6 text-center text-gray-400">No stock batches yet.</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
-let ingredients = [];
-let filteredIngredients = [];
+let menuItems = [];
+let filteredItems = [];
 
-let editingIngredientId = null;
-let currentIngredientId = null;
-let editingBatchId = null;
+let categories = [
+    'Authentic Ala Carte Meals',
+    'Dishes',
+    'Korean Kitchen Specials',
+    'Chef Oppa Special',
+    'Noodles',
+    'Salad',
+    'Maki & Sushi',
+    'Jeon Series',
+    'Tteokbokki Series'
+];
 
 function safeText(value) {
     return String(value ?? '')
@@ -257,17 +168,76 @@ function safeText(value) {
         .replaceAll("'", '&#039;');
 }
 
-function formatMoney(value) {
-    return `₱${Number(value || 0).toFixed(2)}`;
-}
-
 function formatNumber(value) {
-    return Number(value || 0).toFixed(2);
+    return Number(value || 0).toLocaleString();
 }
 
-function formatDate(value) {
-    if (!value) return 'N/A';
-    return String(value).substring(0, 10);
+function formatInventoryType(value) {
+    switch (value) {
+        case 'per_head':
+            return 'Per Head';
+        case 'custom':
+            return 'Custom';
+        case 'per_order':
+        default:
+            return 'Per Order';
+    }
+}
+
+function getUnitLabel(item) {
+    const type = item.inventory_type || 'per_order';
+
+    if (type === 'per_head') {
+        return 'heads';
+    }
+
+    if (type === 'custom') {
+        return 'requests';
+    }
+
+    return 'orders';
+}
+
+function getStatus(item) {
+    const type = item.inventory_type || 'per_order';
+
+    if (type === 'custom') {
+        return item.is_available ? 'available' : 'sold_out';
+    }
+
+    if (!item.is_available) {
+        return 'sold_out';
+    }
+
+    if (item.daily_limit === null || item.daily_limit === undefined) {
+        return 'available';
+    }
+
+    const remaining = Number(item.remaining_today ?? 0);
+
+    if (remaining <= 0) {
+        return 'sold_out';
+    }
+
+    if (remaining <= 5) {
+        return 'limited';
+    }
+
+    return 'available';
+}
+
+function getStatusBadge(item) {
+    const status = getStatus(item);
+
+    if (status === 'sold_out') {
+        return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-600">Sold Out</span>';
+    }
+
+    if (status === 'limited') {
+        return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">Low Capacity</span>';
+    }
+
+    return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-600">Available</span>';
 }
 
 function setButtonLoading(button, isLoading, loadingText = 'Saving...') {
@@ -285,280 +255,372 @@ function setButtonLoading(button, isLoading, loadingText = 'Saving...') {
     }
 }
 
-function findIngredientFromResponse(data) {
-    if (!data) return null;
+function populateCategoryFilter() {
+    const categoryFilter = document.getElementById('categoryFilter');
+    const currentValue = categoryFilter.value || 'all';
 
-    if (data.ingredient && data.ingredient.id) return data.ingredient;
-    if (data.data && data.data.id) return data.data;
-    if (data.id && data.name) return data;
+    categoryFilter.innerHTML = '<option value="all">All Categories</option>';
 
-    return null;
+    categories.forEach(category => {
+        categoryFilter.innerHTML += `
+            <option value="${safeText(category)}">${safeText(category)}</option>
+        `;
+    });
+
+    const extraCategories = [...new Set(menuItems.map(item => item.category).filter(Boolean))]
+        .filter(category => !categories.includes(category));
+
+    extraCategories.forEach(category => {
+        categoryFilter.innerHTML += `
+            <option value="${safeText(category)}">${safeText(category)}</option>
+        `;
+    });
+
+    categoryFilter.value = currentValue;
 }
 
-function replaceIngredientInMemory(updatedIngredient) {
-    if (!updatedIngredient || !updatedIngredient.id) return false;
+async function loadMenuInventory() {
+    const container = document.getElementById('inventoryGroupsContainer');
 
-    const index = ingredients.findIndex(item => Number(item.id) === Number(updatedIngredient.id));
-
-    if (index >= 0) {
-        ingredients[index] = updatedIngredient;
-    } else {
-        ingredients.push(updatedIngredient);
-    }
-
-    applyFilters();
-    renderSummary();
-    return true;
-}
-
-async function silentReloadIngredients() {
-    try {
-        const res = await fetch('/api/admin/ingredients', {
-            headers: {
-                'Accept': 'application/json',
-            }
-        });
-
-        if (!res.ok) return;
-
-        const data = await res.json();
-
-        ingredients = data;
-        applyFilters();
-        renderSummary();
-
-        if (currentIngredientId) {
-            const item = ingredients.find(i => Number(i.id) === Number(currentIngredientId));
-            if (item) {
-                refreshStockModalInfo(item);
-            }
-        }
-    } catch (error) {
-        console.error('Silent inventory reload failed:', error);
-    }
-}
-
-function refreshStockModalInfo(item) {
-    if (!item) return;
-
-    document.getElementById('stockModalTitle').textContent = `Manage Stock - ${item.name}`;
-    document.getElementById('stockModalSubtitle').textContent = `Monitor batches, prices, suppliers, and expiry dates for ${item.name}.`;
-
-    document.getElementById('stockInfoCurrent').textContent = `${formatNumber(item.total_stock)} ${item.unit || 'unit'}`;
-    document.getElementById('stockInfoThreshold').textContent = `${formatNumber(item.threshold)} ${item.unit || 'unit'}`;
-    document.getElementById('stockInfoValue').textContent = formatMoney(item.stock_value);
-    document.getElementById('stockInfoExpiry').textContent = formatDate(item.nearest_expiry_date);
-
-    const batchUnit = document.getElementById('batchUnit');
-    batchUnit.value = item.unit || '';
-
-    renderBatchHistory(item.batches || []);
-}
-
-function getStatusLabel(status) {
-    switch (status) {
-        case 'out_of_stock': return 'Critical';
-        case 'expired': return 'Critical';
-        case 'low_stock': return 'Low';
-        case 'reorder_soon': return 'Low';
-        case 'near_expiry': return 'Low';
-        default: return 'Normal';
-    }
-}
-
-function getStatusClass(status) {
-    switch (status) {
-        case 'out_of_stock':
-        case 'expired':
-            return 'bg-red-100 text-red-600';
-        case 'low_stock':
-        case 'reorder_soon':
-        case 'near_expiry':
-            return 'bg-yellow-100 text-yellow-700';
-        default:
-            return 'bg-green-100 text-green-600';
-    }
-}
-
-function getBatchStatusClass(batch) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const expiry = new Date(batch.expiry_date);
-    expiry.setHours(0, 0, 0, 0);
-
-    const diffDays = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
-
-    if (Number(batch.quantity_remaining) <= 0) {
-        return { label: 'Used Up', class: 'bg-gray-100 text-gray-600' };
-    }
-
-    if (diffDays < 0) {
-        return { label: 'Expired', class: 'bg-red-100 text-red-600' };
-    }
-
-    if (diffDays <= 3) {
-        return { label: 'Near Expiry', class: 'bg-yellow-100 text-yellow-700' };
-    }
-
-    return { label: 'Active', class: 'bg-green-100 text-green-600' };
-}
-
-async function loadIngredients() {
-    const tbody = document.getElementById('inventoryTableBody');
+    container.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-sm border">
+            <div class="px-6 py-8 text-center text-gray-400">
+                Loading daily menu inventory...
+            </div>
+        </div>
+    `;
 
     try {
-        const res = await fetch('/api/admin/ingredients', {
+        const res = await fetch('/api/admin/menu-items', {
             headers: {
                 'Accept': 'application/json',
             }
         });
 
         if (!res.ok) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="6" class="px-6 py-8 text-center text-red-500">
-                        Failed to load inventory. API returned ${res.status}.
-                    </td>
-                </tr>
+            container.innerHTML = `
+                <div class="bg-white rounded-2xl shadow-sm border">
+                    <div class="px-6 py-8 text-center text-red-500">
+                        Failed to load daily inventory. API returned ${res.status}.
+                    </div>
+                </div>
             `;
             return;
         }
 
         const data = await res.json();
+        menuItems = Array.isArray(data) ? data : (data.menu_items ?? []);
 
-        ingredients = data;
+        populateCategoryFilter();
         applyFilters();
         renderSummary();
     } catch (error) {
-        console.error('Load ingredients failed:', error);
+        console.error('Load menu inventory failed:', error);
 
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="6" class="px-6 py-8 text-center text-red-500">
-                    Failed to load inventory. Please check your connection.
-                </td>
-            </tr>
+        container.innerHTML = `
+            <div class="bg-white rounded-2xl shadow-sm border">
+                <div class="px-6 py-8 text-center text-red-500">
+                    Failed to load daily inventory. Please check your connection.
+                </div>
+            </div>
         `;
     }
 }
 
 function applyFilters() {
     const search = document.getElementById('inventorySearch').value.toLowerCase().trim();
+    const categoryFilter = document.getElementById('categoryFilter').value;
+    const typeFilter = document.getElementById('typeFilter').value;
     const statusFilter = document.getElementById('statusFilter').value;
 
-    filteredIngredients = ingredients.filter(item => {
+    filteredItems = menuItems.filter(item => {
         const matchesSearch =
-            item.name.toLowerCase().includes(search);
+            String(item.name || '').toLowerCase().includes(search) ||
+            String(item.category || '').toLowerCase().includes(search) ||
+            String(item.daily_inventory_label || '').toLowerCase().includes(search) ||
+            String(item.stock_label || '').toLowerCase().includes(search);
 
-        const matchesStatus =
-            statusFilter === 'all' ? true : item.stock_status === statusFilter;
+        const matchesCategory = categoryFilter === 'all'
+            ? true
+            : (item.category || '') === categoryFilter;
 
-        return matchesSearch && matchesStatus;
+        const itemType = item.inventory_type || 'per_order';
+        const matchesType = typeFilter === 'all' ? true : itemType === typeFilter;
+
+        const itemStatus = getStatus(item);
+        const matchesStatus = statusFilter === 'all' ? true : itemStatus === statusFilter;
+
+        return matchesSearch && matchesCategory && matchesType && matchesStatus;
     });
 
-    renderTable();
+    renderGroupedInventory();
+    renderSummary();
 }
 
 function renderSummary() {
-    const criticalCount = ingredients.filter(item =>
-        ['out_of_stock', 'expired'].includes(item.stock_status)
-    ).length;
+    const available = menuItems.filter(item => getStatus(item) === 'available').length;
+    const limited = menuItems.filter(item => getStatus(item) === 'limited').length;
+    const soldOut = menuItems.filter(item => getStatus(item) === 'sold_out').length;
 
-    const warningCount = ingredients.filter(item =>
-        ['low_stock', 'reorder_soon', 'near_expiry'].includes(item.stock_status)
-    ).length;
-
-    document.getElementById('criticalSummaryText').textContent =
-        `${criticalCount} item${criticalCount !== 1 ? 's are' : ' is'} critically low and need immediate restocking`;
-
-    document.getElementById('warningSummaryText').textContent =
-        `${warningCount} item${warningCount !== 1 ? 's are' : ' is'} running low and should be restocked soon`;
+    document.getElementById('availableCount').textContent = formatNumber(available);
+    document.getElementById('limitedCount').textContent = formatNumber(limited);
+    document.getElementById('soldOutCount').textContent = formatNumber(soldOut);
 }
 
-function renderTable() {
-    const tbody = document.getElementById('inventoryTableBody');
+function getDailyLimitText(item) {
+    const type = item.inventory_type || 'per_order';
 
-    if (!filteredIngredients.length) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="6" class="px-6 py-8 text-center text-gray-400">No ingredients found.</td>
-            </tr>
+    if (type === 'custom') {
+        return 'No fixed limit';
+    }
+
+    if (item.daily_limit === null || item.daily_limit === undefined) {
+        return 'No limit';
+    }
+
+    return `${formatNumber(item.daily_limit)} ${getUnitLabel(item)}`;
+}
+
+function getRemainingText(item) {
+    const type = item.inventory_type || 'per_order';
+
+    if (type === 'custom') {
+        return 'Staff confirms';
+    }
+
+    if (item.daily_limit === null || item.daily_limit === undefined) {
+        return 'No limit';
+    }
+
+    return `${formatNumber(item.remaining_today ?? 0)} ${getUnitLabel(item)}`;
+}
+
+function renderGroupedInventory() {
+    const container = document.getElementById('inventoryGroupsContainer');
+
+    if (!filteredItems.length) {
+        container.innerHTML = `
+            <div class="bg-white rounded-2xl shadow-sm border">
+                <div class="px-6 py-8 text-center text-gray-400">
+                    No menu inventory records found.
+                </div>
+            </div>
         `;
         return;
     }
 
-    tbody.innerHTML = filteredIngredients.map(item => `
-        <tr class="border-t hover:bg-gray-50">
-            <td class="px-6 py-4 font-medium">${safeText(item.name)}</td>
-            <td class="px-6 py-4">${formatNumber(item.total_stock)} ${safeText(item.unit || 'unit')}</td>
-            <td class="px-6 py-4">${safeText(item.unit || 'unit')}</td>
-            <td class="px-6 py-4">${formatNumber(item.threshold)}</td>
-            <td class="px-6 py-4">
-                <span class="px-3 py-1 rounded-full text-xs font-semibold ${getStatusClass(item.stock_status)}">
-                    ${getStatusLabel(item.stock_status)}
-                </span>
-            </td>
-            <td class="px-6 py-4">
-                <button onclick="openStockModal(${item.id})"
-                    class="px-3 py-2 rounded border text-gray-700 hover:bg-gray-50">
-                    Update Stock
-                </button>
-            </td>
-        </tr>
-    `).join('');
+    const grouped = filteredItems.reduce((groups, item) => {
+        const category = item.category || 'Uncategorized';
+
+        if (!groups[category]) {
+            groups[category] = [];
+        }
+
+        groups[category].push(item);
+
+        return groups;
+    }, {});
+
+    container.innerHTML = Object.entries(grouped).map(([category, items]) => {
+        return `
+            <div class="bg-white rounded-2xl shadow-sm border overflow-hidden">
+                <div class="p-4 sm:p-5 border-b bg-gray-50">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div class="min-w-0">
+                            <h3 class="font-bold text-lg text-gray-900">${safeText(category)}</h3>
+                            <p class="text-sm text-gray-500">${items.length} menu item${items.length === 1 ? '' : 's'}</p>
+                        </div>
+
+                        <span class="px-3 py-1 rounded-full bg-orange-100 text-orange-600 text-xs font-bold w-fit">
+                            Daily Capacity
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Desktop / Tablet Table -->
+                <div class="hidden md:block overflow-x-auto">
+                    <table class="w-full min-w-[860px] text-sm">
+                        <thead class="bg-white text-gray-600 border-b">
+                            <tr>
+                                <th class="text-left px-6 py-4 font-semibold">Menu Item</th>
+                                <th class="text-left px-6 py-4 font-semibold">Type</th>
+                                <th class="text-left px-6 py-4 font-semibold">Daily Limit</th>
+                                <th class="text-left px-6 py-4 font-semibold">Sold Today</th>
+                                <th class="text-left px-6 py-4 font-semibold">Remaining</th>
+                                <th class="text-left px-6 py-4 font-semibold">Status</th>
+                                <th class="text-left px-6 py-4 font-semibold">Actions</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            ${items.map(item => {
+                                const type = item.inventory_type || 'per_order';
+                                const unit = getUnitLabel(item);
+
+                                return `
+                                    <tr class="border-t hover:bg-gray-50">
+                                        <td class="px-6 py-4">
+                                            <p class="font-semibold text-gray-900">${safeText(item.name)}</p>
+                                            <p class="text-xs text-gray-500 mt-1">
+                                                ${safeText(item.daily_inventory_label || item.stock_label || '')}
+                                            </p>
+                                        </td>
+
+                                        <td class="px-6 py-4">
+                                            ${safeText(formatInventoryType(type))}
+                                        </td>
+
+                                        <td class="px-6 py-4">
+                                            ${safeText(getDailyLimitText(item))}
+                                        </td>
+
+                                        <td class="px-6 py-4">
+                                            ${safeText(item.sold_today ?? 0)} ${safeText(unit)}
+                                        </td>
+
+                                        <td class="px-6 py-4">
+                                            ${safeText(getRemainingText(item))}
+                                        </td>
+
+                                        <td class="px-6 py-4">
+                                            ${getStatusBadge(item)}
+                                        </td>
+
+                                        <td class="px-6 py-4">
+                                            <button onclick="openLimitModal(${item.id})"
+                                                class="px-3 py-2 rounded-xl border text-gray-700 hover:bg-gray-50 text-xs font-semibold">
+                                                Update Limit
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Mobile Cards -->
+                <div class="md:hidden p-4 space-y-3">
+                    ${items.map(item => {
+                        const type = item.inventory_type || 'per_order';
+                        const unit = getUnitLabel(item);
+
+                        return `
+                            <div class="rounded-2xl border bg-white p-4 shadow-sm">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <h4 class="font-bold text-gray-900 leading-snug">${safeText(item.name)}</h4>
+                                        <p class="text-xs text-gray-500 mt-1">
+                                            ${safeText(item.daily_inventory_label || item.stock_label || 'No inventory data')}
+                                        </p>
+                                    </div>
+
+                                    <div class="shrink-0">
+                                        ${getStatusBadge(item)}
+                                    </div>
+                                </div>
+
+                                <div class="mt-3 rounded-xl bg-gray-50 border px-3 py-2 space-y-1">
+                                    <p class="text-xs text-gray-600">
+                                        <span class="font-semibold">Type:</span>
+                                        ${safeText(formatInventoryType(type))}
+                                    </p>
+
+                                    <p class="text-xs text-gray-600">
+                                        <span class="font-semibold">Daily Limit:</span>
+                                        ${safeText(getDailyLimitText(item))}
+                                    </p>
+
+                                    <p class="text-xs text-gray-600">
+                                        <span class="font-semibold">Sold Today:</span>
+                                        ${safeText(item.sold_today ?? 0)} ${safeText(unit)}
+                                    </p>
+
+                                    <p class="text-xs text-gray-600">
+                                        <span class="font-semibold">Remaining:</span>
+                                        ${safeText(getRemainingText(item))}
+                                    </p>
+                                </div>
+
+                                <button onclick="openLimitModal(${item.id})"
+                                    class="w-full mt-3 px-3 py-2.5 rounded-xl border text-gray-700 hover:bg-gray-50 text-xs font-semibold">
+                                    Update Limit
+                                </button>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
-function openIngredientModal(id = null) {
-    editingIngredientId = id;
+function openLimitModal(id) {
+    const item = menuItems.find(menuItem => Number(menuItem.id) === Number(id));
+    if (!item) return;
 
-    if (id) {
-        const item = ingredients.find(i => Number(i.id) === Number(id));
-        if (!item) return;
+    document.getElementById('limitMenuItemId').value = item.id;
+    document.getElementById('limitModalTitle').textContent = `Update Limit - ${item.name}`;
+    document.getElementById('limitInventoryType').value = item.inventory_type || (
+        item.category === 'Chef Oppa Special' ? 'custom' : 'per_order'
+    );
+    document.getElementById('limitDailyLimit').value = item.daily_limit ?? '';
 
-        document.getElementById('ingredientModalTitle').textContent = 'Edit Ingredient';
-        document.getElementById('ingredientSaveBtn').textContent = 'Update Ingredient';
-        document.getElementById('ingredientName').value = item.name;
-        document.getElementById('ingredientThreshold').value = item.threshold;
-    } else {
-        document.getElementById('ingredientModalTitle').textContent = 'Add Ingredient';
-        document.getElementById('ingredientSaveBtn').textContent = 'Save Ingredient';
-        document.getElementById('ingredientForm').reset();
-    }
+    updateLimitVisibility();
 
-    const modal = document.getElementById('ingredientModal');
+    const modal = document.getElementById('limitModal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 }
 
-function closeIngredientModal() {
-    editingIngredientId = null;
-    const modal = document.getElementById('ingredientModal');
+function closeLimitModal() {
+    const modal = document.getElementById('limitModal');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
 }
 
-document.getElementById('ingredientForm').addEventListener('submit', async function(e) {
+function updateLimitVisibility() {
+    const type = document.getElementById('limitInventoryType').value;
+    const wrapper = document.getElementById('limitInputWrapper');
+    const input = document.getElementById('limitDailyLimit');
+    const helpText = document.getElementById('limitHelpText');
+
+    if (type === 'custom') {
+        input.value = '';
+        input.disabled = true;
+        wrapper.classList.add('opacity-60');
+        helpText.textContent = 'Custom items do not use a daily limit.';
+        return;
+    }
+
+    input.disabled = false;
+    wrapper.classList.remove('opacity-60');
+
+    if (type === 'per_head') {
+        helpText.textContent = 'Set how many heads/persons can be served today.';
+    } else {
+        helpText.textContent = 'Set how many orders can be served today. Leave blank for no limit.';
+    }
+}
+
+document.getElementById('limitForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
-    const saveBtn = document.getElementById('ingredientSaveBtn');
+    const saveBtn = document.getElementById('limitSaveBtn');
+    const id = document.getElementById('limitMenuItemId').value;
+    const inventoryType = document.getElementById('limitInventoryType').value;
+    const dailyLimit = document.getElementById('limitDailyLimit').value;
 
     const payload = {
-        name: document.getElementById('ingredientName').value,
-        threshold: document.getElementById('ingredientThreshold').value
+        inventory_type: inventoryType,
+        daily_limit: inventoryType === 'custom' || dailyLimit === '' ? null : Number(dailyLimit),
     };
 
-    const url = editingIngredientId
-        ? `/api/admin/ingredients/${editingIngredientId}`
-        : '/api/admin/ingredients';
-
-    const method = editingIngredientId ? 'PUT' : 'POST';
-
-    setButtonLoading(saveBtn, true, editingIngredientId ? 'Updating...' : 'Saving...');
+    setButtonLoading(saveBtn, true, 'Saving...');
 
     try {
-        const res = await fetch(url, {
-            method,
+        const res = await fetch(`/api/admin/menu-items/${id}`, {
+            method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
@@ -569,280 +631,37 @@ document.getElementById('ingredientForm').addEventListener('submit', async funct
         const data = await res.json();
 
         if (!res.ok) {
-            alert(data.message || 'Failed to save ingredient.');
+            alert(data.message || 'Failed to update daily limit.');
             return;
         }
 
-        const updatedIngredient = findIngredientFromResponse(data);
-
-        if (updatedIngredient) {
-            replaceIngredientInMemory(updatedIngredient);
-        } else {
-            silentReloadIngredients();
-        }
-
-        closeIngredientModal();
+        closeLimitModal();
+        await loadMenuInventory();
     } catch (error) {
-        console.error('Save ingredient failed:', error);
-        alert('Failed to save ingredient. Please check your connection.');
+        console.error('Update daily limit failed:', error);
+        alert('Failed to update daily limit. Please check your connection.');
     } finally {
         setButtonLoading(saveBtn, false);
     }
 });
 
-function openStockModal(id) {
-    currentIngredientId = id;
-    editingBatchId = null;
-
-    const item = ingredients.find(i => Number(i.id) === Number(id));
-    if (!item) return;
-
-    refreshStockModalInfo(item);
-    resetBatchForm();
-
-    const modal = document.getElementById('stockModal');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-}
-
-function closeStockModal() {
-    currentIngredientId = null;
-    editingBatchId = null;
-
-    const modal = document.getElementById('stockModal');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-}
-
-function renderBatchHistory(batches) {
-    const tbody = document.getElementById('batchHistoryBody');
-
-    if (!batches.length) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="6" class="px-4 py-6 text-center text-gray-400">No stock batches yet.</td>
-            </tr>
-        `;
-        return;
-    }
-
-    tbody.innerHTML = batches.map(batch => {
-        const status = getBatchStatusClass(batch);
-
-        return `
-            <tr class="border-t hover:bg-gray-50 cursor-pointer" onclick="selectBatchForEdit(${batch.id})">
-                <td class="px-4 py-3">${formatNumber(batch.quantity_remaining)}</td>
-                <td class="px-4 py-3">${formatNumber(batch.quantity_received)}</td>
-                <td class="px-4 py-3">${formatMoney(batch.unit_cost)}</td>
-                <td class="px-4 py-3">${formatDate(batch.expiry_date)}</td>
-                <td class="px-4 py-3">${safeText(batch.supplier || 'N/A')}</td>
-                <td class="px-4 py-3">
-                    <span class="px-3 py-1 rounded-full text-xs font-semibold ${status.class}">
-                        ${status.label}
-                    </span>
-                </td>
-            </tr>
-        `;
-    }).join('');
-}
-
-function resetBatchForm() {
-    editingBatchId = null;
-
-    document.getElementById('batchFormTitle').textContent = 'Add Stock Batch';
-    document.getElementById('batchQuantity').value = '';
-    document.getElementById('batchUnitCost').value = '';
-    document.getElementById('batchExpiryDate').value = '';
-    document.getElementById('batchSupplier').value = '';
-
-    document.getElementById('batchSaveBtn').textContent = 'Save Batch';
-    document.getElementById('batchCancelBtn').classList.add('hidden');
-    document.getElementById('batchDeleteBtn').classList.add('hidden');
-}
-
-function selectBatchForEdit(batchId) {
-    const item = ingredients.find(i => Number(i.id) === Number(currentIngredientId));
-    if (!item) return;
-
-    const batch = (item.batches || []).find(b => Number(b.id) === Number(batchId));
-    if (!batch) return;
-
-    editingBatchId = batch.id;
-
-    document.getElementById('batchFormTitle').textContent = 'Edit Stock Batch';
-    document.getElementById('batchQuantity').value = batch.quantity_received;
-    document.getElementById('batchUnit').value = item.unit || '';
-    document.getElementById('batchUnitCost').value = batch.unit_cost;
-    document.getElementById('batchExpiryDate').value = formatDate(batch.expiry_date);
-    document.getElementById('batchSupplier').value = batch.supplier || '';
-
-    document.getElementById('batchSaveBtn').textContent = 'Update Batch';
-    document.getElementById('batchCancelBtn').classList.remove('hidden');
-    document.getElementById('batchDeleteBtn').classList.remove('hidden');
-}
-
-function cancelBatchEdit() {
-    resetBatchForm();
-}
-
-async function saveBatch() {
-    if (!currentIngredientId) return;
-
-    const saveBtn = document.getElementById('batchSaveBtn');
-
-    const payload = {
-        quantity_received: document.getElementById('batchQuantity').value,
-        unit: document.getElementById('batchUnit').value,
-        unit_cost: document.getElementById('batchUnitCost').value,
-        expiry_date: document.getElementById('batchExpiryDate').value,
-        supplier: document.getElementById('batchSupplier').value
-    };
-
-    const url = editingBatchId
-        ? `/api/admin/ingredients/${currentIngredientId}/batches/${editingBatchId}`
-        : `/api/admin/ingredients/${currentIngredientId}/stock`;
-
-    const method = editingBatchId ? 'PUT' : 'POST';
-
-    setButtonLoading(saveBtn, true, editingBatchId ? 'Updating...' : 'Saving...');
-
-    try {
-        const res = await fetch(url, {
-            method,
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            },
-            body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-            alert(data.message || 'Failed to save batch.');
-            return;
-        }
-
-        const updatedIngredient = findIngredientFromResponse(data);
-
-        if (updatedIngredient) {
-            replaceIngredientInMemory(updatedIngredient);
-            refreshStockModalInfo(updatedIngredient);
-            resetBatchForm();
-        } else {
-            resetBatchForm();
-            silentReloadIngredients();
-        }
-    } catch (error) {
-        console.error('Save batch failed:', error);
-        alert('Failed to save batch. Please check your connection.');
-    } finally {
-        setButtonLoading(saveBtn, false);
-    }
-}
-
-async function deleteSelectedBatch() {
-    if (!currentIngredientId || !editingBatchId) return;
-
-    if (!confirm('Delete this stock batch?')) return;
-
-    const deleteBtn = document.getElementById('batchDeleteBtn');
-    setButtonLoading(deleteBtn, true, 'Deleting...');
-
-    try {
-        const res = await fetch(`/api/admin/ingredients/${currentIngredientId}/batches/${editingBatchId}`, {
-            method: 'DELETE',
-            headers: {
-                'Accept': 'application/json',
-            }
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-            alert(data.message || 'Failed to delete batch.');
-            return;
-        }
-
-        const updatedIngredient = findIngredientFromResponse(data);
-
-        if (updatedIngredient) {
-            replaceIngredientInMemory(updatedIngredient);
-            refreshStockModalInfo(updatedIngredient);
-            resetBatchForm();
-        } else {
-            resetBatchForm();
-            silentReloadIngredients();
-        }
-    } catch (error) {
-        console.error('Delete batch failed:', error);
-        alert('Failed to delete batch. Please check your connection.');
-    } finally {
-        setButtonLoading(deleteBtn, false);
-    }
-}
-
-function editCurrentIngredient() {
-    if (!currentIngredientId) return;
-
-    const ingredientId = currentIngredientId;
-
-    closeStockModal();
-
-    setTimeout(() => {
-        openIngredientModal(ingredientId);
-    }, 100);
-}
-
-async function deleteCurrentIngredient() {
-    if (!currentIngredientId) return;
-
-    if (!confirm('Delete this ingredient? This will also delete its stock history.')) return;
-
-    try {
-        const res = await fetch(`/api/admin/ingredients/${currentIngredientId}`, {
-            method: 'DELETE',
-            headers: {
-                'Accept': 'application/json',
-            }
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-            alert(data.message || 'Failed to delete ingredient.');
-            return;
-        }
-
-        ingredients = ingredients.filter(item => Number(item.id) !== Number(currentIngredientId));
-        applyFilters();
-        renderSummary();
-
-        closeStockModal();
-        silentReloadIngredients();
-    } catch (error) {
-        console.error('Delete ingredient failed:', error);
-        alert('Failed to delete ingredient. Please check your connection.');
-    }
-}
-
 document.getElementById('inventorySearch').addEventListener('input', applyFilters);
+document.getElementById('categoryFilter').addEventListener('change', applyFilters);
+document.getElementById('typeFilter').addEventListener('change', applyFilters);
 document.getElementById('statusFilter').addEventListener('change', applyFilters);
+document.getElementById('limitInventoryType').addEventListener('change', updateLimitVisibility);
 
-loadIngredients();
+loadMenuInventory();
 
 setInterval(() => {
-    const ingredientModal = document.getElementById('ingredientModal');
-    const stockModal = document.getElementById('stockModal');
+    const limitModal = document.getElementById('limitModal');
+    const modalOpen = limitModal && !limitModal.classList.contains('hidden');
 
-    const ingredientModalOpen = ingredientModal && !ingredientModal.classList.contains('hidden');
-    const stockModalOpen = stockModal && !stockModal.classList.contains('hidden');
-
-    if (document.hidden || ingredientModalOpen || stockModalOpen) {
+    if (document.hidden || modalOpen) {
         return;
     }
 
-    silentReloadIngredients();
+    loadMenuInventory();
 }, 30000);
 </script>
 
