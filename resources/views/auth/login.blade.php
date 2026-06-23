@@ -61,7 +61,16 @@
                 </p>
             </div>
 
-            <x-auth-session-status class="mb-4" :status="session('status')" />
+            <!-- SUCCESS MESSAGE -->
+            @if (session('status'))
+                <div class="mb-5 flex justify-center">
+                    <div class="inline-flex items-center justify-center rounded-xl bg-green-50 px-4 py-2 text-center border border-green-100">
+                        <p class="font-semibold text-sm text-green-600">
+                            {{ session('status') }}
+                        </p>
+                    </div>
+                </div>
+            @endif
 
             <!-- LOGIN FORM -->
             <form method="POST" action="{{ route('login') }}" class="space-y-4 sm:space-y-5">
@@ -183,29 +192,29 @@
     </main>
 
     <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const togglePassword = document.getElementById('togglePassword');
-        const passwordInput = document.getElementById('password');
-        const eyeIcon = document.getElementById('eyeIcon');
-        const eyeOffIcon = document.getElementById('eyeOffIcon');
+        document.addEventListener('DOMContentLoaded', function () {
+            const togglePassword = document.getElementById('togglePassword');
+            const passwordInput = document.getElementById('password');
+            const eyeIcon = document.getElementById('eyeIcon');
+            const eyeOffIcon = document.getElementById('eyeOffIcon');
 
-        if (togglePassword && passwordInput && eyeIcon && eyeOffIcon) {
-            togglePassword.addEventListener('click', function () {
-                const isPassword = passwordInput.type === 'password';
+            if (togglePassword && passwordInput && eyeIcon && eyeOffIcon) {
+                togglePassword.addEventListener('click', function () {
+                    const isPassword = passwordInput.type === 'password';
 
-                passwordInput.type = isPassword ? 'text' : 'password';
+                    passwordInput.type = isPassword ? 'text' : 'password';
 
-                eyeIcon.classList.toggle('hidden', isPassword);
-                eyeOffIcon.classList.toggle('hidden', !isPassword);
+                    eyeIcon.classList.toggle('hidden', isPassword);
+                    eyeOffIcon.classList.toggle('hidden', !isPassword);
 
-                togglePassword.setAttribute(
-                    'aria-label',
-                    isPassword ? 'Hide password' : 'Show password'
-                );
-            });
-        }
-    });
-</script>
+                    togglePassword.setAttribute(
+                        'aria-label',
+                        isPassword ? 'Hide password' : 'Show password'
+                    );
+                });
+            }
+        });
+    </script>
 
 </body>
 </html>

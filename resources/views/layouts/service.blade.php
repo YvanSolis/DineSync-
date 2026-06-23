@@ -62,13 +62,15 @@
             -webkit-backdrop-filter: blur(4px);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | IMPORTANT FIX
-        |--------------------------------------------------------------------------
-        | This makes the service content move away from the fixed sidebar using
-        | normal CSS instead of Tailwind arbitrary classes.
-        */
+        .no-scrollbar::-webkit-scrollbar {
+            width: 0;
+            height: 0;
+        }
+
+        .no-scrollbar {
+            scrollbar-width: none;
+        }
+
         .service-sidebar {
             width: 280px;
         }
@@ -137,51 +139,54 @@
     <!-- Sidebar -->
     <aside
         id="serviceSidebar"
-        class="service-sidebar fixed left-0 top-0 z-50 h-screen
-               service-sidebar-bg border-r border-orange-100/70 flex flex-col overflow-y-auto
+        class="service-sidebar fixed left-0 top-0 z-50 h-dvh
+               service-sidebar-bg border-r border-orange-100/70 flex flex-col overflow-hidden
                shadow-xl
                transform -translate-x-full transition-transform duration-300 ease-in-out">
 
-        <!-- Mobile Close -->
-        <div class="lg:hidden flex items-center justify-between px-5 pt-5">
-            <p class="text-xs font-extrabold uppercase tracking-[0.18em] text-orange-500">
-                Service Menu
-            </p>
+        <!-- Top Area -->
+        <div class="shrink-0">
+            <!-- Mobile Close -->
+            <div class="lg:hidden flex items-center justify-between px-5 pt-5">
+                <p class="text-xs font-extrabold uppercase tracking-[0.18em] text-orange-500">
+                    Service Menu
+                </p>
 
-            <button
-                type="button"
-                id="closeServiceSidebar"
-                class="w-10 h-10 rounded-2xl bg-white border border-orange-100 text-gray-700 shadow-sm flex items-center justify-center font-bold">
-                ×
-            </button>
-        </div>
+                <button
+                    type="button"
+                    id="closeServiceSidebar"
+                    class="w-10 h-10 rounded-2xl bg-white border border-orange-100 text-gray-700 shadow-sm flex items-center justify-center font-bold">
+                    ×
+                </button>
+            </div>
 
-        <!-- Brand -->
-        <div class="px-5 py-5 border-b border-orange-100/70 shrink-0">
-            <div class="service-brand-card rounded-2xl px-4 py-4 text-white shadow-lg shadow-orange-200/60">
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 rounded-2xl bg-white border border-white/60 flex items-center justify-center overflow-hidden shadow-sm shrink-0">
-                        <img
-                            src="{{ asset('images/customer-menu/chef-oppa-logo.png') }}"
-                            alt="Chef Oppa Logo"
-                            class="w-full h-full object-cover"
-                        >
-                    </div>
+            <!-- Brand -->
+            <div class="px-5 py-5 border-b border-orange-100/70">
+                <div class="service-brand-card rounded-2xl px-4 py-4 text-white shadow-lg shadow-orange-200/60">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-2xl bg-white border border-white/60 flex items-center justify-center overflow-hidden shadow-sm shrink-0">
+                            <img
+                                src="{{ asset('images/customer-menu/chef-oppa-logo.png') }}"
+                                alt="Chef Oppa Logo"
+                                class="w-full h-full object-cover"
+                            >
+                        </div>
 
-                    <div class="min-w-0">
-                        <h1 class="text-[20px] font-extrabold leading-tight truncate">
-                            Chef Oppa
-                        </h1>
-                        <p class="text-[12px] text-white/85">
-                            Service Staff Panel
-                        </p>
+                        <div class="min-w-0">
+                            <h1 class="text-[20px] font-extrabold leading-tight truncate">
+                                Chef Oppa
+                            </h1>
+                            <p class="text-[12px] text-white/85">
+                                Service Staff Panel
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Navigation -->
-        <nav class="flex-1 px-4 py-5 space-y-2 text-[14px] font-semibold">
+        <!-- Navigation Scroll Area -->
+        <nav class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 py-4 space-y-2 text-[14px] font-semibold">
 
             <a href="{{ route('service.dashboard') }}"
                class="service-nav-link flex items-center gap-3 px-4 py-3.5 rounded-2xl transition
@@ -212,11 +217,11 @@
             </a>
         </nav>
 
-        <!-- User / Logout -->
-        <div class="px-4 pb-5 space-y-3">
-            <div class="rounded-2xl border border-orange-100 bg-white/80 px-4 py-4 shadow-sm">
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white flex items-center justify-center text-sm font-bold shadow-md shadow-orange-200 shrink-0">
+        <!-- User / Logout Fixed Bottom -->
+        <div class="shrink-0 px-4 pt-3 pb-4 border-t border-orange-100/70 bg-white/85 backdrop-blur">
+            <div class="rounded-2xl border border-orange-100 bg-white/90 px-3 py-3 shadow-sm">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white flex items-center justify-center text-sm font-bold shadow-md shadow-orange-200 shrink-0">
                         {{ strtoupper(substr(auth()->user()->name ?? 'S', 0, 1)) }}
                     </div>
 
@@ -231,16 +236,16 @@
                         </div>
                     </div>
                 </div>
+
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+
+                    <button type="submit"
+                        class="w-full rounded-xl bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-100 transition">
+                        Logout
+                    </button>
+                </form>
             </div>
-
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-
-                <button type="submit"
-                    class="w-full rounded-2xl bg-red-50 px-4 py-3.5 text-sm font-bold text-red-600 hover:bg-red-100 transition">
-                    Logout
-                </button>
-            </form>
         </div>
     </aside>
 

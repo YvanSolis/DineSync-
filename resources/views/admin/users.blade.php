@@ -287,17 +287,42 @@ function safeText(value) {
 function formatDate(value) {
     if (!value) return '-';
 
-    const date = new Date(value);
+    let year;
+    let month;
+    let day;
 
-    if (Number.isNaN(date.getTime())) {
+    // Prevent timezone conversion issue.
+    // Example: 2026-06-23T16:00:00.000000Z should still display Jun 23, not Jun 24.
+    const dateString = String(value);
+
+    if (dateString.includes('T')) {
+        const dateOnly = dateString.split('T')[0];
+        [year, month, day] = dateOnly.split('-').map(Number);
+    } else if (dateString.includes(' ')) {
+        const dateOnly = dateString.split(' ')[0];
+        [year, month, day] = dateOnly.split('-').map(Number);
+    } else {
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) {
+            return '-';
+        }
+
+        year = date.getFullYear();
+        month = date.getMonth() + 1;
+        day = date.getDate();
+    }
+
+    if (!year || !month || !day) {
         return '-';
     }
 
-    return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: '2-digit',
-        year: 'numeric'
-    });
+    const monthNames = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+
+    return `${monthNames[month - 1]} ${String(day).padStart(2, '0')}, ${year}`;
 }
 
 function formatRole(role) {

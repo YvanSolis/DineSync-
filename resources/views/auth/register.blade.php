@@ -143,6 +143,30 @@
                         </button>
                     </div>
 
+                    <!-- PASSWORD STRENGTH INDICATOR -->
+                    <div class="mt-3">
+                        <div class="flex items-center justify-between mb-1">
+                            <p class="text-xs font-medium text-gray-500">
+                                Password strength
+                            </p>
+
+                            <p id="passwordStrengthText" class="text-xs font-semibold text-gray-400">
+                                Empty
+                            </p>
+                        </div>
+
+                        <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                                id="passwordStrengthBar"
+                                class="h-full w-0 rounded-full bg-gray-300 transition-all duration-300"
+                            ></div>
+                        </div>
+
+                        <p id="passwordHint" class="text-xs text-gray-400 mt-1.5 leading-relaxed">
+                            Use at least 8 characters with uppercase, lowercase, number, and symbol.
+                        </p>
+                    </div>
+
                     <x-input-error :messages="$errors->get('password')" class="mt-2" />
                 </div>
 
@@ -188,6 +212,8 @@
                         </button>
                     </div>
 
+                    <p id="passwordMatchText" class="text-xs mt-2 hidden"></p>
+
                     <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
                 </div>
 
@@ -219,6 +245,13 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            const passwordInput = document.getElementById('password');
+            const confirmPasswordInput = document.getElementById('password_confirmation');
+            const strengthBar = document.getElementById('passwordStrengthBar');
+            const strengthText = document.getElementById('passwordStrengthText');
+            const passwordHint = document.getElementById('passwordHint');
+            const matchText = document.getElementById('passwordMatchText');
+
             function setupPasswordToggle(buttonId, inputId, eyeId, eyeOffId) {
                 const toggleButton = document.getElementById(buttonId);
                 const passwordInput = document.getElementById(inputId);
@@ -242,6 +275,97 @@
                         isPassword ? 'Hide password' : 'Show password'
                     );
                 });
+            }
+
+            function resetStrengthBar() {
+                strengthBar.style.width = '0%';
+                strengthBar.className = 'h-full w-0 rounded-full bg-gray-300 transition-all duration-300';
+                strengthText.textContent = 'Empty';
+                strengthText.className = 'text-xs font-semibold text-gray-400';
+                passwordHint.textContent = 'Use at least 8 characters with uppercase, lowercase, number, and symbol.';
+                passwordHint.className = 'text-xs text-gray-400 mt-1.5 leading-relaxed';
+            }
+
+            function checkPasswordStrength(password) {
+                let score = 0;
+
+                const hasMinLength = password.length >= 8;
+                const hasUppercase = /[A-Z]/.test(password);
+                const hasLowercase = /[a-z]/.test(password);
+                const hasNumber = /[0-9]/.test(password);
+                const hasSymbol = /[^A-Za-z0-9]/.test(password);
+
+                if (hasMinLength) score++;
+                if (hasUppercase) score++;
+                if (hasLowercase) score++;
+                if (hasNumber) score++;
+                if (hasSymbol) score++;
+
+                strengthBar.className = 'h-full rounded-full transition-all duration-300';
+
+                if (password.length === 0) {
+                    resetStrengthBar();
+                    return;
+                }
+
+                if (score <= 2) {
+                    strengthBar.style.width = '33%';
+                    strengthBar.classList.add('bg-red-500');
+                    strengthText.textContent = 'Weak';
+                    strengthText.className = 'text-xs font-semibold text-red-600';
+                    passwordHint.textContent = 'Weak password. Add more characters, numbers, or symbols.';
+                    passwordHint.className = 'text-xs text-red-500 mt-1.5 leading-relaxed';
+                } else if (score <= 4) {
+                    strengthBar.style.width = '66%';
+                    strengthBar.classList.add('bg-yellow-500');
+                    strengthText.textContent = 'Medium';
+                    strengthText.className = 'text-xs font-semibold text-yellow-600';
+                    passwordHint.textContent = 'Medium password. Add the missing uppercase, lowercase, number, or symbol.';
+                    passwordHint.className = 'text-xs text-yellow-600 mt-1.5 leading-relaxed';
+                } else {
+                    strengthBar.style.width = '100%';
+                    strengthBar.classList.add('bg-green-500');
+                    strengthText.textContent = 'Strong';
+                    strengthText.className = 'text-xs font-semibold text-green-600';
+                    passwordHint.textContent = 'Strong password.';
+                    passwordHint.className = 'text-xs text-green-600 mt-1.5 leading-relaxed';
+                }
+            }
+
+            function checkPasswordMatch() {
+                if (!confirmPasswordInput || !matchText) {
+                    return;
+                }
+
+                const password = passwordInput.value;
+                const confirmPassword = confirmPasswordInput.value;
+
+                if (confirmPassword.length === 0) {
+                    matchText.classList.add('hidden');
+                    matchText.textContent = '';
+                    return;
+                }
+
+                matchText.classList.remove('hidden');
+
+                if (password === confirmPassword) {
+                    matchText.textContent = 'Passwords match.';
+                    matchText.className = 'text-xs mt-2 text-green-600 font-medium';
+                } else {
+                    matchText.textContent = 'Passwords do not match.';
+                    matchText.className = 'text-xs mt-2 text-red-600 font-medium';
+                }
+            }
+
+            if (passwordInput) {
+                passwordInput.addEventListener('input', function () {
+                    checkPasswordStrength(passwordInput.value);
+                    checkPasswordMatch();
+                });
+            }
+
+            if (confirmPasswordInput) {
+                confirmPasswordInput.addEventListener('input', checkPasswordMatch);
             }
 
             setupPasswordToggle('togglePassword', 'password', 'eyeIcon', 'eyeOffIcon');

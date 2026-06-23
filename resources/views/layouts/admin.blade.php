@@ -150,7 +150,7 @@
     <!-- Mobile Drawer Sidebar -->
     <aside
         id="mobileAdminSidebar"
-        class="fixed left-0 top-0 z-50 h-screen w-[285px] max-w-[86vw] sidebar-bg border-r border-orange-100/70 flex flex-col overflow-y-auto shadow-2xl transform -translate-x-full transition-transform duration-300 lg:hidden"
+        class="fixed left-0 top-0 z-50 h-dvh w-[285px] max-w-[86vw] sidebar-bg border-r border-orange-100/70 flex flex-col overflow-hidden shadow-2xl transform -translate-x-full transition-transform duration-300 lg:hidden"
     >
         <!-- Mobile Drawer Header -->
         <div class="px-5 py-5 border-b border-orange-100/70 shrink-0">
@@ -189,8 +189,8 @@
             </div>
         </div>
 
-        <!-- Mobile Navigation -->
-        <nav class="flex-1 px-4 py-5 space-y-1.5 text-[13px] font-medium">
+        <!-- Mobile Navigation Scroll Area -->
+        <nav class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 py-4 space-y-1.5 text-[13px] font-medium">
             @foreach ($navLinks as $link)
                 <a href="{{ $link['url'] }}"
                    onclick="closeAdminSidebar()"
@@ -212,10 +212,10 @@
             @endforeach
         </nav>
 
-        <!-- Mobile Admin Account + Logout -->
-        <div class="px-4 pb-5 space-y-3">
-            <div class="rounded-2xl border border-orange-100 bg-white/80 px-4 py-4 shadow-sm">
-                <div class="flex items-center gap-3">
+        <!-- Mobile Admin Account + Logout Fixed Bottom -->
+        <div class="shrink-0 px-4 pt-3 pb-4 border-t border-orange-100/70 bg-white/85 backdrop-blur">
+            <div class="rounded-2xl border border-orange-100 bg-white/90 px-3 py-3 shadow-sm">
+                <div class="flex items-center gap-3 mb-3">
                     <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white flex items-center justify-center text-sm font-bold shadow-md shadow-orange-200 shrink-0">
                         {{ strtoupper(substr(Auth::user()->name ?? 'A', 0, 1)) }}
                     </div>
@@ -227,21 +227,21 @@
                         <p class="text-xs text-gray-400">Owner / Admin</p>
                     </div>
                 </div>
+
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+
+                    <button type="submit"
+                        class="w-full rounded-xl bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100 transition">
+                        Logout
+                    </button>
+                </form>
             </div>
-
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-
-                <button type="submit"
-                    class="w-full rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-100 transition">
-                    Logout
-                </button>
-            </form>
         </div>
     </aside>
 
     <!-- Desktop Fixed Sidebar -->
-    <aside class="hidden lg:flex fixed left-0 top-0 z-30 h-screen w-[240px] sidebar-bg border-r border-orange-100/70 flex-col overflow-y-auto no-scrollbar shadow-[8px_0_30px_rgba(15,23,42,0.04)]">
+    <aside class="hidden lg:flex fixed left-0 top-0 z-30 h-screen w-[240px] sidebar-bg border-r border-orange-100/70 flex-col overflow-hidden shadow-[8px_0_30px_rgba(15,23,42,0.04)]">
 
         <!-- Brand -->
         <div class="px-5 py-5 border-b border-orange-100/70 shrink-0">
@@ -267,8 +267,8 @@
             </div>
         </div>
 
-        <!-- Desktop Navigation -->
-        <nav class="flex-1 px-4 py-5 space-y-1.5 text-[13px] font-medium">
+        <!-- Desktop Navigation Scroll Area -->
+        <nav class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 py-5 space-y-1.5 text-[13px] font-medium">
             @foreach ($navLinks as $link)
                 <a href="{{ $link['url'] }}"
                    class="flex items-center {{ isset($link['badge']) ? 'justify-between' : '' }} gap-3 px-3.5 py-2.5 rounded-xl transition
@@ -289,10 +289,10 @@
             @endforeach
         </nav>
 
-        <!-- Desktop Admin Account + Logout -->
-        <div class="px-4 pb-5 space-y-3">
-            <div class="rounded-2xl border border-orange-100 bg-white/80 px-4 py-4 shadow-sm">
-                <div class="flex items-center gap-3">
+        <!-- Desktop Admin Account + Logout Fixed Bottom -->
+        <div class="shrink-0 px-4 pt-3 pb-5 border-t border-orange-100/70 bg-white/75 backdrop-blur">
+            <div class="rounded-2xl border border-orange-100 bg-white/90 px-3 py-3 shadow-sm">
+                <div class="flex items-center gap-3 mb-3">
                     <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white flex items-center justify-center text-sm font-bold shadow-md shadow-orange-200 shrink-0">
                         {{ strtoupper(substr(Auth::user()->name ?? 'A', 0, 1)) }}
                     </div>
@@ -304,16 +304,16 @@
                         <p class="text-xs text-gray-400">Owner / Admin</p>
                     </div>
                 </div>
+
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+
+                    <button type="submit"
+                        class="w-full rounded-xl bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100 transition">
+                        Logout
+                    </button>
+                </form>
             </div>
-
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-
-                <button type="submit"
-                    class="w-full rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-100 transition">
-                    Logout
-                </button>
-            </form>
         </div>
     </aside>
 
