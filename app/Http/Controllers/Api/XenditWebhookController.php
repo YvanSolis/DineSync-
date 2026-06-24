@@ -12,7 +12,7 @@ class XenditWebhookController extends Controller
 {
     public function handle(Request $request)
     {
-        $callbackToken = config('services.xendit.callback_token');
+        $callbackToken = config('services.xendit.callback_token') ?: env('XENDIT_WEBHOOK_TOKEN');
         $incomingToken = $request->header('x-callback-token');
 
         Log::info('Xendit webhook attempt received', [
@@ -74,20 +74,7 @@ class XenditWebhookController extends Controller
         string $status,
         array $payload
     ) {
-        $order = null;
-
-        if ($externalId && str_starts_with($externalId, 'ORDER-')) {
-            $orderId = (int) str_replace('ORDER-', '', $externalId);
-
-            $order = Order::where('id', $orderId)
-                ->orWhere('xendit_external_id', $externalId)
-                ->orWhere('xendit_invoice_id', $invoiceId)
-                ->first();
-        } else {
-            $order = Order::where('xendit_invoice_id', $invoiceId)
-                ->orWhere('xendit_external_id', $externalId)
-                ->first();
-        }
+        $order = $this->findOrderFromXenditPayload($externalId, $invoiceId);
 
         if (!$order) {
             Log::warning('Xendit order not found', [
@@ -109,11 +96,29 @@ class XenditWebhookController extends Controller
         ];
 
         if (in_array($status, ['PAID', 'SETTLED'], true)) {
+            $currentOrderStatus = strtolower(trim($order->status ?? 'pending'));
+
             $updateData['payment_status'] = 'paid';
-            $updateData['paid_at'] = now();
+            $updateData['paid_at'] = $order->paid_at ?? now();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Important Payment Flow Rule
+            |--------------------------------------------------------------------------
+            | Pay at Counter / Digital Payment orders are stored as awaiting_payment
+            | so they do NOT appear in KDS before payment.
+            |
+            | Once Xendit confirms QR PH payment, we only move awaiting_payment
+            | orders into pending so KDS can receive them.
+            |
+            | If the order is already preparing/ready/served, we do not reset it.
+            */
+            if ($currentOrderStatus === 'awaiting_payment') {
+                $updateData['status'] = 'pending';
+            }
         } elseif ($status === 'EXPIRED') {
             $updateData['payment_status'] = 'expired';
-        } elseif (in_array($status, ['FAILED', 'VOIDED'], true)) {
+        } elseif (in_array($status, ['FAILED', 'VOIDED', 'CANCELLED', 'CANCELED'], true)) {
             $updateData['payment_status'] = 'failed';
         } else {
             Log::info('Xendit order webhook received but status not handled', [
@@ -129,32 +134,62 @@ class XenditWebhookController extends Controller
             ], 200);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Important:
-        |--------------------------------------------------------------------------
-        | Do NOT update orders.status here.
-        | Payment status and kitchen status must remain separate.
-        | Kitchen/KDS should be the only one changing:
-        | pending -> preparing -> ready -> served
-        */
-
         $order->update($updateData);
 
+        $freshOrder = $order->fresh();
+
         Log::info('Order payment status updated by Xendit webhook', [
-            'order_id' => $order->id,
-            'order_number' => $order->order_number,
+            'order_id' => $freshOrder->id,
+            'order_number' => $freshOrder->order_number,
             'external_id' => $externalId,
             'invoice_id' => $invoiceId,
             'xendit_status' => $status,
-            'payment_status' => $updateData['payment_status'],
-            'order_status_still' => $order->fresh()->status,
+            'payment_status' => $freshOrder->payment_status,
+            'order_status' => $freshOrder->status,
+            'paid_at' => $freshOrder->paid_at,
         ]);
 
         return response()->json([
             'message' => 'Order payment status updated',
-            'payment_status' => $updateData['payment_status'],
+            'payment_status' => $freshOrder->payment_status,
+            'order_status' => $freshOrder->status,
         ], 200);
+    }
+
+    private function findOrderFromXenditPayload(?string $externalId, ?string $invoiceId): ?Order
+    {
+        if ($invoiceId) {
+            $order = Order::where('xendit_invoice_id', $invoiceId)->first();
+
+            if ($order) {
+                return $order;
+            }
+        }
+
+        if ($externalId) {
+            $order = Order::where('xendit_external_id', $externalId)->first();
+
+            if ($order) {
+                return $order;
+            }
+        }
+
+        if ($externalId && str_starts_with($externalId, 'ORDER-')) {
+            /*
+             * Supports both:
+             * ORDER-68
+             * ORDER-68-202606241806
+             */
+            if (preg_match('/^ORDER-(\d+)/', $externalId, $matches)) {
+                $orderId = (int) $matches[1];
+
+                if ($orderId > 0) {
+                    return Order::where('id', $orderId)->first();
+                }
+            }
+        }
+
+        return null;
     }
 
     private function handleReservationWebhook(
@@ -166,12 +201,14 @@ class XenditWebhookController extends Controller
         $reservation = null;
 
         if ($externalId && str_starts_with($externalId, 'RESERVATION-')) {
-            $reservationId = (int) str_replace('RESERVATION-', '', $externalId);
+            if (preg_match('/^RESERVATION-(\d+)/', $externalId, $matches)) {
+                $reservationId = (int) $matches[1];
 
-            $reservation = Reservation::where('id', $reservationId)
-                ->orWhere('xendit_external_id', $externalId)
-                ->orWhere('xendit_invoice_id', $invoiceId)
-                ->first();
+                $reservation = Reservation::where('id', $reservationId)
+                    ->orWhere('xendit_external_id', $externalId)
+                    ->orWhere('xendit_invoice_id', $invoiceId)
+                    ->first();
+            }
         } else {
             $reservation = Reservation::where('xendit_invoice_id', $invoiceId)
                 ->orWhere('xendit_external_id', $externalId)
@@ -193,7 +230,7 @@ class XenditWebhookController extends Controller
         if (in_array($status, ['PAID', 'SETTLED'], true)) {
             $reservation->update([
                 'payment_status' => 'paid',
-                'paid_at' => now(),
+                'paid_at' => $reservation->paid_at ?? now(),
             ]);
 
             Log::info('Reservation payment marked as paid', [
@@ -223,7 +260,7 @@ class XenditWebhookController extends Controller
             ], 200);
         }
 
-        if (in_array($status, ['FAILED', 'VOIDED'], true)) {
+        if (in_array($status, ['FAILED', 'VOIDED', 'CANCELLED', 'CANCELED'], true)) {
             $reservation->update([
                 'payment_status' => 'failed',
             ]);

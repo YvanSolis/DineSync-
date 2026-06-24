@@ -7,7 +7,11 @@ use App\Models\Reservation;
 use App\Models\RestaurantTable;
 use App\Models\TableSession;
 use App\Models\User;
+use App\Services\XenditService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class ServiceStaffController extends Controller
 {
@@ -55,6 +59,7 @@ class ServiceStaffController extends Controller
             ->map(function ($order) {
                 $order->display_status = $this->normalizeOrderStatus($order);
                 $order->status = $order->display_status;
+
                 return $order;
             });
 
@@ -149,32 +154,21 @@ class ServiceStaffController extends Controller
 
     public function markOrderPaid(Order $order)
     {
-        $paymentMethod = strtolower(trim($order->payment_method ?? ''));
-        $paymentMethod = str_replace(['_', '-'], ' ', $paymentMethod);
+        $orderStatus = strtolower(trim($order->status ?? 'pending'));
 
-        $allowedManualMethods = [
-            'pay at counter',
-            'pay later',
-            'cash',
-        ];
-
-        if (!in_array($paymentMethod, $allowedManualMethods, true)) {
-            return back()->with('error', 'Only Pay at Counter or Pay Later orders can be manually marked as paid.');
-        }
-
-        $paymentStatus = strtolower(trim($order->payment_status ?? 'pending'));
-
-        if (in_array($paymentStatus, ['paid', 'verified'], true)) {
-            return back()->with('error', 'This order is already paid.');
-        }
+        $newStatus = $orderStatus === 'awaiting_payment'
+            ? 'pending'
+            : $orderStatus;
 
         $order->update([
+            'payment_method' => 'Cash',
             'payment_status' => 'paid',
             'paid_at' => now(),
+            'status' => $newStatus,
             'updated_at' => now(),
         ]);
 
-        return back()->with('success', 'Order payment marked as paid. Kitchen status was not changed.');
+        return back()->with('success', 'Cash payment confirmed. Order is now paid and sent to KDS if it was waiting for payment.');
     }
 
     public function tableMonitoring()
@@ -207,7 +201,7 @@ class ServiceStaffController extends Controller
                 $lastSeen = $tablet->last_seen_at ? \Carbon\Carbon::parse($tablet->last_seen_at) : null;
                 $diffMinutes = $lastSeen ? $lastSeen->diffInMinutes(now()) : null;
 
-                if (! $tablet->is_online) {
+                if (!$tablet->is_online) {
                     $tablet->display_status = 'offline';
                 } elseif ($diffMinutes !== null && $diffMinutes > 2) {
                     $tablet->display_status = 'inactive';
@@ -245,6 +239,7 @@ class ServiceStaffController extends Controller
             ->map(function ($order) {
                 $order->display_status = $this->normalizeOrderStatus($order);
                 $order->status = $order->display_status;
+
                 return $order;
             })
             ->keyBy('id');
@@ -252,19 +247,6 @@ class ServiceStaffController extends Controller
         $activeOrders = collect();
 
         foreach ($tables as $table) {
-            /*
-                Important:
-                Do not search orders by table_number here.
-
-                Reason:
-                Old orders still keep their table_number even after the table session is done.
-                If we match by table_number, an available/cleaned table can still show the old
-                payment/order card.
-
-                The table card should only show an active order when the table itself is still
-                linked to that order through current_order_id.
-            */
-
             if ($table->status !== 'occupied') {
                 continue;
             }
@@ -357,32 +339,59 @@ class ServiceStaffController extends Controller
         return back()->with('success', 'Table is now available.');
     }
 
-    public function reservations()
+    public function reservations(Request $request)
     {
-        $reservations = Reservation::orderByRaw("CASE 
-                WHEN status = 'pending' THEN 1
-                WHEN status = 'approved' THEN 2
-                WHEN status = 'arrived' THEN 3
-                WHEN status = 'seated' THEN 4
-                WHEN status = 'completed' THEN 5
-                WHEN status = 'declined' THEN 6
-                WHEN status = 'cancelled' THEN 7
-                ELSE 8
-            END")
-            ->orderBy('reservation_date')
+        $selectedDate = $request->query('date', now('Asia/Manila')->toDateString());
+
+        try {
+            $selectedDate = \Carbon\Carbon::parse($selectedDate, 'Asia/Manila')->toDateString();
+        } catch (\Throwable $e) {
+            $selectedDate = now('Asia/Manila')->toDateString();
+        }
+
+        $pendingForSync = Reservation::whereDate('reservation_date', $selectedDate)
+            ->whereNotIn('payment_status', ['paid', 'verified', 'settled', 'completed', 'rejected'])
+            ->whereNotNull('xendit_invoice_id')
+            ->get();
+
+        $this->syncPendingReservationPayments($pendingForSync);
+
+        $reservations = Reservation::whereDate('reservation_date', $selectedDate)
+            ->orderByRaw("
+                CASE
+                    WHEN status = 'pending' THEN 1
+                    WHEN status = 'approved' THEN 2
+                    WHEN status = 'arrived' THEN 3
+                    WHEN status = 'seated' THEN 4
+                    WHEN status = 'completed' THEN 5
+                    WHEN status = 'declined' THEN 6
+                    WHEN status = 'cancelled' THEN 7
+                    ELSE 8
+                END
+            ")
             ->orderBy('reservation_time')
-            ->paginate(10);
+            ->orderByDesc('id')
+            ->paginate(10)
+            ->withQueryString();
 
         $stats = [
-            'pending' => Reservation::where('status', 'pending')->count(),
-            'approved_today' => Reservation::whereDate('reservation_date', now()->toDateString())
+            'selected_date' => $selectedDate,
+            'total' => Reservation::whereDate('reservation_date', $selectedDate)->count(),
+            'pending' => Reservation::whereDate('reservation_date', $selectedDate)
+                ->where('status', 'pending')
+                ->count(),
+            'approved_today' => Reservation::whereDate('reservation_date', $selectedDate)
                 ->where('status', 'approved')
                 ->count(),
-            'arrived' => Reservation::where('status', 'arrived')->count(),
-            'seated' => Reservation::where('status', 'seated')->count(),
+            'arrived' => Reservation::whereDate('reservation_date', $selectedDate)
+                ->where('status', 'arrived')
+                ->count(),
+            'seated' => Reservation::whereDate('reservation_date', $selectedDate)
+                ->where('status', 'seated')
+                ->count(),
         ];
 
-        return view('service.reservations', compact('reservations', 'stats'));
+        return view('service.reservations', compact('reservations', 'stats', 'selectedDate'));
     }
 
     public function updateReservationStatus(Request $request, Reservation $reservation)
@@ -392,9 +401,17 @@ class ServiceStaffController extends Controller
             'table_number' => ['nullable', 'string', 'max:50'],
         ]);
 
-        $status = $request->status;
+        $status = strtolower(trim($request->status));
+        $paymentStatus = strtolower(trim($reservation->payment_status ?? 'pending'));
 
-        if ($status === 'approved' && $reservation->payment_status !== 'verified') {
+        $paymentVerifiedStatuses = [
+            'paid',
+            'verified',
+            'settled',
+            'completed',
+        ];
+
+        if ($status === 'approved' && !in_array($paymentStatus, $paymentVerifiedStatuses, true)) {
             return back()->with('error', 'Please verify the reservation payment before accepting this reservation.');
         }
 
@@ -425,7 +442,7 @@ class ServiceStaffController extends Controller
                 return back()->with('error', 'Table number does not exist in table monitoring.');
             }
 
-            if (!in_array($table->status, ['available', 'reserved'])) {
+            if (!in_array($table->status, ['available', 'reserved'], true)) {
                 return back()->with('error', 'Selected table is not available.');
             }
 
@@ -445,7 +462,7 @@ class ServiceStaffController extends Controller
             $this->createTableSession($table, $reservation->guest_count, 'Reservation customer');
         }
 
-        if (in_array($status, ['completed', 'cancelled', 'declined'])) {
+        if (in_array($status, ['completed', 'cancelled', 'declined'], true)) {
             if ($reservation->table_number) {
                 $table = RestaurantTable::where('table_number', $reservation->table_number)
                     ->where('current_reservation_id', $reservation->id)
@@ -474,6 +491,15 @@ class ServiceStaffController extends Controller
     public function verifyReservationPayment(Reservation $reservation)
     {
         $reservation->payment_status = 'verified';
+
+        if (empty($reservation->payment_reference)) {
+            $reservation->payment_reference = $reservation->xendit_invoice_id ?? $reservation->xendit_external_id ?? null;
+        }
+
+        if (empty($reservation->paid_at)) {
+            $reservation->paid_at = now();
+        }
+
         $reservation->save();
 
         return back()->with('success', 'Reservation payment verified successfully.');
@@ -487,9 +513,391 @@ class ServiceStaffController extends Controller
         return back()->with('success', 'Reservation payment rejected.');
     }
 
-    public function customerAssistance()
+    public function payments(Request $request)
     {
-        return view('service.customer-assistance');
+        $mode = $request->query('mode', 'today');
+        $selectedDate = $request->query('date', now('Asia/Manila')->toDateString());
+
+        try {
+            $selectedDate = \Carbon\Carbon::parse($selectedDate, 'Asia/Manila')->toDateString();
+        } catch (\Throwable $e) {
+            $selectedDate = now('Asia/Manila')->toDateString();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Local Development Xendit Sync
+        |--------------------------------------------------------------------------
+        | Xendit webhook usually cannot hit 127.0.0.1, so every time service staff
+        | opens Payments page, we check pending Xendit invoices manually.
+        */
+        $pendingDigitalOrders = Order::query()
+            ->where(function ($query) {
+                $query->whereNull('payment_status')
+                    ->orWhereNotIn('payment_status', ['paid', 'verified']);
+            })
+            ->where(function ($query) {
+                $hasCondition = false;
+
+                if (Schema::hasColumn('orders', 'xendit_invoice_id')) {
+                    $query->whereNotNull('xendit_invoice_id');
+                    $hasCondition = true;
+                }
+
+                if (Schema::hasColumn('orders', 'xendit_external_id')) {
+                    if ($hasCondition) {
+                        $query->orWhereNotNull('xendit_external_id');
+                    } else {
+                        $query->whereNotNull('xendit_external_id');
+                        $hasCondition = true;
+                    }
+                }
+
+                if (Schema::hasColumn('orders', 'xendit_invoice_url')) {
+                    if ($hasCondition) {
+                        $query->orWhereNotNull('xendit_invoice_url');
+                    } else {
+                        $query->whereNotNull('xendit_invoice_url');
+                    }
+                }
+            })
+            ->get();
+
+        $this->syncPendingOrderPayments($pendingDigitalOrders);
+
+        $query = Order::with(['items.menuItem'])
+            ->whereNotNull('payment_method')
+            ->whereIn('payment_method', [
+                'Pay at Counter',
+                'pay at counter',
+                'Pay Later',
+                'pay later',
+                'Digital Payment',
+                'digital payment',
+                'QR PH',
+                'qr ph',
+                'Xendit',
+                'xendit',
+                'Cash',
+                'cash',
+            ]);
+
+        if ($mode !== 'all') {
+            $query->whereDate('created_at', $selectedDate);
+        }
+
+        $orders = $query
+            ->orderByRaw("
+                CASE
+                    WHEN LOWER(TRIM(status)) = 'awaiting_payment' THEN 1
+                    WHEN LOWER(TRIM(payment_status)) IN ('pending', 'unpaid') THEN 2
+                    WHEN LOWER(TRIM(payment_status)) IN ('paid', 'verified') THEN 3
+                    ELSE 4
+                END
+            ")
+            ->latest()
+            ->paginate(12)
+            ->withQueryString();
+
+        $baseStatsQuery = Order::query();
+
+        if ($mode !== 'all') {
+            $baseStatsQuery->whereDate('created_at', $selectedDate);
+        }
+
+        $allPaymentOrders = $baseStatsQuery
+            ->whereNotNull('payment_method')
+            ->get();
+
+        $stats = [
+            'awaiting_counter' => $allPaymentOrders->filter(function ($order) {
+                $method = strtolower(str_replace(['_', '-'], ' ', trim($order->payment_method ?? '')));
+                $status = strtolower(trim($order->status ?? ''));
+
+                return str_contains($method, 'counter') && $status === 'awaiting_payment';
+            })->count(),
+
+            'pay_later_unpaid' => $allPaymentOrders->filter(function ($order) {
+                $method = strtolower(str_replace(['_', '-'], ' ', trim($order->payment_method ?? '')));
+                $paymentStatus = strtolower(trim($order->payment_status ?? 'pending'));
+
+                return str_contains($method, 'later') && !in_array($paymentStatus, ['paid', 'verified'], true);
+            })->count(),
+
+            'digital_pending' => $allPaymentOrders->filter(function ($order) {
+                $method = strtolower(str_replace(['_', '-'], ' ', trim($order->payment_method ?? '')));
+                $paymentStatus = strtolower(trim($order->payment_status ?? 'pending'));
+
+                return (
+                    str_contains($method, 'digital') ||
+                    str_contains($method, 'qr') ||
+                    str_contains($method, 'xendit')
+                ) && !in_array($paymentStatus, ['paid', 'verified'], true);
+            })->count(),
+
+            'paid' => $allPaymentOrders->filter(function ($order) {
+                $paymentStatus = strtolower(trim($order->payment_status ?? 'pending'));
+
+                return in_array($paymentStatus, ['paid', 'verified'], true);
+            })->count(),
+        ];
+
+        $activeTables = RestaurantTable::where('status', 'occupied')
+            ->orderByRaw('CAST(table_number AS INTEGER) ASC')
+            ->get();
+
+        return view('service.payments', compact(
+            'orders',
+            'stats',
+            'activeTables',
+            'mode',
+            'selectedDate'
+        ));
+    }
+
+    public function processOrderPayment(Request $request, Order $order, XenditService $xenditService)
+    {
+        $request->validate([
+            'payment_method' => ['required', 'in:cash,qrph'],
+        ]);
+
+        $selectedMethod = strtolower(trim($request->payment_method));
+        $orderStatus = strtolower(trim($order->status ?? 'pending'));
+
+        if (in_array(strtolower(trim($order->payment_status ?? 'pending')), ['paid', 'verified'], true)) {
+            return back()->with('error', 'This order is already paid.');
+        }
+
+        if ($selectedMethod === 'cash') {
+            $newStatus = $orderStatus === 'awaiting_payment'
+                ? 'pending'
+                : $orderStatus;
+
+            $order->update([
+                'payment_method' => 'Cash',
+                'payment_status' => 'paid',
+                'paid_at' => now(),
+                'status' => $newStatus,
+                'updated_at' => now(),
+            ]);
+
+            return back()->with('success', 'Cash payment confirmed. Order is now paid and sent to KDS if it was waiting for payment.');
+        }
+
+        try {
+            $invoice = $xenditService->createOrderInvoice($order);
+
+            $updateData = [
+                'payment_method' => 'Digital Payment',
+                'payment_status' => 'pending',
+                'status' => 'awaiting_payment',
+                'updated_at' => now(),
+            ];
+
+            if (Schema::hasColumn('orders', 'xendit_invoice_id')) {
+                $updateData['xendit_invoice_id'] = $invoice['id'] ?? null;
+            }
+
+            if (Schema::hasColumn('orders', 'xendit_external_id')) {
+                $updateData['xendit_external_id'] = $invoice['external_id'] ?? null;
+            }
+
+            if (Schema::hasColumn('orders', 'xendit_invoice_url')) {
+                $updateData['xendit_invoice_url'] = $invoice['invoice_url'] ?? null;
+            }
+
+            if (Schema::hasColumn('orders', 'xendit_expiry_date')) {
+                $updateData['xendit_expiry_date'] = $invoice['expiry_date'] ?? null;
+            }
+
+            if (Schema::hasColumn('orders', 'payment_reference')) {
+                $updateData['payment_reference'] = $invoice['external_id'] ?? null;
+            }
+
+            $order->update($updateData);
+
+            if (empty($invoice['invoice_url'])) {
+                return back()->with('error', 'Xendit payment link was not generated.');
+            }
+
+            return redirect()->away($invoice['invoice_url']);
+        } catch (\Throwable $e) {
+            Log::error('Service order QR PH payment creation failed', [
+                'order_id' => $order->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', $e->getMessage() ?: 'Unable to create QR PH payment right now.');
+        }
+    }
+
+    private function syncPendingOrderPayments($orders): void
+    {
+        $secretKey = config('services.xendit.secret_key') ?: env('XENDIT_SECRET_KEY');
+
+        if (empty($secretKey)) {
+            Log::warning('Order Xendit sync skipped because XENDIT_SECRET_KEY is missing.');
+            return;
+        }
+
+        foreach ($orders as $order) {
+            $paymentStatus = strtolower(trim($order->payment_status ?? 'pending'));
+
+            if (in_array($paymentStatus, ['paid', 'verified'], true)) {
+                continue;
+            }
+
+            $invoice = null;
+            $invoiceId = $order->xendit_invoice_id ?? null;
+            $externalId = $order->xendit_external_id ?? null;
+
+            try {
+                $httpRequest = Http::withBasicAuth($secretKey, '')
+                    ->acceptJson()
+                    ->timeout(20);
+
+                if (app()->environment(['local', 'development'])) {
+                    $httpRequest = $httpRequest->withoutVerifying();
+                }
+
+                if (!empty($invoiceId)) {
+                    $response = $httpRequest->get(
+                        'https://api.xendit.co/v2/invoices/' . $invoiceId
+                    );
+
+                    if ($response->successful()) {
+                        $invoice = $response->json();
+                    } else {
+                        Log::warning('Order Xendit invoice sync by invoice ID failed', [
+                            'order_id' => $order->id,
+                            'order_number' => $order->order_number,
+                            'invoice_id_used' => $invoiceId,
+                            'status' => $response->status(),
+                            'body' => $response->body(),
+                        ]);
+                    }
+                }
+
+                if (!$invoice && !empty($externalId)) {
+                    $response = $httpRequest->get(
+                        'https://api.xendit.co/v2/invoices',
+                        [
+                            'external_id' => $externalId,
+                        ]
+                    );
+
+                    if ($response->successful()) {
+                        $result = $response->json();
+
+                        if (isset($result['data']) && is_array($result['data']) && count($result['data']) > 0) {
+                            $invoice = $result['data'][0];
+                        } elseif (isset($result[0]) && is_array($result[0])) {
+                            $invoice = $result[0];
+                        } elseif (isset($result['id'])) {
+                            $invoice = $result;
+                        }
+                    } else {
+                        Log::warning('Order Xendit invoice sync by external ID failed', [
+                            'order_id' => $order->id,
+                            'order_number' => $order->order_number,
+                            'external_id_used' => $externalId,
+                            'status' => $response->status(),
+                            'body' => $response->body(),
+                        ]);
+                    }
+                }
+
+                if (!$invoice) {
+                    Log::warning('Order Xendit sync skipped because invoice was not found', [
+                        'order_id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'xendit_invoice_id' => $order->xendit_invoice_id ?? null,
+                        'xendit_external_id' => $order->xendit_external_id ?? null,
+                        'xendit_invoice_url' => $order->xendit_invoice_url ?? null,
+                    ]);
+
+                    continue;
+                }
+
+                $invoiceStatus = strtoupper((string) ($invoice['status'] ?? ''));
+
+                Log::info('Order Xendit invoice sync checked invoice', [
+                    'order_id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'invoice_id' => $invoice['id'] ?? $invoiceId,
+                    'external_id' => $invoice['external_id'] ?? $externalId,
+                    'invoice_status' => $invoiceStatus,
+                ]);
+
+                if (in_array($invoiceStatus, ['PAID', 'SETTLED'], true)) {
+                    $orderStatus = strtolower(trim($order->status ?? 'pending'));
+
+                    $newStatus = $orderStatus === 'awaiting_payment'
+                        ? 'pending'
+                        : $orderStatus;
+
+                    $updateData = [
+                        'payment_status' => 'paid',
+                        'status' => $newStatus,
+                        'paid_at' => $order->paid_at ?? now(),
+                        'updated_at' => now(),
+                    ];
+
+                    if (Schema::hasColumn('orders', 'xendit_invoice_id')) {
+                        $updateData['xendit_invoice_id'] = $invoice['id'] ?? $order->xendit_invoice_id;
+                    }
+
+                    if (Schema::hasColumn('orders', 'xendit_external_id')) {
+                        $updateData['xendit_external_id'] = $invoice['external_id'] ?? $order->xendit_external_id;
+                    }
+
+                    if (Schema::hasColumn('orders', 'xendit_invoice_url')) {
+                        $updateData['xendit_invoice_url'] = $invoice['invoice_url'] ?? $order->xendit_invoice_url;
+                    }
+
+                    if (Schema::hasColumn('orders', 'payment_reference')) {
+                        $updateData['payment_reference'] = $invoice['id']
+                            ?? $invoice['external_id']
+                            ?? $order->payment_reference;
+                    }
+
+                    $order->update($updateData);
+
+                    Log::info('Order Xendit sync marked order as paid', [
+                        'order_id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'invoice_status' => $invoiceStatus,
+                        'new_order_status' => $newStatus,
+                    ]);
+
+                    continue;
+                }
+
+                if ($invoiceStatus === 'EXPIRED') {
+                    $order->update([
+                        'payment_status' => 'expired',
+                        'updated_at' => now(),
+                    ]);
+
+                    continue;
+                }
+
+                if (in_array($invoiceStatus, ['FAILED', 'VOIDED', 'CANCELLED', 'CANCELED'], true)) {
+                    $order->update([
+                        'payment_status' => 'failed',
+                        'updated_at' => now(),
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Order Xendit invoice sync error', [
+                    'order_id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'xendit_invoice_id' => $invoiceId,
+                    'xendit_external_id' => $externalId,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     public function readyOrderCount()
@@ -505,6 +913,86 @@ class ServiceStaffController extends Controller
             'latest_order_number' => $latestReadyOrder?->order_number,
             'latest_updated_at' => $latestReadyOrder?->updated_at,
         ]);
+    }
+
+    private function syncPendingReservationPayments($reservations): void
+    {
+        $secretKey = config('services.xendit.secret_key') ?: env('XENDIT_SECRET_KEY');
+
+        if (empty($secretKey)) {
+            Log::warning('Service reservation Xendit sync skipped because XENDIT_SECRET_KEY is missing.');
+            return;
+        }
+
+        foreach ($reservations as $reservation) {
+            $paymentStatus = strtolower($reservation->payment_status ?? 'pending');
+
+            if (in_array($paymentStatus, ['paid', 'verified', 'settled', 'completed', 'rejected'], true)) {
+                continue;
+            }
+
+            if (empty($reservation->xendit_invoice_id)) {
+                continue;
+            }
+
+            try {
+                $httpRequest = Http::withBasicAuth($secretKey, '')
+                    ->acceptJson()
+                    ->timeout(15);
+
+                if (app()->environment(['local', 'development'])) {
+                    $httpRequest = $httpRequest->withoutVerifying();
+                }
+
+                $response = $httpRequest->get(
+                    'https://api.xendit.co/v2/invoices/' . $reservation->xendit_invoice_id
+                );
+
+                if (!$response->successful()) {
+                    Log::warning('Service reservation Xendit invoice sync failed', [
+                        'reservation_id' => $reservation->id,
+                        'xendit_invoice_id' => $reservation->xendit_invoice_id,
+                        'status' => $response->status(),
+                        'body' => $response->body(),
+                    ]);
+
+                    continue;
+                }
+
+                $invoice = $response->json();
+                $invoiceStatus = strtoupper($invoice['status'] ?? '');
+
+                if (in_array($invoiceStatus, ['PAID', 'SETTLED'], true)) {
+                    $reservation->update([
+                        'payment_status' => 'paid',
+                        'payment_reference' => $invoice['id'] ?? $reservation->xendit_invoice_id,
+                        'paid_at' => $reservation->paid_at ?? now(),
+                    ]);
+
+                    continue;
+                }
+
+                if ($invoiceStatus === 'EXPIRED') {
+                    $reservation->update([
+                        'payment_status' => 'expired',
+                    ]);
+
+                    continue;
+                }
+
+                if (in_array($invoiceStatus, ['FAILED', 'CANCELLED', 'CANCELED'], true)) {
+                    $reservation->update([
+                        'payment_status' => 'failed',
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Service reservation Xendit invoice sync error', [
+                    'reservation_id' => $reservation->id,
+                    'xendit_invoice_id' => $reservation->xendit_invoice_id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     private function createTableSession(RestaurantTable $table, ?int $guestCount = null, ?string $notes = null): TableSession
@@ -545,7 +1033,7 @@ class ServiceStaffController extends Controller
     {
         $status = strtolower(trim($order->status ?? 'pending'));
 
-        if (in_array($status, ['new', 'placed', 'confirmed'])) {
+        if (in_array($status, ['new', 'placed', 'confirmed'], true)) {
             return 'pending';
         }
 

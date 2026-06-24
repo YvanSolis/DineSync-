@@ -9,6 +9,7 @@ use App\Services\XenditService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class ReservationController extends Controller
@@ -20,6 +21,12 @@ class ReservationController extends Controller
 
     public function index()
     {
+        $reservations = Reservation::where('user_id', auth()->id())
+            ->latest()
+            ->get();
+
+        $this->syncPendingReservationPayments($reservations);
+
         $reservations = Reservation::where('user_id', auth()->id())
             ->latest()
             ->get();
@@ -122,7 +129,6 @@ class ReservationController extends Controller
                     'guest_count' => $request->guest_count,
                     'reservation_fee_amount' => $settings->reservation_fee,
 
-                    // Xendit payment flow
                     'payment_method' => 'Xendit',
                     'payment_reference' => null,
                     'payment_proof' => null,
@@ -168,6 +174,86 @@ class ReservationController extends Controller
             return back()
                 ->withInput()
                 ->with('error', $e->getMessage() ?: 'Unable to create payment link right now. Please try again.');
+        }
+    }
+
+    private function syncPendingReservationPayments($reservations): void
+    {
+        $secretKey = config('services.xendit.secret_key') ?: env('XENDIT_SECRET_KEY');
+
+        if (empty($secretKey)) {
+            Log::warning('Xendit sync skipped because XENDIT_SECRET_KEY is missing.');
+            return;
+        }
+
+        foreach ($reservations as $reservation) {
+            $paymentStatus = strtolower($reservation->payment_status ?? 'pending');
+
+            if (in_array($paymentStatus, ['paid', 'verified', 'settled', 'completed'], true)) {
+                continue;
+            }
+
+            if (empty($reservation->xendit_invoice_id)) {
+                continue;
+            }
+
+            try {
+                $httpRequest = Http::withBasicAuth($secretKey, '')
+                    ->acceptJson()
+                    ->timeout(15);
+
+                if (app()->environment(['local', 'development'])) {
+                    $httpRequest = $httpRequest->withoutVerifying();
+                }
+
+                $response = $httpRequest->get(
+                    'https://api.xendit.co/v2/invoices/' . $reservation->xendit_invoice_id
+                );
+
+                if (!$response->successful()) {
+                    Log::warning('Xendit invoice sync failed', [
+                        'reservation_id' => $reservation->id,
+                        'xendit_invoice_id' => $reservation->xendit_invoice_id,
+                        'status' => $response->status(),
+                        'body' => $response->body(),
+                    ]);
+
+                    continue;
+                }
+
+                $invoice = $response->json();
+                $invoiceStatus = strtoupper($invoice['status'] ?? '');
+
+                if (in_array($invoiceStatus, ['PAID', 'SETTLED'], true)) {
+                    $reservation->update([
+                        'payment_status' => 'paid',
+                        'payment_reference' => $invoice['id'] ?? $reservation->xendit_invoice_id,
+                        'paid_at' => $reservation->paid_at ?? now(self::TIMEZONE),
+                    ]);
+
+                    continue;
+                }
+
+                if ($invoiceStatus === 'EXPIRED') {
+                    $reservation->update([
+                        'payment_status' => 'expired',
+                    ]);
+
+                    continue;
+                }
+
+                if (in_array($invoiceStatus, ['FAILED', 'CANCELLED', 'CANCELED'], true)) {
+                    $reservation->update([
+                        'payment_status' => 'failed',
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Xendit invoice sync error', [
+                    'reservation_id' => $reservation->id,
+                    'xendit_invoice_id' => $reservation->xendit_invoice_id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
         }
     }
 }

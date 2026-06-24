@@ -88,21 +88,24 @@
                     </p>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 w-full xl:w-auto">
+                <div class="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-[180px_minmax(260px,1fr)_180px_170px_170px] gap-3 w-full 2xl:max-w-[1040px]">
                     <input
                         id="paymentDateFilter"
                         type="date"
-                        class="border rounded-xl px-4 py-2.5 w-full"
+                        class="border rounded-xl px-4 py-2.5 w-full min-w-0"
                     >
 
                     <input
                         id="paymentSearch"
                         type="text"
                         placeholder="Search transaction, order, method..."
-                        class="border rounded-xl px-4 py-2.5 w-full xl:w-72"
+                        class="border rounded-xl px-4 py-2.5 w-full min-w-0"
                     >
 
-                    <select id="paymentStatusFilter" class="border rounded-xl px-4 py-2.5 w-full">
+                    <select
+                        id="paymentStatusFilter"
+                        class="border rounded-xl px-4 py-2.5 w-full min-w-0"
+                    >
                         <option value="all">All Status</option>
                         <option value="completed">Completed</option>
                         <option value="pending">Pending</option>
@@ -112,14 +115,14 @@
                     <button
                         type="button"
                         onclick="setPaymentDateToday()"
-                        class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold">
+                        class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold w-full">
                         Today
                     </button>
 
                     <button
                         type="button"
                         onclick="setPaymentViewAll()"
-                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-semibold">
+                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-semibold w-full">
                         All Records
                     </button>
                 </div>

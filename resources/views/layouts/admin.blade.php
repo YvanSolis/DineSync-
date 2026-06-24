@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>DineSync Admin</title>
+    <title>DineSync+ Admin</title>
+
+    <link rel="icon" href="{{ asset('favicon2.ico') }}" type="image/x-icon">
+    <link rel="shortcut icon" href="{{ asset('favicon2.ico') }}" type="image/x-icon">
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 

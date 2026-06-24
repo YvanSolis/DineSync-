@@ -17,7 +17,7 @@ class TableAccountSeeder extends Seeder
                 ],
                 [
                     'name' => "Table {$i}",
-                    'password' => Hash::make('DinesyncOpportuneX2026'),
+                    'password' => Hash::make('Dinesync+123'),
                     'role' => 'table_customer',
                     'table_number' => $i,
                     'is_online' => false,

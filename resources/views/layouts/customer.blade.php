@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chef Oppa Customer Portal</title>
 
+    <link rel="icon" href="{{ asset('favicon.ico') }}" type="image/x-icon">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}" type="image/x-icon">
+
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     <style>
@@ -63,7 +66,6 @@
             border-radius: 15px;
             border: 1px solid #e5e7eb;
             background: white;
-            display: flex;
             align-items: center;
             justify-content: center;
             color: #374151;
@@ -142,6 +144,31 @@
 
         .customer-mobile-logout:hover {
             background: #ea580c;
+        }
+
+        /* ================================
+           FORCE RESPONSIVE CUSTOMER NAV
+        ================================= */
+
+        @media (min-width: 1024px) {
+            .customer-menu-button {
+                display: none !important;
+            }
+
+            .customer-mobile-panel {
+                display: none !important;
+            }
+        }
+
+        @media (max-width: 1023px) {
+            .customer-menu-button {
+                display: flex !important;
+            }
+
+            .customer-desktop-links,
+            .customer-desktop-auth {
+                display: none !important;
+            }
         }
 
         /* ================================
@@ -488,7 +515,7 @@
                 </a>
 
                 <!-- Desktop Links -->
-                <div class="hidden lg:flex items-center gap-8 text-sm font-semibold">
+                <div class="customer-desktop-links hidden lg:flex items-center gap-8 text-sm font-semibold">
                     <a
                         href="{{ route('customer.home') }}"
                         class="{{ request()->routeIs('customer.home') ? 'text-orange-500' : 'text-gray-600 hover:text-orange-500' }} transition"
@@ -512,7 +539,7 @@
                 </div>
 
                 <!-- Desktop Auth Buttons -->
-                <div class="hidden lg:flex items-center gap-3">
+                <div class="customer-desktop-auth hidden lg:flex items-center gap-3">
                     @guest
                         <a
                             href="{{ route('login') }}"
@@ -893,4 +920,4 @@
     </div>
 
 </body>
-</html> 
+</html>

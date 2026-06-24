@@ -353,16 +353,16 @@
                 };
 
                 $paymentLabel = match ($paymentStatus) {
-                    'paid', 'verified' => 'Paid',
+                    'paid', 'verified', 'settled', 'completed' => 'Paid',
                     'expired' => 'Expired',
-                    'failed', 'rejected' => 'Failed',
+                    'failed', 'rejected', 'cancelled', 'canceled' => 'Failed',
                     default => 'Pending Payment',
                 };
 
                 $paymentClass = match ($paymentStatus) {
-                    'paid', 'verified' => 'bg-green-500/10 text-green-400 border border-green-500/30',
+                    'paid', 'verified', 'settled', 'completed' => 'bg-green-500/10 text-green-400 border border-green-500/30',
                     'expired' => 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30',
-                    'failed', 'rejected' => 'bg-red-500/10 text-red-400 border border-red-500/30',
+                    'failed', 'rejected', 'cancelled', 'canceled' => 'bg-red-500/10 text-red-400 border border-red-500/30',
                     default => 'bg-orange-500/10 text-orange-400 border border-orange-500/30',
                 };
 
@@ -386,7 +386,7 @@
                     ?? $reservation->reservation_fee
                     ?? 0;
 
-                $isPaymentPaid = in_array($paymentStatus, ['paid', 'verified'], true);
+                $isPaymentPaid = in_array($paymentStatus, ['paid', 'verified', 'settled', 'completed'], true);
                 $canContinuePayment = !$isPaymentPaid && $invoiceUrl;
             @endphp
 
@@ -548,13 +548,6 @@
                                     View Receipt
                                 </a>
                             @endif
-
-                            <a
-                                href="{{ route('customer.reservations.create') }}"
-                                class="w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/15 text-white border border-white/10 text-sm font-black transition"
-                            >
-                                New Reservation
-                            </a>
                         </div>
 
                     </div>

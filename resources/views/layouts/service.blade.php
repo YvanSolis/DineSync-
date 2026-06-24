@@ -3,10 +3,12 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>DineSync Service Staff</title>
-
+    <title>DineSync+ Service Staff</title>
+    
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
+    <link rel="icon" href="{{ asset('favicon2.ico') }}" type="image/x-icon">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}" type="image/x-icon">
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800&display=swap" rel="stylesheet" />
 
@@ -200,6 +202,13 @@
                {{ request()->routeIs('service.active-orders') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600' }}">
                 <span class="w-6 text-center">▤</span>
                 <span>Active Orders</span>
+            </a>
+            
+            <a href="{{ route('service.payments') }}"
+                class="service-nav-link flex items-center gap-3 px-4 py-3.5 rounded-2xl transition
+                {{ request()->routeIs('service.payments') ? 'bg-orange-500 text-white shadow-md shadow-orange-200' : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600' }}">
+                    <span class="w-6 text-center">₱</span>
+                    <span>Payments</span>
             </a>
 
             <a href="{{ route('service.table-monitoring') }}"
