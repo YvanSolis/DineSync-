@@ -21,7 +21,7 @@ class OrderItem extends Model
     {
         return $this->belongsTo(Order::class);
     }
-
+    
     public function menuItem()
     {
         return $this->belongsTo(MenuItem::class);

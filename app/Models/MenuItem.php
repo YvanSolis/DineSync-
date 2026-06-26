@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
 class MenuItem extends Model
@@ -62,8 +63,24 @@ class MenuItem extends Model
 
     public function getSoldTodayAttribute(): int
     {
+        if (array_key_exists('sold_today', $this->attributes)) {
+            return (int) ($this->attributes['sold_today'] ?? 0);
+        }
+
+        $selectedDate = now('Asia/Manila')->toDateString();
+
+        $startOfDayUtc = Carbon::parse($selectedDate, 'Asia/Manila')
+            ->startOfDay()
+            ->timezone('UTC');
+
+        $endOfDayUtc = Carbon::parse($selectedDate, 'Asia/Manila')
+            ->endOfDay()
+            ->timezone('UTC');
+
         return (int) $this->orderItems()
-            ->whereDate('created_at', now()->toDateString())
+            ->whereHas('order', function ($query) use ($startOfDayUtc, $endOfDayUtc) {
+                $query->whereBetween('created_at', [$startOfDayUtc, $endOfDayUtc]);
+            })
             ->sum('quantity');
     }
 

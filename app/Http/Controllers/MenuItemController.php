@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\MenuItem;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -71,7 +72,25 @@ class MenuItemController extends Controller
         $selectedCategory = $request->query('category');
         $search = $request->query('search');
 
-        $query = MenuItem::with('ingredients')->orderBy('name');
+        $selectedDate = now('Asia/Manila')->toDateString();
+
+        $startOfDayUtc = Carbon::parse($selectedDate, 'Asia/Manila')
+            ->startOfDay()
+            ->timezone('UTC');
+
+        $endOfDayUtc = Carbon::parse($selectedDate, 'Asia/Manila')
+            ->endOfDay()
+            ->timezone('UTC');
+
+        $query = MenuItem::with('ingredients')
+            ->withSum([
+                'orderItems as sold_today' => function ($query) use ($startOfDayUtc, $endOfDayUtc) {
+                    $query->whereHas('order', function ($orderQuery) use ($startOfDayUtc, $endOfDayUtc) {
+                        $orderQuery->whereBetween('created_at', [$startOfDayUtc, $endOfDayUtc]);
+                    });
+                },
+            ], 'quantity')
+            ->orderBy('name');
 
         if ($selectedCategory) {
             $query->where('category', $selectedCategory);
@@ -89,6 +108,7 @@ class MenuItemController extends Controller
             'meal_type_options' => $this->mealTypes,
             'inventory_type_options' => $this->inventoryTypes,
             'selected_category' => $selectedCategory,
+            'selected_date' => $selectedDate,
             'menu_items' => $menuItems->map(function ($item) {
                 return $this->formatMenuItemResponse($item);
             }),
@@ -150,7 +170,7 @@ class MenuItemController extends Controller
         $this->refreshAvailability($menuItem);
 
         return response()->json(
-            $this->formatMenuItemResponse($menuItem->fresh()->load('ingredients')),
+            $this->formatMenuItemResponse($this->freshMenuItem($menuItem)),
             201
         );
     }
@@ -160,7 +180,7 @@ class MenuItemController extends Controller
         $this->refreshAvailability($menuItem);
 
         return response()->json(
-            $this->formatMenuItemResponse($menuItem->fresh()->load('ingredients'))
+            $this->formatMenuItemResponse($this->freshMenuItem($menuItem))
         );
     }
 
@@ -219,7 +239,7 @@ class MenuItemController extends Controller
         }
 
         return response()->json(
-            $this->formatMenuItemResponse($menuItem->fresh()->load('ingredients'))
+            $this->formatMenuItemResponse($this->freshMenuItem($menuItem))
         );
     }
 
@@ -248,7 +268,7 @@ class MenuItemController extends Controller
         $this->refreshAvailability($menuItem);
 
         return response()->json(
-            $this->formatMenuItemResponse($menuItem->fresh()->load('ingredients'))
+            $this->formatMenuItemResponse($this->freshMenuItem($menuItem))
         );
     }
 
@@ -259,8 +279,31 @@ class MenuItemController extends Controller
         $this->refreshAvailability($menuItem);
 
         return response()->json(
-            $this->formatMenuItemResponse($menuItem->fresh()->load('ingredients'))
+            $this->formatMenuItemResponse($this->freshMenuItem($menuItem))
         );
+    }
+
+    private function freshMenuItem(MenuItem $menuItem): MenuItem
+    {
+        $selectedDate = now('Asia/Manila')->toDateString();
+
+        $startOfDayUtc = Carbon::parse($selectedDate, 'Asia/Manila')
+            ->startOfDay()
+            ->timezone('UTC');
+
+        $endOfDayUtc = Carbon::parse($selectedDate, 'Asia/Manila')
+            ->endOfDay()
+            ->timezone('UTC');
+
+        return MenuItem::with('ingredients')
+            ->withSum([
+                'orderItems as sold_today' => function ($query) use ($startOfDayUtc, $endOfDayUtc) {
+                    $query->whereHas('order', function ($orderQuery) use ($startOfDayUtc, $endOfDayUtc) {
+                        $orderQuery->whereBetween('created_at', [$startOfDayUtc, $endOfDayUtc]);
+                    });
+                },
+            ], 'quantity')
+            ->findOrFail($menuItem->id);
     }
 
     private function uploadImageToSupabase($file): string
@@ -307,6 +350,38 @@ class MenuItemController extends Controller
 
     private function formatMenuItemResponse(MenuItem $item): array
     {
+        $soldToday = (int) ($item->sold_today ?? 0);
+
+        $remainingToday = null;
+
+        if ($item->inventory_type !== 'custom'
+            && in_array($item->inventory_type, ['per_order', 'per_head'], true)
+            && $item->daily_limit !== null) {
+            $remainingToday = max(0, (int) $item->daily_limit - $soldToday);
+        }
+
+        $unit = $item->inventory_type === 'per_head' ? 'heads' : 'orders';
+
+        if (!$item->inventory_type) {
+            $dailyInventoryLabel = 'Inventory type not set';
+        } elseif ($item->inventory_type === 'custom') {
+            $dailyInventoryLabel = 'Staff confirms';
+        } elseif ($item->daily_limit === null) {
+            $dailyInventoryLabel = 'Daily limit not set';
+        } elseif ((int) $remainingToday <= 0) {
+            $dailyInventoryLabel = 'Sold out today';
+        } else {
+            $dailyInventoryLabel = "{$remainingToday} {$unit} left today";
+        }
+
+        if ($item->inventory_type === 'custom') {
+            $maxOrderQuantity = 99;
+        } elseif ($remainingToday !== null) {
+            $maxOrderQuantity = max(0, (int) $remainingToday);
+        } else {
+            $maxOrderQuantity = 0;
+        }
+
         return [
             'id' => $item->id,
             'name' => $item->name,
@@ -322,11 +397,11 @@ class MenuItemController extends Controller
 
             'inventory_type' => $item->inventory_type,
             'daily_limit' => $item->daily_limit,
-            'sold_today' => $item->sold_today,
-            'remaining_today' => $item->remaining_today,
-            'daily_inventory_label' => $item->daily_inventory_label,
-            'stock_label' => $item->stock_label,
-            'max_order_quantity' => $item->max_order_quantity,
+            'sold_today' => $soldToday,
+            'remaining_today' => $remainingToday,
+            'daily_inventory_label' => $dailyInventoryLabel,
+            'stock_label' => $dailyInventoryLabel,
+            'max_order_quantity' => $maxOrderQuantity,
 
             'ingredients' => $item->ingredients,
             'created_at' => $item->created_at,

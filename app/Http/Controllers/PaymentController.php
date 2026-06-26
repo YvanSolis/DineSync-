@@ -11,15 +11,17 @@ use Illuminate\Support\Collection;
 
 class PaymentController extends Controller
 {
+    private string $timezone = 'Asia/Manila';
+
     public function index(Request $request)
     {
         $mode = $request->query('mode', 'daily');
-        $selectedDate = $request->query('date', now('Asia/Manila')->toDateString());
+        $selectedDate = $request->query('date', now($this->timezone)->toDateString());
 
         try {
-            $selectedDate = Carbon::parse($selectedDate, 'Asia/Manila')->toDateString();
+            $selectedDate = Carbon::parse($selectedDate, $this->timezone)->toDateString();
         } catch (\Throwable $e) {
-            $selectedDate = now('Asia/Manila')->toDateString();
+            $selectedDate = now($this->timezone)->toDateString();
         }
 
         $legacyPayments = $this->getLegacyPaymentRecords($mode, $selectedDate);
@@ -64,6 +66,7 @@ class PaymentController extends Controller
         return response()->json([
             'mode' => $mode,
             'selected_date' => $selectedDate,
+            'today_manila' => now($this->timezone)->toDateString(),
             'payments' => $payments,
             'summary' => [
                 'total_transactions' => $payments->count(),
@@ -82,11 +85,17 @@ class PaymentController extends Controller
 
         if ($mode !== 'all') {
             $query->where(function ($query) use ($selectedDate) {
-                $query->whereDate('created_at', $selectedDate)
+                $query->whereRaw(
+                    "DATE(payments.created_at AT TIME ZONE ?) = ?",
+                    [$this->timezone, $selectedDate]
+                )
                     ->orWhere(function ($subQuery) use ($selectedDate) {
-                        $subQuery->whereNull('created_at')
+                        $subQuery->whereNull('payments.created_at')
                             ->whereHas('order', function ($orderQuery) use ($selectedDate) {
-                                $orderQuery->whereDate('created_at', $selectedDate);
+                                $orderQuery->whereRaw(
+                                    "DATE(orders.created_at AT TIME ZONE ?) = ?",
+                                    [$this->timezone, $selectedDate]
+                                );
                             });
                     });
             });
@@ -110,8 +119,8 @@ class PaymentController extends Controller
                     'payment_method' => $payment->payment_method ?? $order?->payment_method ?? 'N/A',
                     'amount' => (float) ($payment->amount ?? 0),
                     'status' => $this->normalizePaymentStatus($payment->status ?? $order?->payment_status),
-                    'created_at' => optional($payment->created_at)->toISOString(),
-                    'updated_at' => optional($payment->updated_at)->toISOString(),
+                    'created_at' => $this->safeDateIso($payment->created_at),
+                    'updated_at' => $this->safeDateIso($payment->updated_at),
                     'paid_at' => $this->safeDateIso($order?->paid_at),
                     'order' => $order ? $this->formatOrderForReceipt($order) : null,
                 ];
@@ -139,9 +148,18 @@ class PaymentController extends Controller
 
         if ($mode !== 'all') {
             $query->where(function ($query) use ($selectedDate) {
-                $query->whereDate('created_at', $selectedDate)
-                    ->orWhereDate('paid_at', $selectedDate)
-                    ->orWhereDate('updated_at', $selectedDate);
+                $query->whereRaw(
+                    "DATE(orders.created_at AT TIME ZONE ?) = ?",
+                    [$this->timezone, $selectedDate]
+                )
+                    ->orWhereRaw(
+                        "DATE(orders.paid_at AT TIME ZONE ?) = ?",
+                        [$this->timezone, $selectedDate]
+                    )
+                    ->orWhereRaw(
+                        "DATE(orders.updated_at AT TIME ZONE ?) = ?",
+                        [$this->timezone, $selectedDate]
+                    );
             });
         }
 
@@ -184,9 +202,18 @@ class PaymentController extends Controller
 
         if ($mode !== 'all') {
             $query->where(function ($query) use ($selectedDate) {
-                $query->whereDate('created_at', $selectedDate)
-                    ->orWhereDate('paid_at', $selectedDate)
-                    ->orWhereDate('updated_at', $selectedDate);
+                $query->whereRaw(
+                    "DATE(reservations.created_at AT TIME ZONE ?) = ?",
+                    [$this->timezone, $selectedDate]
+                )
+                    ->orWhereRaw(
+                        "DATE(reservations.paid_at AT TIME ZONE ?) = ?",
+                        [$this->timezone, $selectedDate]
+                    )
+                    ->orWhereRaw(
+                        "DATE(reservations.updated_at AT TIME ZONE ?) = ?",
+                        [$this->timezone, $selectedDate]
+                    );
             });
         }
 
@@ -321,7 +348,9 @@ class PaymentController extends Controller
         }
 
         try {
-            return Carbon::parse($date)->toISOString();
+            return Carbon::parse($date)
+                ->timezone($this->timezone)
+                ->toIso8601String();
         } catch (\Throwable $e) {
             return null;
         }

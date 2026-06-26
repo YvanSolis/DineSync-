@@ -515,21 +515,36 @@ class ServiceStaffController extends Controller
 
     public function payments(Request $request)
     {
-        $mode = $request->query('mode', 'today');
-        $selectedDate = $request->query('date', now('Asia/Manila')->toDateString());
+        $mode = $request->query('mode');
 
-        try {
-            $selectedDate = \Carbon\Carbon::parse($selectedDate, 'Asia/Manila')->toDateString();
-        } catch (\Throwable $e) {
-            $selectedDate = now('Asia/Manila')->toDateString();
+        if (!$mode) {
+            $mode = $request->has('date') ? 'daily' : 'today';
         }
+
+        if ($mode === 'today') {
+            $selectedDate = now('Asia/Manila')->toDateString();
+        } else {
+            $selectedDate = $request->query('date', now('Asia/Manila')->toDateString());
+
+            try {
+                $selectedDate = \Carbon\Carbon::parse($selectedDate, 'Asia/Manila')->toDateString();
+            } catch (\Throwable $e) {
+                $selectedDate = now('Asia/Manila')->toDateString();
+            }
+        }
+
+        $startOfDayUtc = \Carbon\Carbon::parse($selectedDate, 'Asia/Manila')
+            ->startOfDay()
+            ->timezone('UTC');
+
+        $endOfDayUtc = \Carbon\Carbon::parse($selectedDate, 'Asia/Manila')
+            ->endOfDay()
+            ->timezone('UTC');
 
         /*
         |--------------------------------------------------------------------------
         | Local Development Xendit Sync
         |--------------------------------------------------------------------------
-        | Xendit webhook usually cannot hit 127.0.0.1, so every time service staff
-        | opens Payments page, we check pending Xendit invoices manually.
         */
         $pendingDigitalOrders = Order::query()
             ->where(function ($query) {
@@ -583,7 +598,13 @@ class ServiceStaffController extends Controller
             ]);
 
         if ($mode !== 'all') {
-            $query->whereDate('created_at', $selectedDate);
+            $query->where(function ($query) use ($startOfDayUtc, $endOfDayUtc) {
+                $query->whereBetween('paid_at', [$startOfDayUtc, $endOfDayUtc])
+                    ->orWhere(function ($subQuery) use ($startOfDayUtc, $endOfDayUtc) {
+                        $subQuery->whereNull('paid_at')
+                            ->whereBetween('created_at', [$startOfDayUtc, $endOfDayUtc]);
+                    });
+            });
         }
 
         $orders = $query
@@ -602,7 +623,13 @@ class ServiceStaffController extends Controller
         $baseStatsQuery = Order::query();
 
         if ($mode !== 'all') {
-            $baseStatsQuery->whereDate('created_at', $selectedDate);
+            $baseStatsQuery->where(function ($query) use ($startOfDayUtc, $endOfDayUtc) {
+                $query->whereBetween('paid_at', [$startOfDayUtc, $endOfDayUtc])
+                    ->orWhere(function ($subQuery) use ($startOfDayUtc, $endOfDayUtc) {
+                        $subQuery->whereNull('paid_at')
+                            ->whereBetween('created_at', [$startOfDayUtc, $endOfDayUtc]);
+                    });
+            });
         }
 
         $allPaymentOrders = $baseStatsQuery

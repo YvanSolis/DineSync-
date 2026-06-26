@@ -81,9 +81,13 @@ Route::get('/menu', function () {
         ->whereNotNull('inventory_type')
         ->withSum([
             'orderItems as sold_today' => function ($query) use ($today) {
-                $query->whereDate('created_at', $today);
-            }
-        ], 'quantity')
+            $query->whereHas('order', function ($orderQuery) use ($today) {
+                $orderQuery->whereRaw(
+                    "DATE(created_at AT TIME ZONE 'Asia/Manila') = ?",
+                    [$today]
+                );
+            });
+        } ], 'quantity')
         ->select(
             'id',
             'name',
