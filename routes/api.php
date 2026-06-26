@@ -154,6 +154,7 @@ Route::get('/menu', function () {
 
     return response()->json([
         'success' => true,
+        'debug_source' => 'HOSTINGER_MENU_ROUTE_UPDATED',
         'data' => $menuItems,
     ]);
 });
