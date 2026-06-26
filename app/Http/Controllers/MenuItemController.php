@@ -110,17 +110,16 @@ class MenuItemController extends Controller
 
             'inventory_type' => 'nullable|string|in:' . implode(',', $this->inventoryTypes),
             'daily_limit' => 'nullable|integer|min:0',
+            'is_available' => 'nullable|boolean',
         ]);
 
-        if (!in_array($validated['category'], $this->categories)) {
+        if (!in_array($validated['category'], $this->categories, true)) {
             return response()->json([
                 'message' => 'Invalid menu category selected.',
             ], 422);
         }
 
-        $inventoryType = $validated['inventory_type'] ?? (
-            $validated['category'] === 'Chef Oppa Special' ? 'custom' : 'per_order'
-        );
+        $inventoryType = $validated['inventory_type'] ?? null;
 
         $dailyLimit = $inventoryType === 'custom'
             ? null
@@ -145,13 +144,7 @@ class MenuItemController extends Controller
             'inventory_type' => $inventoryType,
             'daily_limit' => $dailyLimit,
 
-            /*
-             * Daily Menu Inventory logic:
-             * - Custom items are available by default because staff confirms them.
-             * - Per order/per head items can be available if no daily limit is set yet.
-             * - If daily limit is set, availability will be refreshed below.
-             */
-            'is_available' => true,
+            'is_available' => false,
         ]);
 
         $this->refreshAvailability($menuItem);
@@ -189,7 +182,7 @@ class MenuItemController extends Controller
             'daily_limit' => 'sometimes|nullable|integer|min:0',
         ]);
 
-        if (isset($validated['category']) && !in_array($validated['category'], $this->categories)) {
+        if (isset($validated['category']) && !in_array($validated['category'], $this->categories, true)) {
             return response()->json([
                 'message' => 'Invalid menu category selected.',
             ], 422);
@@ -203,17 +196,6 @@ class MenuItemController extends Controller
             }
         }
 
-        /*
-         * Auto-set Chef Oppa Special as custom inventory.
-         */
-        if (($validated['category'] ?? $menuItem->category) === 'Chef Oppa Special') {
-            $updateData['inventory_type'] = 'custom';
-            $updateData['daily_limit'] = null;
-        }
-
-        /*
-         * Custom / No Fixed Limit should not have a daily limit.
-         */
         if (($updateData['inventory_type'] ?? $menuItem->inventory_type) === 'custom') {
             $updateData['daily_limit'] = null;
         }
@@ -228,10 +210,6 @@ class MenuItemController extends Controller
 
         $menuItem->update($updateData);
 
-        /*
-         * If admin manually turns it OFF, allow it.
-         * Otherwise, refresh using Daily Menu Inventory logic.
-         */
         if ($request->has('is_available') && $request->boolean('is_available') === false) {
             $menuItem->update([
                 'is_available' => false,
@@ -320,73 +298,10 @@ class MenuItemController extends Controller
 
     private function refreshAvailability(MenuItem $menuItem): void
     {
-        $menuItem->load('ingredients');
-
-        $inventoryType = $menuItem->inventory_type ?? (
-            $menuItem->category === 'Chef Oppa Special' ? 'custom' : 'per_order'
-        );
-
-        /*
-         * Chef Oppa Special / Custom:
-         * Staff will confirm the request, so it should not depend on ingredients.
-         */
-        if ($inventoryType === 'custom' || $menuItem->category === 'Chef Oppa Special') {
-            $menuItem->update([
-                'is_available' => true,
-            ]);
-
-            return;
-        }
-
-        /*
-         * Daily Menu Inventory:
-         * Per Order and Per Head depend on daily limit.
-         * If daily_limit is null, item remains available until admin sets a limit or disables it manually.
-         */
-        if (in_array($inventoryType, ['per_order', 'per_head'])) {
-            if ($menuItem->daily_limit === null) {
-                $menuItem->update([
-                    'is_available' => true,
-                ]);
-
-                return;
-            }
-
-            $menuItem->update([
-                'is_available' => $menuItem->remaining_today > 0,
-            ]);
-
-            return;
-        }
-
-        /*
-         * Old fallback ingredient-based logic.
-         * This only runs if an item somehow has an old/unknown inventory type.
-         */
-        if ($menuItem->ingredients->isEmpty()) {
-            $menuItem->update([
-                'is_available' => false,
-            ]);
-
-            return;
-        }
-
-        foreach ($menuItem->ingredients as $ingredient) {
-            $quantityRequired = (float) ($ingredient->pivot->quantity_required ?? 0);
-
-            $availableStock = (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0);
-
-            if ($quantityRequired <= 0 || $availableStock < $quantityRequired) {
-                $menuItem->update([
-                    'is_available' => false,
-                ]);
-
-                return;
-            }
-        }
+        $menuItem->refresh();
 
         $menuItem->update([
-            'is_available' => true,
+            'is_available' => $menuItem->computeAvailability(),
         ]);
     }
 

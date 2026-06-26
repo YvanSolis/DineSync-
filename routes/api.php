@@ -74,12 +74,83 @@ Route::middleware('auth:sanctum')->group(function () {
 */
 
 Route::get('/menu', function () {
+    $today = now()->toDateString();
+
     $menuItems = MenuItem::query()
         ->where('is_available', true)
-        ->select('id', 'name', 'category', 'price', 'image', 'is_available')
+        ->whereNotNull('inventory_type')
+        ->withSum([
+            'orderItems as sold_today' => function ($query) use ($today) {
+                $query->whereDate('created_at', $today);
+            }
+        ], 'quantity')
+        ->select(
+            'id',
+            'name',
+            'category',
+            'description',
+            'price',
+            'image',
+            'is_available',
+            'inventory_type',
+            'daily_limit',
+            'flavor_tags',
+            'meal_type'
+        )
         ->orderBy('category')
         ->orderBy('name')
-        ->get();
+        ->get()
+        ->map(function ($item) {
+            $soldToday = (int) ($item->sold_today ?? 0);
+
+            if ($item->inventory_type === 'custom') {
+                $remainingToday = null;
+                $maxOrderQuantity = 1;
+                $dailyInventoryLabel = 'Staff confirms';
+            } else {
+                $remainingToday = max(0, (int) $item->daily_limit - $soldToday);
+                $maxOrderQuantity = $remainingToday;
+
+                $unit = $item->inventory_type === 'per_head' ? 'heads' : 'orders';
+                $dailyInventoryLabel = "{$remainingToday} {$unit} left today";
+            }
+
+            return [
+                'id' => $item->id,
+                'name' => $item->name,
+                'category' => $item->category,
+                'description' => $item->description,
+                'price' => (float) $item->price,
+                'image' => $item->image,
+                'image_url' => $item->image_url,
+                'is_available' => (bool) $item->is_available,
+                'inventory_type' => $item->inventory_type,
+                'daily_limit' => $item->daily_limit,
+                'flavor_tags' => $item->flavor_tags ?? [],
+                'meal_type' => $item->meal_type,
+                'sold_today' => $soldToday,
+                'remaining_today' => $remainingToday,
+                'max_order_quantity' => $maxOrderQuantity,
+                'stock_label' => $dailyInventoryLabel,
+                'daily_inventory_label' => $dailyInventoryLabel,
+            ];
+        })
+        ->filter(function ($item) {
+            if ($item['inventory_type'] === 'custom') {
+                return true;
+            }
+
+            if (!in_array($item['inventory_type'], ['per_order', 'per_head'], true)) {
+                return false;
+            }
+
+            if ($item['daily_limit'] === null) {
+                return false;
+            }
+
+            return (int) $item['remaining_today'] > 0;
+        })
+        ->values();
 
     return response()->json([
         'success' => true,

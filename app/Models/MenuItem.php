@@ -35,24 +35,6 @@ class MenuItem extends Model
         'daily_inventory_label',
     ];
 
-    protected static function booted()
-    {
-        static::creating(function ($menuItem) {
-            if (!$menuItem->inventory_type) {
-                $menuItem->inventory_type = $menuItem->category === 'Chef Oppa Special'
-                    ? 'custom'
-                    : 'per_order';
-            }
-
-            if ($menuItem->inventory_type === 'custom' || $menuItem->category === 'Chef Oppa Special') {
-                $menuItem->is_available = true;
-                return;
-            }
-
-            $menuItem->is_available = true;
-        });
-    }
-
     public function ingredients()
     {
         return $this->belongsToMany(Ingredient::class, 'menu_item_ingredients')
@@ -91,6 +73,10 @@ class MenuItem extends Model
             return null;
         }
 
+        if (!in_array($this->inventory_type, ['per_order', 'per_head'], true)) {
+            return null;
+        }
+
         if ($this->daily_limit === null) {
             return null;
         }
@@ -100,87 +86,64 @@ class MenuItem extends Model
 
     public function getDailyInventoryLabelAttribute(): string
     {
+        if (!$this->inventory_type) {
+            return 'Inventory type not set';
+        }
+
         if ($this->inventory_type === 'custom') {
             return 'Staff confirms';
         }
 
+        if (!in_array($this->inventory_type, ['per_order', 'per_head'], true)) {
+            return 'Inventory type not set';
+        }
+
         if ($this->daily_limit === null) {
-            return 'No daily limit set';
+            return 'Daily limit not set';
         }
 
         $unit = $this->inventory_type === 'per_head' ? 'heads' : 'orders';
+        $remaining = (int) $this->remaining_today;
 
-        return "{$this->remaining_today} {$unit} left today";
+        if ($remaining <= 0) {
+            return 'Sold out today';
+        }
+
+        return "{$remaining} {$unit} left today";
     }
 
     public function getMaxOrderQuantityAttribute(): int
     {
-        if ($this->inventory_type === 'custom' || $this->category === 'Chef Oppa Special') {
+        if ($this->inventory_type === 'custom') {
             return 99;
         }
 
-        if (in_array($this->inventory_type, ['per_order', 'per_head'])) {
+        if (in_array($this->inventory_type, ['per_order', 'per_head'], true)) {
             if ($this->daily_limit === null) {
-                return 99;
+                return 0;
             }
 
             return max(0, (int) $this->remaining_today);
         }
 
-        $ingredients = $this->relationLoaded('ingredients')
-            ? $this->ingredients
-            : $this->ingredients()->get();
-
-        if ($ingredients->isEmpty()) {
-            return 0;
-        }
-
-        $possibleQuantities = [];
-
-        foreach ($ingredients as $ingredient) {
-            $requiredForOneOrder = (float) ($ingredient->pivot->quantity_required ?? 0);
-
-            if ($requiredForOneOrder <= 0) {
-                return 0;
-            }
-
-            $availableStock = (float) ($ingredient->current_stock ?? 0);
-
-            $possibleQuantities[] = (int) floor($availableStock / $requiredForOneOrder);
-        }
-
-        if (empty($possibleQuantities)) {
-            return 0;
-        }
-
-        return max(0, min($possibleQuantities));
+        return 0;
     }
 
     public function getStockLabelAttribute(): string
     {
+        if (!$this->inventory_type) {
+            return 'Inventory setup required';
+        }
+
         if ($this->inventory_type === 'custom') {
             return 'Staff confirms';
         }
 
-        if (in_array($this->inventory_type, ['per_order', 'per_head'])) {
+        if (in_array($this->inventory_type, ['per_order', 'per_head'], true)) {
             return $this->daily_inventory_label;
         }
 
-        $maxOrderQuantity = $this->max_order_quantity;
-
-        if ($maxOrderQuantity <= 0) {
-            return 'Out of stock';
-        }
-
-        if ($maxOrderQuantity > 5) {
-            return 'Available';
-        }
-
-        if ($maxOrderQuantity === 1) {
-            return 'Only 1 order left';
-        }
-
-        return "Only {$maxOrderQuantity} orders left";
+        return 'Inventory setup required';
     }
 
     public function refreshAvailability(): void
@@ -201,18 +164,18 @@ class MenuItem extends Model
 
     public function computeAvailability(): bool
     {
-        if ($this->inventory_type === 'custom' || $this->category === 'Chef Oppa Special') {
+        if ($this->inventory_type === 'custom') {
             return true;
         }
 
-        if (in_array($this->inventory_type, ['per_order', 'per_head'])) {
+        if (in_array($this->inventory_type, ['per_order', 'per_head'], true)) {
             if ($this->daily_limit === null) {
-                return true;
+                return false;
             }
 
-            return $this->remaining_today > 0;
+            return (int) $this->remaining_today > 0;
         }
 
-        return $this->max_order_quantity > 0;
+        return false;
     }
 }

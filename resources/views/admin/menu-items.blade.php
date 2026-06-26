@@ -7,7 +7,7 @@
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div class="min-w-0">
             <h1 class="text-2xl sm:text-3xl font-bold mb-1 text-gray-900">Menu Management</h1>
-            <p class="text-sm sm:text-base text-gray-500">Manage restaurant menu items, categories, images, and daily capacity.</p>
+            <p class="text-sm sm:text-base text-gray-500">Manage restaurant menu items, categories, images, and menu details.</p>
         </div>
 
         <button onclick="openMenuModal()"
@@ -22,7 +22,7 @@
             <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
                 <div class="min-w-0">
                     <h2 class="text-lg font-bold">Menu Items</h2>
-                    <p class="text-sm text-gray-500">View, filter, and manage menu items using daily menu capacity.</p>
+                    <p class="text-sm text-gray-500">View, filter, and manage menu items. Daily limits are assigned in the Inventory page.</p>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full xl:w-auto">
@@ -79,7 +79,7 @@
         <div class="flex items-start justify-between gap-3 px-4 sm:px-6 py-4 border-b bg-white shrink-0">
             <div class="min-w-0">
                 <h3 id="menuModalTitle" class="text-lg sm:text-xl font-bold">Add Menu Item</h3>
-                <p class="text-xs sm:text-sm text-gray-500">Set menu details, category, image, and daily inventory capacity.</p>
+                <p class="text-xs sm:text-sm text-gray-500">Set menu details, category, image, and AI recommendation tags.</p>
             </div>
 
             <button type="button" onclick="closeMenuModal()"
@@ -143,42 +143,6 @@
                         <label class="block text-sm font-semibold mb-1">Price</label>
                         <input id="itemPrice" type="number" step="0.01" class="w-full border rounded-xl px-3 py-2.5" required>
                         <p class="text-xs text-gray-400 mt-1">Use 0.00 for custom requests with price to be confirmed.</p>
-                    </div>
-
-                    <div class="border rounded-2xl p-4 bg-orange-50/40">
-                        <div class="mb-3">
-                            <h4 class="font-bold text-sm">Daily Inventory Setup</h4>
-                            <p class="text-xs text-gray-500">Controls low-stock alerts and daily menu capacity.</p>
-                        </div>
-
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-sm font-semibold mb-1">Inventory Type</label>
-                                <select id="itemInventoryType" class="w-full border rounded-xl px-3 py-2.5" required>
-                                    <option value="per_order">Per Order / Ala Carte</option>
-                                    <option value="per_head">Per Head / Unlimited</option>
-                                    <option value="custom">Custom / No Fixed Limit</option>
-                                </select>
-                                <p id="inventoryTypeHelpText" class="text-xs text-gray-500 mt-1">
-                                    For ala carte items. Counted by order quantity.
-                                </p>
-                            </div>
-
-                            <div id="dailyLimitWrapper">
-                                <label class="block text-sm font-semibold mb-1">Daily Limit</label>
-                                <input
-                                    id="itemDailyLimit"
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    placeholder="Example: 30"
-                                    class="w-full border rounded-xl px-3 py-2.5"
-                                >
-                                <p id="dailyLimitHelpText" class="text-xs text-gray-500 mt-1">
-                                    Maximum orders available for today. Leave blank for no limit.
-                                </p>
-                            </div>
-                        </div>
                     </div>
 
                     <div>
@@ -285,51 +249,19 @@ function formatLabel(value) {
 }
 
 function formatInventoryType(value) {
+    if (!value) {
+        return 'Not Set';
+    }
+
     switch (value) {
         case 'per_head':
             return 'Per Head';
         case 'custom':
             return 'Custom';
         case 'per_order':
-        default:
             return 'Per Order';
-    }
-}
-
-function updateDailyLimitVisibility() {
-    const inventoryType = document.getElementById('itemInventoryType')?.value || 'per_order';
-    const dailyLimitWrapper = document.getElementById('dailyLimitWrapper');
-    const dailyLimitInput = document.getElementById('itemDailyLimit');
-    const dailyLimitHelpText = document.getElementById('dailyLimitHelpText');
-    const inventoryTypeHelpText = document.getElementById('inventoryTypeHelpText');
-
-    if (!dailyLimitWrapper || !dailyLimitInput || !dailyLimitHelpText) return;
-
-    if (inventoryTypeHelpText) {
-        if (inventoryType === 'per_head') {
-            inventoryTypeHelpText.textContent = 'For unlimited meals. Counted by number of customers/heads.';
-        } else if (inventoryType === 'custom') {
-            inventoryTypeHelpText.textContent = 'For Chef Oppa Special or off-menu requests. Staff confirms availability.';
-        } else {
-            inventoryTypeHelpText.textContent = 'For ala carte items. Counted by order quantity.';
-        }
-    }
-
-    if (inventoryType === 'custom') {
-        dailyLimitInput.value = '';
-        dailyLimitInput.disabled = true;
-        dailyLimitWrapper.classList.add('opacity-60');
-        dailyLimitHelpText.textContent = 'Custom items do not use a daily limit.';
-        return;
-    }
-
-    dailyLimitInput.disabled = false;
-    dailyLimitWrapper.classList.remove('opacity-60');
-
-    if (inventoryType === 'per_head') {
-        dailyLimitHelpText.textContent = 'Maximum heads/persons available for today.';
-    } else {
-        dailyLimitHelpText.textContent = 'Maximum orders available for today. Leave blank for no limit.';
+        default:
+            return 'Not Set';
     }
 }
 
@@ -670,7 +602,7 @@ function renderMenuTable() {
 
                 <div class="mt-2 space-y-1">
                     <p class="text-xs text-gray-500">
-                        Inventory: <span class="font-medium">${safeText(formatInventoryType(item.inventory_type || 'per_order'))}</span>
+                        Inventory: <span class="font-medium">${safeText(formatInventoryType(item.inventory_type))}</span>
                     </p>
 
                     <p class="text-xs text-gray-500">
@@ -776,7 +708,7 @@ function renderMenuMobileList() {
 
                         <p class="text-xs text-gray-600">
                             <span class="font-semibold">Inventory:</span>
-                            ${safeText(formatInventoryType(item.inventory_type || 'per_order'))}
+                            ${safeText(formatInventoryType(item.inventory_type))}
                         </p>
 
                         <p class="text-xs text-gray-500">
@@ -833,13 +765,6 @@ function openMenuModal(id = null) {
         document.getElementById('itemDescription').value = item.description || '';
         document.getElementById('itemPrice').value = item.price || '';
 
-        document.getElementById('itemInventoryType').value = item.inventory_type || (
-            item.category === 'Chef Oppa Special' ? 'custom' : 'per_order'
-        );
-
-        document.getElementById('itemDailyLimit').value = item.daily_limit ?? '';
-        updateDailyLimitVisibility();
-
         imageInput.value = '';
         currentImageText.classList.toggle('hidden', !item.image && !item.image_url);
         document.getElementById('itemAvailable').checked = Boolean(item.is_available);
@@ -854,9 +779,6 @@ function openMenuModal(id = null) {
         imageInput.value = '';
         currentImageText.classList.add('hidden');
         document.getElementById('itemAvailable').checked = true;
-        document.getElementById('itemInventoryType').value = 'per_order';
-        document.getElementById('itemDailyLimit').value = '';
-        updateDailyLimitVisibility();
 
         populateFlavorTags([]);
         populateMealTypes('');
@@ -887,15 +809,6 @@ document.getElementById('menuForm').addEventListener('submit', async function(e)
     formData.append('description', document.getElementById('itemDescription').value);
     formData.append('price', document.getElementById('itemPrice').value);
     formData.append('is_available', document.getElementById('itemAvailable').checked ? '1' : '0');
-
-    const inventoryType = document.getElementById('itemInventoryType').value;
-    const dailyLimit = document.getElementById('itemDailyLimit').value;
-
-    formData.append('inventory_type', inventoryType);
-
-    if (inventoryType !== 'custom' && dailyLimit !== '') {
-        formData.append('daily_limit', dailyLimit);
-    }
 
     const selectedFlavorTags = getSelectedFlavorTags();
 
@@ -1025,7 +938,6 @@ async function deleteMenuItem(id, button) {
 
 document.getElementById('menuSearch').addEventListener('input', applyFilters);
 document.getElementById('categoryFilter').addEventListener('change', applyFilters);
-document.getElementById('itemInventoryType').addEventListener('change', updateDailyLimitVisibility);
 
 loadMenuItems();
 </script>

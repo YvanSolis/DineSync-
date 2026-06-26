@@ -8,18 +8,27 @@
         <div class="min-w-0">
             <h1 class="text-2xl sm:text-3xl font-bold mb-1 text-gray-900">Daily Menu Inventory</h1>
             <p class="text-sm sm:text-base text-gray-500">
-                Track today’s menu capacity by category, type, and daily availability.
+                Assign inventory type and daily limit. Items only become available when inventory setup is complete.
             </p>
         </div>
 
-        <button onclick="loadMenuInventory()"
-            class="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl font-semibold shadow-sm">
+        <button
+            id="refreshInventoryBtn"
+            onclick="loadMenuInventory(true)"
+            class="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl font-semibold shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+        >
             Refresh
         </button>
     </div>
 
     <!-- Summary Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="border border-blue-200 bg-blue-50 rounded-2xl p-4 sm:p-5">
+            <p class="font-semibold text-blue-700">Setup Required</p>
+            <p class="text-2xl sm:text-3xl font-bold mt-1" id="setupRequiredCount">0</p>
+            <p class="text-sm text-gray-600 mt-1">Items missing type or daily limit</p>
+        </div>
+
         <div class="border border-green-200 bg-green-50 rounded-2xl p-4 sm:p-5">
             <p class="font-semibold text-green-700">Available Items</p>
             <p class="text-2xl sm:text-3xl font-bold mt-1" id="availableCount">0</p>
@@ -44,7 +53,7 @@
         <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-4">
             <div class="min-w-0">
                 <h2 class="text-lg font-bold">Menu Capacity</h2>
-                <p class="text-sm text-gray-500">View menu inventory grouped by category for easier monitoring.</p>
+                <p class="text-sm text-gray-500">Set daily inventory here. Menu Management no longer controls daily limit/type.</p>
             </div>
         </div>
 
@@ -62,6 +71,7 @@
 
             <select id="typeFilter" class="border rounded-xl px-4 py-2.5 w-full">
                 <option value="all">All Types</option>
+                <option value="not_set">Not Set</option>
                 <option value="per_order">Per Order</option>
                 <option value="per_head">Per Head</option>
                 <option value="custom">Custom</option>
@@ -69,6 +79,7 @@
 
             <select id="statusFilter" class="border rounded-xl px-4 py-2.5 w-full">
                 <option value="all">All Status</option>
+                <option value="setup_required">Setup Required</option>
                 <option value="available">Available</option>
                 <option value="limited">Low Capacity</option>
                 <option value="sold_out">Sold Out</option>
@@ -91,8 +102,8 @@
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[92vh] overflow-hidden flex flex-col">
         <div class="flex items-center justify-between gap-3 p-4 sm:p-5 border-b shrink-0">
             <div class="min-w-0">
-                <h3 id="limitModalTitle" class="text-lg font-bold truncate">Update Daily Limit</h3>
-                <p class="text-xs text-gray-500 mt-1">Update capacity type and daily limit.</p>
+                <h3 id="limitModalTitle" class="text-lg font-bold truncate">Update Daily Inventory</h3>
+                <p class="text-xs text-gray-500 mt-1">Assign both inventory type and daily limit.</p>
             </div>
 
             <button onclick="closeLimitModal()"
@@ -107,10 +118,14 @@
             <div>
                 <label class="block text-sm font-semibold mb-1">Inventory Type</label>
                 <select id="limitInventoryType" class="w-full border rounded-xl px-3 py-2.5" required>
+                    <option value="">Select Inventory Type</option>
                     <option value="per_order">Per Order / Ala Carte</option>
                     <option value="per_head">Per Head / Unlimited</option>
                     <option value="custom">Custom / No Fixed Limit</option>
                 </select>
+                <p class="text-xs text-gray-400 mt-1">
+                    Required before this item can become available.
+                </p>
             </div>
 
             <div id="limitInputWrapper">
@@ -124,7 +139,13 @@
                     class="w-full border rounded-xl px-3 py-2.5"
                 >
                 <p id="limitHelpText" class="text-xs text-gray-400 mt-1">
-                    Leave blank for no limit.
+                    Required for Per Order and Per Head items.
+                </p>
+            </div>
+
+            <div class="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+                <p class="text-xs text-blue-700">
+                    Note: Normal items will only show in the customer/mobile menu when inventory type and daily limit are both set. Custom items do not need a daily limit.
                 </p>
             </div>
 
@@ -146,6 +167,7 @@
 <script>
 let menuItems = [];
 let filteredItems = [];
+let isInventoryLoading = false;
 
 let categories = [
     'Authentic Ala Carte Meals',
@@ -173,19 +195,24 @@ function formatNumber(value) {
 }
 
 function formatInventoryType(value) {
+    if (!value) {
+        return 'Not Set';
+    }
+
     switch (value) {
         case 'per_head':
             return 'Per Head';
         case 'custom':
             return 'Custom';
         case 'per_order':
-        default:
             return 'Per Order';
+        default:
+            return 'Not Set';
     }
 }
 
 function getUnitLabel(item) {
-    const type = item.inventory_type || 'per_order';
+    const type = item.inventory_type;
 
     if (type === 'per_head') {
         return 'heads';
@@ -198,24 +225,38 @@ function getUnitLabel(item) {
     return 'orders';
 }
 
+function needsInventorySetup(item) {
+    const type = item.inventory_type;
+
+    if (!type) {
+        return true;
+    }
+
+    if (type === 'custom') {
+        return false;
+    }
+
+    if (!['per_order', 'per_head'].includes(type)) {
+        return true;
+    }
+
+    return item.daily_limit === null || item.daily_limit === undefined;
+}
+
 function getStatus(item) {
-    const type = item.inventory_type || 'per_order';
+    if (needsInventorySetup(item)) {
+        return 'setup_required';
+    }
+
+    const type = item.inventory_type;
 
     if (type === 'custom') {
         return item.is_available ? 'available' : 'sold_out';
     }
 
-    if (!item.is_available) {
-        return 'sold_out';
-    }
-
-    if (item.daily_limit === null || item.daily_limit === undefined) {
-        return 'available';
-    }
-
     const remaining = Number(item.remaining_today ?? 0);
 
-    if (remaining <= 0) {
+    if (!item.is_available || remaining <= 0) {
         return 'sold_out';
     }
 
@@ -228,6 +269,10 @@ function getStatus(item) {
 
 function getStatusBadge(item) {
     const status = getStatus(item);
+
+    if (status === 'setup_required') {
+        return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">Setup Required</span>';
+    }
 
     if (status === 'sold_out') {
         return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-600">Sold Out</span>';
@@ -279,16 +324,29 @@ function populateCategoryFilter() {
     categoryFilter.value = currentValue;
 }
 
-async function loadMenuInventory() {
-    const container = document.getElementById('inventoryGroupsContainer');
+async function loadMenuInventory(isManualRefresh = false) {
+    if (isInventoryLoading) return;
 
-    container.innerHTML = `
-        <div class="bg-white rounded-2xl shadow-sm border">
-            <div class="px-6 py-8 text-center text-gray-400">
-                Loading daily menu inventory...
+    isInventoryLoading = true;
+
+    const container = document.getElementById('inventoryGroupsContainer');
+    const refreshBtn = document.getElementById('refreshInventoryBtn');
+
+    if (isManualRefresh) {
+        setButtonLoading(refreshBtn, true, 'Refreshing...');
+    }
+
+    const shouldShowFullLoading = menuItems.length === 0;
+
+    if (shouldShowFullLoading) {
+        container.innerHTML = `
+            <div class="bg-white rounded-2xl shadow-sm border">
+                <div class="px-6 py-8 text-center text-gray-400">
+                    Loading daily menu inventory...
+                </div>
             </div>
-        </div>
-    `;
+        `;
+    }
 
     try {
         const res = await fetch('/api/admin/menu-items', {
@@ -309,7 +367,16 @@ async function loadMenuInventory() {
         }
 
         const data = await res.json();
-        menuItems = Array.isArray(data) ? data : (data.menu_items ?? []);
+
+        if (Array.isArray(data)) {
+            menuItems = data;
+        } else {
+            menuItems = data.menu_items ?? [];
+
+            if (data.categories) {
+                categories = data.categories;
+            }
+        }
 
         populateCategoryFilter();
         applyFilters();
@@ -324,6 +391,12 @@ async function loadMenuInventory() {
                 </div>
             </div>
         `;
+    } finally {
+        isInventoryLoading = false;
+
+        if (isManualRefresh) {
+            setButtonLoading(refreshBtn, false);
+        }
     }
 }
 
@@ -344,11 +417,17 @@ function applyFilters() {
             ? true
             : (item.category || '') === categoryFilter;
 
-        const itemType = item.inventory_type || 'per_order';
-        const matchesType = typeFilter === 'all' ? true : itemType === typeFilter;
+        const itemType = item.inventory_type || 'not_set';
+
+        const matchesType = typeFilter === 'all'
+            ? true
+            : itemType === typeFilter;
 
         const itemStatus = getStatus(item);
-        const matchesStatus = statusFilter === 'all' ? true : itemStatus === statusFilter;
+
+        const matchesStatus = statusFilter === 'all'
+            ? true
+            : itemStatus === statusFilter;
 
         return matchesSearch && matchesCategory && matchesType && matchesStatus;
     });
@@ -358,41 +437,63 @@ function applyFilters() {
 }
 
 function renderSummary() {
+    const setupRequired = menuItems.filter(item => getStatus(item) === 'setup_required').length;
     const available = menuItems.filter(item => getStatus(item) === 'available').length;
     const limited = menuItems.filter(item => getStatus(item) === 'limited').length;
     const soldOut = menuItems.filter(item => getStatus(item) === 'sold_out').length;
 
+    document.getElementById('setupRequiredCount').textContent = formatNumber(setupRequired);
     document.getElementById('availableCount').textContent = formatNumber(available);
     document.getElementById('limitedCount').textContent = formatNumber(limited);
     document.getElementById('soldOutCount').textContent = formatNumber(soldOut);
 }
 
 function getDailyLimitText(item) {
-    const type = item.inventory_type || 'per_order';
+    const type = item.inventory_type;
+
+    if (!type) {
+        return 'Not set';
+    }
 
     if (type === 'custom') {
         return 'No fixed limit';
     }
 
     if (item.daily_limit === null || item.daily_limit === undefined) {
-        return 'No limit';
+        return 'Not set';
     }
 
     return `${formatNumber(item.daily_limit)} ${getUnitLabel(item)}`;
 }
 
 function getRemainingText(item) {
-    const type = item.inventory_type || 'per_order';
+    const type = item.inventory_type;
+
+    if (!type) {
+        return 'Setup required';
+    }
 
     if (type === 'custom') {
         return 'Staff confirms';
     }
 
     if (item.daily_limit === null || item.daily_limit === undefined) {
-        return 'No limit';
+        return 'Setup required';
     }
 
     return `${formatNumber(item.remaining_today ?? 0)} ${getUnitLabel(item)}`;
+}
+
+function getInventoryNote(item) {
+    if (!item.inventory_type) {
+        return 'Assign an inventory type and daily limit to make this item available.';
+    }
+
+    if (item.inventory_type !== 'custom' && (item.daily_limit === null || item.daily_limit === undefined)) {
+        return 'Daily limit is required for this inventory type.';
+    }
+
+    return item.daily_inventory_label || item.stock_label || '';
 }
 
 function renderGroupedInventory() {
@@ -439,7 +540,7 @@ function renderGroupedInventory() {
 
                 <!-- Desktop / Tablet Table -->
                 <div class="hidden md:block overflow-x-auto">
-                    <table class="w-full min-w-[860px] text-sm">
+                    <table class="w-full min-w-[900px] text-sm">
                         <thead class="bg-white text-gray-600 border-b">
                             <tr>
                                 <th class="text-left px-6 py-4 font-semibold">Menu Item</th>
@@ -454,7 +555,7 @@ function renderGroupedInventory() {
 
                         <tbody>
                             ${items.map(item => {
-                                const type = item.inventory_type || 'per_order';
+                                const type = item.inventory_type;
                                 const unit = getUnitLabel(item);
 
                                 return `
@@ -462,7 +563,7 @@ function renderGroupedInventory() {
                                         <td class="px-6 py-4">
                                             <p class="font-semibold text-gray-900">${safeText(item.name)}</p>
                                             <p class="text-xs text-gray-500 mt-1">
-                                                ${safeText(item.daily_inventory_label || item.stock_label || '')}
+                                                ${safeText(getInventoryNote(item))}
                                             </p>
                                         </td>
 
@@ -475,7 +576,10 @@ function renderGroupedInventory() {
                                         </td>
 
                                         <td class="px-6 py-4">
-                                            ${safeText(item.sold_today ?? 0)} ${safeText(unit)}
+                                            ${type && type !== 'custom'
+                                                ? `${safeText(item.sold_today ?? 0)} ${safeText(unit)}`
+                                                : '-'
+                                            }
                                         </td>
 
                                         <td class="px-6 py-4">
@@ -489,7 +593,7 @@ function renderGroupedInventory() {
                                         <td class="px-6 py-4">
                                             <button onclick="openLimitModal(${item.id})"
                                                 class="px-3 py-2 rounded-xl border text-gray-700 hover:bg-gray-50 text-xs font-semibold">
-                                                Update Limit
+                                                Update Inventory
                                             </button>
                                         </td>
                                     </tr>
@@ -502,7 +606,7 @@ function renderGroupedInventory() {
                 <!-- Mobile Cards -->
                 <div class="md:hidden p-4 space-y-3">
                     ${items.map(item => {
-                        const type = item.inventory_type || 'per_order';
+                        const type = item.inventory_type;
                         const unit = getUnitLabel(item);
 
                         return `
@@ -511,7 +615,7 @@ function renderGroupedInventory() {
                                     <div class="min-w-0">
                                         <h4 class="font-bold text-gray-900 leading-snug">${safeText(item.name)}</h4>
                                         <p class="text-xs text-gray-500 mt-1">
-                                            ${safeText(item.daily_inventory_label || item.stock_label || 'No inventory data')}
+                                            ${safeText(getInventoryNote(item))}
                                         </p>
                                     </div>
 
@@ -533,7 +637,10 @@ function renderGroupedInventory() {
 
                                     <p class="text-xs text-gray-600">
                                         <span class="font-semibold">Sold Today:</span>
-                                        ${safeText(item.sold_today ?? 0)} ${safeText(unit)}
+                                        ${type && type !== 'custom'
+                                            ? `${safeText(item.sold_today ?? 0)} ${safeText(unit)}`
+                                            : '-'
+                                        }
                                     </p>
 
                                     <p class="text-xs text-gray-600">
@@ -544,7 +651,7 @@ function renderGroupedInventory() {
 
                                 <button onclick="openLimitModal(${item.id})"
                                     class="w-full mt-3 px-3 py-2.5 rounded-xl border text-gray-700 hover:bg-gray-50 text-xs font-semibold">
-                                    Update Limit
+                                    Update Inventory
                                 </button>
                             </div>
                         `;
@@ -560,10 +667,8 @@ function openLimitModal(id) {
     if (!item) return;
 
     document.getElementById('limitMenuItemId').value = item.id;
-    document.getElementById('limitModalTitle').textContent = `Update Limit - ${item.name}`;
-    document.getElementById('limitInventoryType').value = item.inventory_type || (
-        item.category === 'Chef Oppa Special' ? 'custom' : 'per_order'
-    );
+    document.getElementById('limitModalTitle').textContent = `Update Inventory - ${item.name}`;
+    document.getElementById('limitInventoryType').value = item.inventory_type || '';
     document.getElementById('limitDailyLimit').value = item.daily_limit ?? '';
 
     updateLimitVisibility();
@@ -588,19 +693,56 @@ function updateLimitVisibility() {
     if (type === 'custom') {
         input.value = '';
         input.disabled = true;
+        input.required = false;
         wrapper.classList.add('opacity-60');
         helpText.textContent = 'Custom items do not use a daily limit.';
         return;
     }
 
     input.disabled = false;
+    input.required = type === 'per_order' || type === 'per_head';
     wrapper.classList.remove('opacity-60');
 
     if (type === 'per_head') {
-        helpText.textContent = 'Set how many heads/persons can be served today.';
+        helpText.textContent = 'Required. Set how many heads/persons can be served today.';
+    } else if (type === 'per_order') {
+        helpText.textContent = 'Required. Set how many orders can be served today.';
     } else {
-        helpText.textContent = 'Set how many orders can be served today. Leave blank for no limit.';
+        helpText.textContent = 'Select an inventory type first.';
     }
+}
+
+function findUpdatedInventoryItem(data) {
+    if (!data) return null;
+
+    if (data.menu_item && data.menu_item.id) return data.menu_item;
+    if (data.menuItem && data.menuItem.id) return data.menuItem;
+    if (data.data && data.data.id) return data.data;
+    if (data.id && data.name) return data;
+
+    return null;
+}
+
+function updateInventoryItemInMemory(updatedItem) {
+    if (!updatedItem || !updatedItem.id) {
+        return false;
+    }
+
+    const index = menuItems.findIndex(item => Number(item.id) === Number(updatedItem.id));
+
+    if (index < 0) {
+        return false;
+    }
+
+    menuItems[index] = {
+        ...menuItems[index],
+        ...updatedItem,
+    };
+
+    applyFilters();
+    renderSummary();
+
+    return true;
 }
 
 document.getElementById('limitForm').addEventListener('submit', async function(e) {
@@ -611,9 +753,19 @@ document.getElementById('limitForm').addEventListener('submit', async function(e
     const inventoryType = document.getElementById('limitInventoryType').value;
     const dailyLimit = document.getElementById('limitDailyLimit').value;
 
+    if (!inventoryType) {
+        alert('Please select an inventory type.');
+        return;
+    }
+
+    if ((inventoryType === 'per_order' || inventoryType === 'per_head') && dailyLimit === '') {
+        alert('Please enter a daily limit.');
+        return;
+    }
+
     const payload = {
         inventory_type: inventoryType,
-        daily_limit: inventoryType === 'custom' || dailyLimit === '' ? null : Number(dailyLimit),
+        daily_limit: inventoryType === 'custom' ? null : Number(dailyLimit),
     };
 
     setButtonLoading(saveBtn, true, 'Saving...');
@@ -631,15 +783,22 @@ document.getElementById('limitForm').addEventListener('submit', async function(e
         const data = await res.json();
 
         if (!res.ok) {
-            alert(data.message || 'Failed to update daily limit.');
+            alert(data.message || 'Failed to update daily inventory.');
             return;
         }
 
+        const updatedItem = findUpdatedInventoryItem(data);
+
         closeLimitModal();
-        await loadMenuInventory();
+
+        const updatedInstantly = updateInventoryItemInMemory(updatedItem);
+
+        if (!updatedInstantly) {
+            await loadMenuInventory(false);
+        }
     } catch (error) {
-        console.error('Update daily limit failed:', error);
-        alert('Failed to update daily limit. Please check your connection.');
+        console.error('Update daily inventory failed:', error);
+        alert('Failed to update daily inventory. Please check your connection.');
     } finally {
         setButtonLoading(saveBtn, false);
     }
@@ -651,18 +810,7 @@ document.getElementById('typeFilter').addEventListener('change', applyFilters);
 document.getElementById('statusFilter').addEventListener('change', applyFilters);
 document.getElementById('limitInventoryType').addEventListener('change', updateLimitVisibility);
 
-loadMenuInventory();
-
-setInterval(() => {
-    const limitModal = document.getElementById('limitModal');
-    const modalOpen = limitModal && !limitModal.classList.contains('hidden');
-
-    if (document.hidden || modalOpen) {
-        return;
-    }
-
-    loadMenuInventory();
-}, 30000);
+loadMenuInventory(false);
 </script>
 
 @endsection
