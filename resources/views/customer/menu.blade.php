@@ -107,8 +107,8 @@
 
     .menu-book-wrap {
         position: relative;
-        width: min(760px, 94vw);
-        height: 500px;
+        width: min(1120px, 96vw);
+        height: 760px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -129,8 +129,8 @@
     .menu-book-shell {
         position: relative;
         z-index: 5;
-        width: min(740px, 94vw);
-        height: 470px;
+        width: min(1080px, 96vw);
+        height: 720px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -139,7 +139,7 @@
     }
 
     .menu-book-shell.single-page-mode {
-        transform: translateX(-165px);
+        transform: translateX(-260px);
     }
 
     .menu-book-shell.spread-mode {
@@ -394,13 +394,13 @@
             }
 
             pageFlip = new window.St.PageFlip(book, {
-                width: 330,
-                height: 470,
+                width: 520,
+                height: 720,
                 size: 'stretch',
-                minWidth: 285,
-                maxWidth: 740,
-                minHeight: 400,
-                maxHeight: 470,
+                minWidth: 420,
+                maxWidth: 1040,
+                minHeight: 620,
+                maxHeight: 720,
                 maxShadowOpacity: 0.24,
                 showCover: true,
                 mobileScrollSupport: false,
