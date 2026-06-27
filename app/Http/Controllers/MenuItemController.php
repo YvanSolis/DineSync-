@@ -139,11 +139,19 @@ class MenuItemController extends Controller
             ], 422);
         }
 
-        $inventoryType = $validated['inventory_type'] ?? null;
+        $inventoryType = $validated['inventory_type'] ?? 'per_order';
+
+        if (!in_array($inventoryType, $this->inventoryTypes, true)) {
+            $inventoryType = 'per_order';
+        }
+
+        if ($validated['category'] === 'Chef Oppa Special') {
+            $inventoryType = 'custom';
+        }
 
         $dailyLimit = $inventoryType === 'custom'
             ? null
-            : ($validated['daily_limit'] ?? null);
+            : (int) ($validated['daily_limit'] ?? 0);
 
         $imageUrl = null;
 
@@ -159,12 +167,12 @@ class MenuItemController extends Controller
             'image' => $imageUrl,
 
             'flavor_tags' => $validated['flavor_tags'] ?? [],
-            'meal_type' => $validated['meal_type'] ?? null,
+            'meal_type' => $validated['meal_type'] ?? 'main',
 
             'inventory_type' => $inventoryType,
             'daily_limit' => $dailyLimit,
 
-            'is_available' => false,
+            'is_available' => $request->boolean('is_available', true),
         ]);
 
         $this->refreshAvailability($menuItem);
@@ -210,14 +218,37 @@ class MenuItemController extends Controller
 
         $updateData = [];
 
-        foreach (['name', 'category', 'description', 'price', 'meal_type', 'inventory_type', 'daily_limit'] as $field) {
+        foreach (['name', 'category', 'description', 'price', 'meal_type'] as $field) {
             if ($request->has($field)) {
                 $updateData[$field] = $validated[$field] ?? null;
             }
         }
 
-        if (($updateData['inventory_type'] ?? $menuItem->inventory_type) === 'custom') {
+        if ($request->has('inventory_type')) {
+            $updateData['inventory_type'] = $validated['inventory_type'] ?? 'per_order';
+        }
+
+        if ($request->has('daily_limit')) {
+            $updateData['daily_limit'] = (int) ($validated['daily_limit'] ?? 0);
+        }
+
+        $finalCategory = $updateData['category'] ?? $menuItem->category;
+        $finalInventoryType = $updateData['inventory_type'] ?? $menuItem->inventory_type ?? 'per_order';
+
+        if (!in_array($finalInventoryType, $this->inventoryTypes, true)) {
+            $finalInventoryType = 'per_order';
+        }
+
+        if ($finalCategory === 'Chef Oppa Special') {
+            $finalInventoryType = 'custom';
+        }
+
+        $updateData['inventory_type'] = $finalInventoryType;
+
+        if ($finalInventoryType === 'custom') {
             $updateData['daily_limit'] = null;
+        } elseif (!array_key_exists('daily_limit', $updateData) && $menuItem->daily_limit === null) {
+            $updateData['daily_limit'] = 0;
         }
 
         if ($request->has('flavor_tags')) {
@@ -343,7 +374,21 @@ class MenuItemController extends Controller
     {
         $menuItem->refresh();
 
+        if ($menuItem->category === 'Chef Oppa Special') {
+            $menuItem->update([
+                'inventory_type' => 'custom',
+                'daily_limit' => null,
+                'is_available' => true,
+            ]);
+
+            return;
+        }
+
         $menuItem->update([
+            'inventory_type' => $menuItem->inventory_type ?: 'per_order',
+            'daily_limit' => $menuItem->inventory_type === 'custom'
+                ? null
+                : ($menuItem->daily_limit ?? 0),
             'is_available' => $menuItem->computeAvailability(),
         ]);
     }
