@@ -20,6 +20,9 @@ class MenuItemController extends Controller
         'Maki & Sushi',
         'Jeon Series',
         'Tteokbokki Series',
+        'Drinks',
+        'Unlimited',
+        'Extras',
     ];
 
     private array $flavorTags = [
