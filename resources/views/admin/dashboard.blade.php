@@ -129,8 +129,8 @@
         </div>
     </div>
 
-    <!-- Preparation + Quick Forecast -->
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+    <!-- Preparation Suggestions -->
+    <div class="grid grid-cols-1 gap-4">
         <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5 min-w-0">
             <div class="mb-4">
                 <h3 class="font-bold text-base sm:text-lg">Preparation Suggestions Today</h3>
@@ -139,42 +139,6 @@
 
             <div id="restockSuggestionsList" class="space-y-3">
                 <p class="text-sm text-gray-400">No preparation suggestions available.</p>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5 min-w-0">
-            <div class="mb-4">
-                <h3 class="font-bold text-base sm:text-lg">Quick Tomorrow Prep Snapshot</h3>
-                <p class="text-sm text-gray-500">
-                    Short demand preview. Use Reports & Forecast for complete 7-day analysis.
-                </p>
-            </div>
-
-            <!-- Desktop / Tablet Table -->
-            <div class="hidden sm:block overflow-x-auto rounded-xl border">
-                <table class="w-full min-w-[680px] text-sm">
-                    <thead class="bg-gray-50 text-gray-600">
-                        <tr>
-                            <th class="text-left px-4 py-3 font-semibold">Item</th>
-                            <th class="text-left px-4 py-3 font-semibold">Predicted</th>
-                            <th class="text-left px-4 py-3 font-semibold">Confidence</th>
-                            <th class="text-left px-4 py-3 font-semibold">Recommendation</th>
-                        </tr>
-                    </thead>
-
-                    <tbody id="forecastTableBody">
-                        <tr>
-                            <td colspan="4" class="px-4 py-6 text-center text-gray-400">
-                                No forecast data available.
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Mobile Cards -->
-            <div id="forecastMobileList" class="sm:hidden space-y-3">
-                <p class="text-sm text-gray-400">No forecast data available.</p>
             </div>
         </div>
     </div>
@@ -521,71 +485,6 @@ function renderRestockSuggestions(data) {
     }).join('');
 }
 
-function renderForecast(data) {
-    const tbody = document.getElementById('forecastTableBody');
-    const mobileList = document.getElementById('forecastMobileList');
-    const forecast = pick(data, ['ai_demand_forecast', 'forecast', 'demand_forecast', 'simple_forecast'], []);
-
-    if (!Array.isArray(forecast) || forecast.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="4" class="px-4 py-6 text-center text-gray-400">
-                    No forecast data available.
-                </td>
-            </tr>
-        `;
-
-        mobileList.innerHTML = '<p class="text-sm text-gray-400">No forecast data available.</p>';
-        return;
-    }
-
-    const rows = forecast.slice(0, 5);
-
-    tbody.innerHTML = rows.map(item => {
-        const unit = pick(item, ['unit'], 'orders');
-        const name = pick(item, ['name', 'item_name', 'menu_item'], 'Unknown Item');
-        const predicted = Number(pick(item, ['predicted_demand', 'forecast_quantity', 'prediction'], 0)).toFixed(0);
-        const confidence = pick(item, ['confidence', 'confidence_level'], 'N/A');
-        const recommendation = pick(item, ['recommendation', 'suggestion'], 'Monitor demand');
-
-        return `
-            <tr class="border-t">
-                <td class="px-4 py-3 font-medium">${safeText(name)}</td>
-                <td class="px-4 py-3">${predicted} ${safeText(unit)}</td>
-                <td class="px-4 py-3">${safeText(confidence)}</td>
-                <td class="px-4 py-3">${safeText(recommendation)}</td>
-            </tr>
-        `;
-    }).join('');
-
-    mobileList.innerHTML = rows.map(item => {
-        const unit = pick(item, ['unit'], 'orders');
-        const name = pick(item, ['name', 'item_name', 'menu_item'], 'Unknown Item');
-        const predicted = Number(pick(item, ['predicted_demand', 'forecast_quantity', 'prediction'], 0)).toFixed(0);
-        const confidence = pick(item, ['confidence', 'confidence_level'], 'N/A');
-        const recommendation = pick(item, ['recommendation', 'suggestion'], 'Monitor demand');
-
-        return `
-            <div class="rounded-xl border bg-gray-50 p-3">
-                <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                        <p class="font-semibold text-gray-900">${safeText(name)}</p>
-                        <p class="text-xs text-gray-500 mt-1">${safeText(recommendation)}</p>
-                    </div>
-
-                    <span class="shrink-0 px-2.5 py-1 rounded-full bg-blue-100 text-blue-600 text-xs font-bold">
-                        ${safeText(confidence)}
-                    </span>
-                </div>
-
-                <p class="text-sm font-semibold text-orange-600 mt-3">
-                    Predicted: ${predicted} ${safeText(unit)}
-                </p>
-            </div>
-        `;
-    }).join('');
-}
-
 async function loadDashboard() {
     try {
         const res = await fetch('/api/admin/dashboard', {
@@ -610,7 +509,6 @@ async function loadDashboard() {
         try { renderMenuCapacityUsage(data); } catch (e) { console.error('Menu capacity usage error:', e); }
         try { renderLowStockAlerts(data); } catch (e) { console.error('Low stock error:', e); }
         try { renderRestockSuggestions(data); } catch (e) { console.error('Preparation suggestions error:', e); }
-        try { renderForecast(data); } catch (e) { console.error('Forecast error:', e); }
 
     } catch (error) {
         console.error('Dashboard load failed:', error);

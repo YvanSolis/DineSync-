@@ -164,7 +164,7 @@
 
             <!-- Brand -->
             <div class="px-5 py-5 border-b border-orange-100/70">
-                <div class="service-brand-card rounded-2xl px-4 py-4 text-white shadow-lg shadow-orange-200/60">
+                <div class="service-brand-card rounded-2xl px-4 py-4 text-gray-900 shadow-lg shadow-orange-200/60">
                     <div class="flex items-center gap-3">
                         <div class="w-12 h-12 rounded-2xl bg-white border border-white/60 flex items-center justify-center overflow-hidden shadow-sm shrink-0">
                             <img
@@ -178,7 +178,7 @@
                             <h1 class="text-[20px] font-extrabold leading-tight truncate">
                                 Chef Oppa
                             </h1>
-                            <p class="text-[12px] text-white/85">
+                            <p class="text-[12px] text-gray-700 font-semibold">
                                 Service Staff Panel
                             </p>
                         </div>

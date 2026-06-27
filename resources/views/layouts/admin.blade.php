@@ -32,7 +32,7 @@
         .brand-card {
             background:
                 linear-gradient(135deg, rgba(249, 115, 22, 0.72), rgba(251, 146, 60, 0.60)),
-                url('{{ asset('images/customer-menu/login-bg.png') }}');
+                url('{{ asset('images/login-bg.png') }}');
             background-size: cover;
             background-position: center;
         }
@@ -169,7 +169,7 @@
                 </button>
             </div>
 
-            <div class="brand-card rounded-2xl px-4 py-4 text-white shadow-lg shadow-orange-200/60">
+            <div class="brand-card rounded-2xl px-4 py-4 text-gray-900 shadow-lg shadow-orange-200/60">
                 <div class="flex items-center gap-3">
                     <div class="w-12 h-12 rounded-2xl bg-white border border-white/60 flex items-center justify-center overflow-hidden shadow-sm shrink-0">
                         <img
@@ -183,7 +183,7 @@
                         <h1 class="text-[18px] font-extrabold leading-tight truncate">
                             Chef Oppa
                         </h1>
-                        <p class="text-[11px] text-white/85">
+                        <p class="text-[11px] text-gray-700 font-semibold">
                             Admin Control Panel
                         </p>
                     </div>
@@ -244,7 +244,7 @@
     <aside class="hidden lg:flex fixed left-0 top-0 z-30 h-screen w-[240px] sidebar-bg border-r border-orange-100/70 flex-col overflow-hidden shadow-[8px_0_30px_rgba(15,23,42,0.04)]">
 
         <div class="px-5 py-5 border-b border-orange-100/70 shrink-0">
-            <div class="brand-card rounded-2xl px-4 py-4 text-white shadow-lg shadow-orange-200/60">
+            <div class="brand-card rounded-2xl px-4 py-4 text-gray-900 shadow-lg shadow-orange-200/60">
                 <div class="flex items-center gap-3">
                     <div class="w-12 h-12 rounded-2xl bg-white border border-white/60 flex items-center justify-center overflow-hidden shadow-sm shrink-0">
                         <img
@@ -258,7 +258,7 @@
                         <h1 class="text-[18px] font-extrabold leading-tight truncate">
                             Chef Oppa
                         </h1>
-                        <p class="text-[11px] text-white/85">
+                        <p class="text-[11px] text-gray-700 font-semibold">
                             Admin Control Panel
                         </p>
                     </div>
