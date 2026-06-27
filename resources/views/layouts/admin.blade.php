@@ -14,8 +14,8 @@
     <style>
         .admin-bg {
             background:
-                linear-gradient(135deg, rgba(255, 247, 237, 0.94), rgba(255, 255, 255, 0.96)),
-                url('https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1800&q=80');
+                linear-gradient(135deg, rgba(255, 247, 237, 0.45), rgba(255, 255, 255, 0.58)),
+                url('{{ asset('images/customer-menu/login-bg.png') }}');
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
@@ -23,16 +23,16 @@
 
         .sidebar-bg {
             background:
-                linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 247, 237, 0.96)),
-                url('https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1200&q=80');
+                linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 247, 237, 0.68)),
+                url('{{ asset('images/customer-menu/login-bg.png') }}');
             background-size: cover;
-            background-position: left center;
+            background-position: center;
         }
 
         .brand-card {
             background:
-                linear-gradient(135deg, rgba(249, 115, 22, 0.96), rgba(251, 146, 60, 0.88)),
-                url('https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1200&q=80');
+                linear-gradient(135deg, rgba(249, 115, 22, 0.72), rgba(251, 146, 60, 0.60)),
+                url('{{ asset('images/customer-menu/login-bg.png') }}');
             background-size: cover;
             background-position: center;
         }
@@ -155,7 +155,6 @@
         id="mobileAdminSidebar"
         class="fixed left-0 top-0 z-50 h-dvh w-[285px] max-w-[86vw] sidebar-bg border-r border-orange-100/70 flex flex-col overflow-hidden shadow-2xl transform -translate-x-full transition-transform duration-300 lg:hidden"
     >
-        <!-- Mobile Drawer Header -->
         <div class="px-5 py-5 border-b border-orange-100/70 shrink-0">
             <div class="flex items-center justify-between gap-3 mb-4">
                 <p class="text-xs font-bold text-orange-500 uppercase tracking-wide">Admin Menu</p>
@@ -192,7 +191,6 @@
             </div>
         </div>
 
-        <!-- Mobile Navigation Scroll Area -->
         <nav class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 py-4 space-y-1.5 text-[13px] font-medium">
             @foreach ($navLinks as $link)
                 <a href="{{ $link['url'] }}"
@@ -215,7 +213,6 @@
             @endforeach
         </nav>
 
-        <!-- Mobile Admin Account + Logout Fixed Bottom -->
         <div class="shrink-0 px-4 pt-3 pb-4 border-t border-orange-100/70 bg-white/85 backdrop-blur">
             <div class="rounded-2xl border border-orange-100 bg-white/90 px-3 py-3 shadow-sm">
                 <div class="flex items-center gap-3 mb-3">
@@ -246,7 +243,6 @@
     <!-- Desktop Fixed Sidebar -->
     <aside class="hidden lg:flex fixed left-0 top-0 z-30 h-screen w-[240px] sidebar-bg border-r border-orange-100/70 flex-col overflow-hidden shadow-[8px_0_30px_rgba(15,23,42,0.04)]">
 
-        <!-- Brand -->
         <div class="px-5 py-5 border-b border-orange-100/70 shrink-0">
             <div class="brand-card rounded-2xl px-4 py-4 text-white shadow-lg shadow-orange-200/60">
                 <div class="flex items-center gap-3">
@@ -270,7 +266,6 @@
             </div>
         </div>
 
-        <!-- Desktop Navigation Scroll Area -->
         <nav class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 py-5 space-y-1.5 text-[13px] font-medium">
             @foreach ($navLinks as $link)
                 <a href="{{ $link['url'] }}"
@@ -292,7 +287,6 @@
             @endforeach
         </nav>
 
-        <!-- Desktop Admin Account + Logout Fixed Bottom -->
         <div class="shrink-0 px-4 pt-3 pb-5 border-t border-orange-100/70 bg-white/75 backdrop-blur">
             <div class="rounded-2xl border border-orange-100 bg-white/90 px-3 py-3 shadow-sm">
                 <div class="flex items-center gap-3 mb-3">

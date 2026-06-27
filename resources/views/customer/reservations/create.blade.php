@@ -32,22 +32,14 @@
         background-image:
             linear-gradient(
                 135deg,
-                rgba(15, 23, 42, 0.78),
-                rgba(67, 31, 12, 0.68)
+                rgba(15, 23, 42, 0.72),
+                rgba(67, 31, 12, 0.62)
             ),
-            url("https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1800&q=80");
+            url('{{ asset('images/customer-menu/kds-background.png') }}');
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
         background-color: #0f172a;
-    }
-
-    main {
-        background: transparent !important;
-    }
-
-    footer {
-        margin-top: 0 !important;
     }
 
     .reservation-create-page {
@@ -57,10 +49,10 @@
         background-image:
             linear-gradient(
                 135deg,
-                rgba(15, 23, 42, 0.78),
-                rgba(67, 31, 12, 0.68)
+                rgba(15, 23, 42, 0.72),
+                rgba(67, 31, 12, 0.62)
             ),
-            url("https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1800&q=80");
+            url('{{ asset('images/customer-menu/kds-background.png') }}');
         background-size: cover;
         background-position: center;
         background-attachment: fixed;

@@ -37,16 +37,13 @@
         position: relative;
         width: 100%;
         background:
-            radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.18), transparent 18rem),
-            radial-gradient(circle at 82% 20%, rgba(249, 115, 22, 0.20), transparent 20rem),
-            linear-gradient(135deg, rgba(45, 22, 10, 0.92), rgba(99, 51, 22, 0.92)),
-            repeating-linear-gradient(
-                90deg,
-                #4b2410 0px,
-                #4b2410 78px,
-                #5f3016 78px,
-                #5f3016 156px
-            );
+            radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.14), transparent 18rem),
+            radial-gradient(circle at 82% 20%, rgba(249, 115, 22, 0.16), transparent 20rem),
+            linear-gradient(135deg, rgba(15, 23, 42, 0.72), rgba(67, 31, 12, 0.62)),
+            url('{{ asset('images/customer-menu/kds-background.png') }}');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
     }
 
     .menu-bg::before {

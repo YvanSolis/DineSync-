@@ -62,7 +62,7 @@
                 rgba(15, 23, 42, 0.80),
                 rgba(67, 31, 12, 0.70)
             ),
-            url("https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1800&q=80");
+            url('{{ asset('images/customer-menu/kds-background.png') }}');
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
@@ -95,7 +95,7 @@
                 rgba(15, 23, 42, 0.80),
                 rgba(67, 31, 12, 0.70)
             ),
-            url("https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1800&q=80");
+            url('{{ asset('images/customer-menu/kds-background.png') }}');
         background-size: cover;
         background-position: center;
         background-attachment: fixed;

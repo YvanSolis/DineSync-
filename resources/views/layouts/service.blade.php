@@ -23,8 +23,8 @@
 
         .service-bg {
             background:
-                linear-gradient(135deg, rgba(255, 247, 237, 0.94), rgba(255, 255, 255, 0.96)),
-                url('https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1800&q=80');
+                linear-gradient(135deg, rgba(255, 247, 237, 0.45), rgba(255, 255, 255, 0.58)),
+                url('{{ asset('images/customer-menu/login-bg.png') }}');
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
@@ -38,22 +38,22 @@
 
         .service-sidebar-bg {
             background:
-                linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 247, 237, 0.96)),
-                url('https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1200&q=80');
+                linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 247, 237, 0.68)),
+                url('{{ asset('images/customer-menu/login-bg.png') }}');
             background-size: cover;
-            background-position: left center;
+            background-position: center;
         }
 
         .service-brand-card {
             background:
-                linear-gradient(135deg, rgba(249, 115, 22, 0.96), rgba(251, 146, 60, 0.88)),
-                url('https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1200&q=80');
+                linear-gradient(135deg, rgba(249, 115, 22, 0.72), rgba(251, 146, 60, 0.60)),
+                url('{{ asset('images/customer-menu/login-bg.png') }}');
             background-size: cover;
             background-position: center;
         }
 
         .soft-glass {
-            background: rgba(255, 255, 255, 0.86);
+            background: rgba(255, 255, 255, 0.76);
             backdrop-filter: blur(14px);
             -webkit-backdrop-filter: blur(14px);
         }
