@@ -9,6 +9,14 @@ use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
+    private array $allowedRoles = [
+        'admin',
+        'service_staff',
+        'kitchen_staff',
+        'customer',
+        'table_customer',
+    ];
+
     public function index()
     {
         return response()->json(
@@ -24,7 +32,7 @@ class UserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:6'],
-            'role' => ['required', Rule::in(['admin', 'staff', 'kitchen', 'customer'])],
+            'role' => ['required', 'string', Rule::in($this->allowedRoles)],
         ]);
 
         $user = User::create([
@@ -43,19 +51,20 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
-            'name' => ['sometimes', 'string', 'max:255'],
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
             'email' => [
                 'sometimes',
+                'required',
                 'email',
                 'max:255',
                 Rule::unique('users', 'email')->ignore($user->id),
             ],
             'password' => ['nullable', 'string', 'min:6'],
-            'role' => ['sometimes', Rule::in(['admin', 'staff', 'kitchen', 'customer'])],
+            'role' => ['sometimes', 'required', 'string', Rule::in($this->allowedRoles)],
         ]);
 
         if (array_key_exists('password', $validated)) {
-            if ($validated['password']) {
+            if (!empty($validated['password'])) {
                 $validated['password'] = Hash::make($validated['password']);
             } else {
                 unset($validated['password']);
@@ -66,7 +75,7 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'User updated successfully.',
-            'user' => $user,
+            'user' => $user->fresh(),
         ]);
     }
 
