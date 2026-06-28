@@ -6,23 +6,6 @@
 @section('content')
 <div class="space-y-5 sm:space-y-6">
 
-    {{-- HEADER --}}
-    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div class="min-w-0">
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">
-                Table Monitoring
-            </h1>
-            <p class="text-sm sm:text-base text-gray-500 mt-1">
-                Monitor table availability, walk-ins, active orders, and payment status.
-            </p>
-        </div>
-
-        <div class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm w-full sm:w-auto">
-            <p class="text-sm text-gray-500">Total Tables</p>
-            <p class="text-2xl font-bold text-orange-500">{{ $tables->count() }}</p>
-        </div>
-    </div>
-
     {{-- FLASH MESSAGES --}}
     @if (session('success'))
         <div class="bg-green-50 border border-green-200 text-green-700 px-4 sm:px-5 py-4 rounded-xl text-sm font-semibold">
@@ -37,7 +20,12 @@
     @endif
 
     {{-- STATS --}}
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div class="bg-white border border-gray-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm">
+            <p class="text-xs sm:text-sm text-gray-500">Total Tables</p>
+            <p class="text-xl sm:text-2xl font-bold text-orange-500">{{ $tables->count() }}</p>
+        </div>
+
         <div class="bg-white border border-gray-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm">
             <p class="text-xs sm:text-sm text-gray-500">Available</p>
             <p class="text-xl sm:text-2xl font-bold text-green-500">{{ $tableStats['available'] ?? 0 }}</p>

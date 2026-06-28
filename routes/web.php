@@ -66,10 +66,21 @@ Route::post('/reservations', [CustomerReservationController::class, 'store'])
     ->middleware(['auth', 'role:customer'])
     ->name('customer.reservations.store');
 
+Route::get('/reservations/{reservation}/edit', [CustomerReservationController::class, 'edit'])
+    ->middleware(['auth', 'role:customer'])
+    ->name('customer.reservations.edit');
+
+Route::patch('/reservations/{reservation}', [CustomerReservationController::class, 'update'])
+    ->middleware(['auth', 'role:customer'])
+    ->name('customer.reservations.update');
+
+Route::delete('/reservations/{reservation}', [CustomerReservationController::class, 'destroy'])
+    ->middleware(['auth', 'role:customer'])
+    ->name('customer.reservations.destroy');
+
 Route::post('/chatbot/ask', [CustomerChatbotController::class, 'ask'])
     ->middleware(['auth', 'role:customer'])
     ->name('customer.chatbot.ask');
-
 /*
 |--------------------------------------------------------------------------
 | Default Dashboard Redirect
@@ -118,8 +129,20 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     })->name('payments');
 
     Route::get('/reservations', [AdminReservationController::class, 'index'])
-        ->name('reservations');
+    ->name('reservations');
 
+    Route::post('/reservations', [AdminReservationController::class, 'store'])
+        ->name('reservations.store');
+
+    Route::patch('/reservations/{reservation}/status', [AdminReservationController::class, 'updateStatus'])
+        ->name('reservations.update-status');
+
+    Route::patch('/reservations/{reservation}/verify-payment', [AdminReservationController::class, 'verifyPayment'])
+        ->name('reservations.verify-payment');
+
+    Route::patch('/reservations/{reservation}/reject-payment', [AdminReservationController::class, 'rejectPayment'])
+        ->name('reservations.reject-payment');
+        
     Route::get('/settings', [AdminRestaurantSettingController::class, 'edit'])
         ->name('settings');
 

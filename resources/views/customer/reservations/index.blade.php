@@ -3,6 +3,10 @@
 @section('content')
 
 <style>
+    [x-cloak] {
+        display: none !important;
+    }
+
     html,
     body {
         background-image:
@@ -117,7 +121,90 @@
     }
 
     .reservation-actions {
-        width: 230px;
+        width: 250px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+    }
+
+    .reservation-action-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.65rem;
+    }
+
+    .reservation-action-btn {
+        width: 100%;
+        min-height: 46px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.75rem 1rem;
+        border-radius: 1rem;
+        font-size: 0.8rem;
+        font-weight: 900;
+        line-height: 1.2;
+        text-align: center;
+        transition: all 160ms ease;
+        border: 1px solid transparent;
+    }
+
+    .reservation-action-btn:hover {
+        transform: translateY(-1px);
+    }
+
+    .reservation-action-edit {
+        background: rgba(148, 163, 184, 0.12);
+        color: #e5e7eb;
+        border-color: rgba(148, 163, 184, 0.28);
+    }
+
+    .reservation-action-edit:hover {
+        background: rgba(148, 163, 184, 0.2);
+        border-color: rgba(148, 163, 184, 0.42);
+    }
+
+    .reservation-action-cancel {
+        background: rgba(251, 113, 133, 0.12);
+        color: #fecdd3;
+        border-color: rgba(251, 113, 133, 0.3);
+    }
+
+    .reservation-action-cancel:hover {
+        background: rgba(251, 113, 133, 0.2);
+        border-color: rgba(251, 113, 133, 0.45);
+    }
+
+    .reservation-action-payment {
+        background: linear-gradient(135deg, #f97316, #ea580c);
+        color: #ffffff;
+        box-shadow: 0 14px 28px rgba(249, 115, 22, 0.24);
+    }
+
+    .reservation-action-payment:hover {
+        background: linear-gradient(135deg, #fb923c, #f97316);
+    }
+
+    .reservation-action-receipt {
+        background: rgba(20, 184, 166, 0.15);
+        color: #99f6e4;
+        border-color: rgba(20, 184, 166, 0.35);
+    }
+
+    .reservation-action-receipt:hover {
+        background: rgba(20, 184, 166, 0.24);
+        border-color: rgba(20, 184, 166, 0.5);
+    }
+
+    .cancel-modal-backdrop {
+        background: rgba(0, 0, 0, 0.68);
+        backdrop-filter: blur(6px);
+    }
+
+    .cancel-modal-card {
+        background: linear-gradient(135deg, #111827 0%, #020617 100%);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
     }
 
     @media (max-width: 1279px) {
@@ -131,6 +218,7 @@
 
         .reservation-actions {
             width: 100%;
+            max-width: 420px;
         }
     }
 
@@ -238,12 +326,18 @@
         }
 
         .reservation-actions {
-            display: grid;
+            width: 100%;
+            max-width: none;
+            gap: 0.55rem;
+        }
+
+        .reservation-action-row {
             grid-template-columns: 1fr;
             gap: 0.55rem;
         }
 
-        .reservation-actions a {
+        .reservation-action-btn {
+            min-height: 44px;
             padding-top: 0.75rem !important;
             padding-bottom: 0.75rem !important;
             border-radius: 1rem !important;
@@ -263,7 +357,33 @@
     }
 </style>
 
-<div class="reservations-page">
+<div
+    class="reservations-page"
+    x-data="{
+        cancelModalOpen: false,
+        cancelFormId: null,
+
+        openCancelModal(formId) {
+            this.cancelFormId = formId;
+            this.cancelModalOpen = true;
+        },
+
+        closeCancelModal() {
+            this.cancelModalOpen = false;
+            this.cancelFormId = null;
+        },
+
+        confirmCancel() {
+            if (this.cancelFormId) {
+                const form = document.getElementById(this.cancelFormId);
+
+                if (form) {
+                    form.submit();
+                }
+            }
+        }
+    }"
+>
     <section class="reservations-inner max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-8 pb-10 sm:pb-12">
 
         <!-- PAGE HEADER -->
@@ -380,6 +500,14 @@
 
                 $isPaymentPaid = in_array($paymentStatus, ['paid', 'verified', 'settled', 'completed'], true);
                 $canContinuePayment = !$isPaymentPaid && $invoiceUrl;
+
+                $canManageReservation = !in_array(
+                    $reservationStatus,
+                    ['approved', 'arrived', 'seated', 'completed', 'declined', 'cancelled'],
+                    true
+                );
+
+                $cancelFormId = 'cancel-reservation-form-' . $reservation->id;
             @endphp
 
             <div class="reservation-card rounded-[1.5rem] sm:rounded-[2rem] overflow-hidden text-white mb-5">
@@ -520,12 +648,40 @@
                         </div>
 
                         <!-- ACTIONS -->
-                        <div class="reservation-actions space-y-3">
+                        <div class="reservation-actions">
+                            @if ($canManageReservation)
+                                <div class="reservation-action-row">
+                                    <a
+                                        href="{{ route('customer.reservations.edit', $reservation) }}"
+                                        class="reservation-action-btn reservation-action-edit"
+                                    >
+                                        Edit
+                                    </a>
+
+                                    <form
+                                        id="{{ $cancelFormId }}"
+                                        method="POST"
+                                        action="{{ route('customer.reservations.destroy', $reservation) }}"
+                                    >
+                                        @csrf
+                                        @method('DELETE')
+
+                                        <button
+                                            type="button"
+                                            @click="openCancelModal('{{ $cancelFormId }}')"
+                                            class="reservation-action-btn reservation-action-cancel"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </form>
+                                </div>
+                            @endif
+
                             @if ($canContinuePayment)
                                 <a
                                     href="{{ $invoiceUrl }}"
                                     target="_blank"
-                                    class="w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-black transition shadow-lg shadow-orange-500/30"
+                                    class="reservation-action-btn reservation-action-payment"
                                 >
                                     Continue Payment
                                 </a>
@@ -535,7 +691,7 @@
                                 <a
                                     href="{{ $invoiceUrl }}"
                                     target="_blank"
-                                    class="w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl bg-green-500 hover:bg-green-600 text-white text-sm font-black transition shadow-lg shadow-green-500/20"
+                                    class="reservation-action-btn reservation-action-receipt"
                                 >
                                     View Receipt
                                 </a>
@@ -586,6 +742,63 @@
         @endif
 
     </section>
+
+    <!-- CANCEL RESERVATION MODAL -->
+    <div
+        x-cloak
+        x-show="cancelModalOpen"
+        x-transition.opacity
+        class="fixed inset-0 z-[999] cancel-modal-backdrop flex items-center justify-center px-4"
+    >
+        <div
+            x-show="cancelModalOpen"
+            x-transition.scale
+            @click.away="closeCancelModal()"
+            class="cancel-modal-card w-full max-w-md rounded-[1.75rem] p-6 sm:p-7 text-white"
+        >
+            <div class="flex items-start gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-red-500/15 border border-red-400/20 text-red-400 flex items-center justify-center font-black shrink-0">
+                    !
+                </div>
+
+                <div class="min-w-0">
+                    <p class="text-xs font-black text-red-400 uppercase tracking-widest mb-2">
+                        Cancel Reservation
+                    </p>
+
+                    <h3 class="text-xl sm:text-2xl font-black leading-tight">
+                        Are you sure?
+                    </h3>
+
+                    <p class="text-sm text-gray-300 mt-3 leading-6">
+                        Do you really want to cancel this reservation? This will mark your reservation as cancelled.
+                    </p>
+
+                    <p class="text-xs text-gray-400 mt-3 leading-5">
+                        If the reservation fee has already been paid, it will remain recorded as paid because the reservation fee is non-refundable.
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                    type="button"
+                    @click="closeCancelModal()"
+                    class="w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/15 text-white text-sm font-black transition"
+                >
+                    Keep Reservation
+                </button>
+
+                <button
+                    type="button"
+                    @click="confirmCancel()"
+                    class="w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl bg-red-500 hover:bg-red-600 text-white text-sm font-black transition shadow-lg shadow-red-500/20"
+                >
+                    Yes, Cancel
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 @endsection

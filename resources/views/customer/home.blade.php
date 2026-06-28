@@ -5,10 +5,7 @@
 @php
     $fallbackMenuImage = 'https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1200&q=80';
 
-    $bestSellerItems = collect($bestSellers ?? [])->values();
-    $recommendedItems = collect($recommendedToday ?? [])->values();
-
-    $topBestSeller = $bestSellerItems->first();
+    $excludedPopularCategories = ['Drinks', 'Extras'];
 
     $getItemValue = function ($item, $key, $default = null) {
         if (is_array($item)) {
@@ -21,6 +18,20 @@
 
         return $default;
     };
+
+    $bestSellerItems = collect($bestSellers ?? [])
+        ->filter(function ($item) use ($getItemValue, $excludedPopularCategories) {
+            return !in_array($getItemValue($item, 'category'), $excludedPopularCategories, true);
+        })
+        ->values();
+
+    $recommendedItems = collect($recommendedToday ?? [])
+        ->filter(function ($item) use ($getItemValue, $excludedPopularCategories) {
+            return !in_array($getItemValue($item, 'category'), $excludedPopularCategories, true);
+        })
+        ->values();
+
+    $topBestSeller = $bestSellerItems->first();
 
     $getMenuImage = function ($item) use ($fallbackMenuImage, $getItemValue) {
         if (!$item) {

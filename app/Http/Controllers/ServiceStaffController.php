@@ -533,14 +533,6 @@ class ServiceStaffController extends Controller
             }
         }
 
-        $startOfDayUtc = \Carbon\Carbon::parse($selectedDate, 'Asia/Manila')
-            ->startOfDay()
-            ->timezone('UTC');
-
-        $endOfDayUtc = \Carbon\Carbon::parse($selectedDate, 'Asia/Manila')
-            ->endOfDay()
-            ->timezone('UTC');
-
         /*
         |--------------------------------------------------------------------------
         | Local Development Xendit Sync
@@ -597,13 +589,26 @@ class ServiceStaffController extends Controller
                 'cash',
             ]);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Payment Date Filter
+        |--------------------------------------------------------------------------
+        | Payments page only:
+        | - Paid orders are filtered by paid_at date.
+        | - Unpaid/pending orders are filtered by created_at date.
+        | - Uses the stored DB date directly so it matches the displayed service
+        |   payment date and does not accidentally move evening records to tomorrow.
+        */
         if ($mode !== 'all') {
-            $query->where(function ($query) use ($startOfDayUtc, $endOfDayUtc) {
-                $query->whereBetween('paid_at', [$startOfDayUtc, $endOfDayUtc])
-                    ->orWhere(function ($subQuery) use ($startOfDayUtc, $endOfDayUtc) {
-                        $subQuery->whereNull('paid_at')
-                            ->whereBetween('created_at', [$startOfDayUtc, $endOfDayUtc]);
-                    });
+            $query->where(function ($query) use ($selectedDate) {
+                $query->where(function ($paidQuery) use ($selectedDate) {
+                    $paidQuery->whereNotNull('paid_at')
+                        ->whereDate('paid_at', $selectedDate);
+                })
+                ->orWhere(function ($unpaidQuery) use ($selectedDate) {
+                    $unpaidQuery->whereNull('paid_at')
+                        ->whereDate('created_at', $selectedDate);
+                });
             });
         }
 
@@ -623,12 +628,15 @@ class ServiceStaffController extends Controller
         $baseStatsQuery = Order::query();
 
         if ($mode !== 'all') {
-            $baseStatsQuery->where(function ($query) use ($startOfDayUtc, $endOfDayUtc) {
-                $query->whereBetween('paid_at', [$startOfDayUtc, $endOfDayUtc])
-                    ->orWhere(function ($subQuery) use ($startOfDayUtc, $endOfDayUtc) {
-                        $subQuery->whereNull('paid_at')
-                            ->whereBetween('created_at', [$startOfDayUtc, $endOfDayUtc]);
-                    });
+            $baseStatsQuery->where(function ($query) use ($selectedDate) {
+                $query->where(function ($paidQuery) use ($selectedDate) {
+                    $paidQuery->whereNotNull('paid_at')
+                        ->whereDate('paid_at', $selectedDate);
+                })
+                ->orWhere(function ($unpaidQuery) use ($selectedDate) {
+                    $unpaidQuery->whereNull('paid_at')
+                        ->whereDate('created_at', $selectedDate);
+                });
             });
         }
 

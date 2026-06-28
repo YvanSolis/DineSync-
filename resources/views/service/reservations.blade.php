@@ -11,7 +11,7 @@
         : collect($reservations);
 
     $selectedDate = request('date')
-        ? \Carbon\Carbon::parse(request('date'))->format('M d, Y')
+        ? \Carbon\Carbon::parse(request('date'), 'Asia/Manila')->format('M d, Y')
         : now('Asia/Manila')->format('M d, Y');
 
     $dateValue = request('date', now('Asia/Manila')->toDateString());
@@ -22,21 +22,11 @@
 
     $pendingCount = $reservationItems->where('status', 'pending')->count();
     $approvedCount = $reservationItems->where('status', 'approved')->count();
-    $paidCount = $reservationItems->filter(function ($reservation) {
-        return in_array(strtolower($reservation->payment_status ?? ''), ['paid', 'verified', 'settled', 'completed'], true);
-    })->count();
 @endphp
 
 <style>
     .service-reservations-shell {
         min-height: calc(100vh - 80px);
-    }
-
-    .reservation-top-grid {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 1.5rem;
-        align-items: start;
     }
 
     .reservation-stats-grid {
@@ -162,10 +152,6 @@
     }
 
     @media (max-width: 1280px) {
-        .reservation-top-grid {
-            grid-template-columns: 1fr;
-        }
-
         .reservation-stats-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
@@ -229,60 +215,46 @@
 
 <div class="service-reservations-shell space-y-6">
 
-    <div class="reservation-top-grid">
-        <div>
-            <p class="text-xs font-black text-orange-500 uppercase tracking-[0.28em] mb-2">
-                Service Operations
+    {{-- STATS --}}
+    <div class="reservation-stats-grid">
+        <div class="reservation-stat-card">
+            <p class="text-xs font-semibold text-gray-500">
+                Selected Date
             </p>
-
-            <h1 class="text-3xl font-black text-gray-950 tracking-tight">
-                Reservations
-            </h1>
-
-            <p class="text-gray-500 mt-2">
-                View customer reservations and reservation fee payment status by selected date.
+            <p class="text-lg font-black text-gray-950 mt-1">
+                {{ $selectedDate }}
             </p>
         </div>
 
-        <div class="reservation-stats-grid">
-            <div class="reservation-stat-card">
-                <p class="text-xs font-semibold text-gray-500">
-                    Selected Date
-                </p>
-                <p class="text-lg font-black text-gray-950 mt-1">
-                    {{ $selectedDate }}
-                </p>
-            </div>
+        <div class="reservation-stat-card">
+            <p class="text-xs font-semibold text-gray-500">
+                Total
+            </p>
+            <p class="text-2xl font-black text-orange-500 mt-1">
+                {{ $totalReservations }}
+            </p>
+        </div>
 
-            <div class="reservation-stat-card">
-                <p class="text-xs font-semibold text-gray-500">
-                    Total
-                </p>
-                <p class="text-2xl font-black text-orange-500 mt-1">
-                    {{ $totalReservations }}
-                </p>
-            </div>
+        <div class="reservation-stat-card">
+            <p class="text-xs font-semibold text-gray-500">
+                Pending
+            </p>
+            <p class="text-2xl font-black text-yellow-500 mt-1">
+                {{ $pendingCount }}
+            </p>
+        </div>
 
-            <div class="reservation-stat-card">
-                <p class="text-xs font-semibold text-gray-500">
-                    Pending
-                </p>
-                <p class="text-2xl font-black text-yellow-500 mt-1">
-                    {{ $pendingCount }}
-                </p>
-            </div>
-
-            <div class="reservation-stat-card">
-                <p class="text-xs font-semibold text-gray-500">
-                    Approved
-                </p>
-                <p class="text-2xl font-black text-green-500 mt-1">
-                    {{ $approvedCount }}
-                </p>
-            </div>
+        <div class="reservation-stat-card">
+            <p class="text-xs font-semibold text-gray-500">
+                Approved
+            </p>
+            <p class="text-2xl font-black text-green-500 mt-1">
+                {{ $approvedCount }}
+            </p>
         </div>
     </div>
 
+    {{-- FLASH --}}
     @if (session('success'))
         <div class="bg-green-50 border border-green-200 text-green-700 px-5 py-4 rounded-2xl text-sm font-bold shadow-sm">
             {{ session('success') }}
@@ -295,8 +267,8 @@
         </div>
     @endif
 
+    {{-- RESERVATION PANEL --}}
     <div class="reservation-panel">
-
         <div class="p-5 lg:p-6 border-b border-gray-100">
             <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
                 <div>
@@ -545,10 +517,7 @@
                                 <form method="POST" action="{{ route('service.reservations.verify-payment', $reservation) }}">
                                     @csrf
                                     @method('PATCH')
-                                    <button
-                                        type="submit"
-                                        class="action-button bg-green-500 hover:bg-green-600 text-white"
-                                    >
+                                    <button type="submit" class="action-button bg-green-500 hover:bg-green-600 text-white">
                                         Verify
                                     </button>
                                 </form>
@@ -556,10 +525,7 @@
                                 <form method="POST" action="{{ route('service.reservations.reject-payment', $reservation) }}">
                                     @csrf
                                     @method('PATCH')
-                                    <button
-                                        type="submit"
-                                        class="action-button bg-red-500 hover:bg-red-600 text-white"
-                                    >
+                                    <button type="submit" class="action-button bg-red-500 hover:bg-red-600 text-white">
                                         Reject
                                     </button>
                                 </form>
@@ -576,10 +542,7 @@
                                     @csrf
                                     @method('PATCH')
                                     <input type="hidden" name="status" value="approved">
-                                    <button
-                                        type="submit"
-                                        class="action-button bg-orange-500 hover:bg-orange-600 text-white"
-                                    >
+                                    <button type="submit" class="action-button bg-orange-500 hover:bg-orange-600 text-white">
                                         Accept
                                     </button>
                                 </form>
@@ -588,10 +551,7 @@
                                     @csrf
                                     @method('PATCH')
                                     <input type="hidden" name="status" value="declined">
-                                    <button
-                                        type="submit"
-                                        class="action-button bg-gray-100 hover:bg-gray-200 text-gray-600"
-                                    >
+                                    <button type="submit" class="action-button bg-gray-100 hover:bg-gray-200 text-gray-600">
                                         Decline
                                     </button>
                                 </form>
@@ -608,10 +568,7 @@
                                     @csrf
                                     @method('PATCH')
                                     <input type="hidden" name="status" value="arrived">
-                                    <button
-                                        type="submit"
-                                        class="action-button bg-blue-500 hover:bg-blue-600 text-white"
-                                    >
+                                    <button type="submit" class="action-button bg-blue-500 hover:bg-blue-600 text-white">
                                         Mark Arrived
                                     </button>
                                 </form>
@@ -634,10 +591,7 @@
                                         class="w-full sm:w-24 rounded-lg border-gray-200 text-xs focus:border-orange-300 focus:ring-orange-200"
                                     >
 
-                                    <button
-                                        type="submit"
-                                        class="action-button bg-purple-500 hover:bg-purple-600 text-white"
-                                    >
+                                    <button type="submit" class="action-button bg-purple-500 hover:bg-purple-600 text-white">
                                         Seat
                                     </button>
                                 </form>
@@ -648,10 +602,7 @@
                                     @csrf
                                     @method('PATCH')
                                     <input type="hidden" name="status" value="completed">
-                                    <button
-                                        type="submit"
-                                        class="action-button bg-gray-900 hover:bg-black text-white"
-                                    >
+                                    <button type="submit" class="action-button bg-gray-900 hover:bg-black text-white">
                                         Complete
                                     </button>
                                 </form>
@@ -662,10 +613,7 @@
                                     @csrf
                                     @method('PATCH')
                                     <input type="hidden" name="status" value="cancelled">
-                                    <button
-                                        type="submit"
-                                        class="action-button bg-gray-100 hover:bg-gray-200 text-gray-600"
-                                    >
+                                    <button type="submit" class="action-button bg-gray-100 hover:bg-gray-200 text-gray-600">
                                         Cancel
                                     </button>
                                 </form>
@@ -764,16 +712,17 @@
                         @endphp
 
                         <tr>
-                            <td class="whitespace-nowrap">
+                            <td>
                                 <p class="font-black text-gray-950">
                                     #RES-{{ str_pad($reservation->id, 4, '0', STR_PAD_LEFT) }}
                                 </p>
+
                                 <p class="text-xs text-gray-500 mt-1">
                                     {{ $reservation->created_at ? $reservation->created_at->diffForHumans() : 'No timestamp' }}
                                 </p>
                             </td>
 
-                            <td class="w-[230px]">
+                            <td>
                                 <p class="font-black text-gray-950">
                                     {{ $reservation->customer_name }}
                                 </p>
@@ -794,31 +743,33 @@
                                 @endif
                             </td>
 
-                            <td class="whitespace-nowrap">
+                            <td>
                                 <p class="font-black text-gray-950">
                                     {{ $reservationDate }}
                                 </p>
+
                                 <p class="text-xs text-gray-500 mt-1">
                                     {{ $reservationTime }}
                                 </p>
                             </td>
 
-                            <td class="whitespace-nowrap">
+                            <td>
                                 <span class="status-pill bg-gray-100 text-gray-700 border-gray-100">
                                     {{ $reservation->guest_count }} guest{{ $reservation->guest_count > 1 ? 's' : '' }}
                                 </span>
                             </td>
 
-                            <td class="whitespace-nowrap">
+                            <td>
                                 <p class="font-black text-orange-500">
                                     ₱{{ number_format($reservation->reservation_fee_amount, 2) }}
                                 </p>
+
                                 <p class="text-xs text-gray-500 mt-1">
                                     Non-refundable
                                 </p>
                             </td>
 
-                            <td class="w-[185px]">
+                            <td>
                                 <p class="font-black text-gray-950">
                                     {{ $reservation->payment_method ?? 'Xendit' }}
                                 </p>
@@ -846,13 +797,13 @@
                                 @endif
                             </td>
 
-                            <td class="whitespace-nowrap">
+                            <td>
                                 <span class="status-pill {{ $statusClass }}">
                                     {{ $statusLabel }}
                                 </span>
                             </td>
 
-                            <td class="w-[190px]">
+                            <td>
                                 <p class="text-xs text-gray-600 leading-6">
                                     <span class="font-black text-gray-900">Table:</span>
                                     @if ($reservation->table_number)
@@ -873,17 +824,13 @@
                                 </p>
                             </td>
 
-                            <td>
+                            <td class="text-right">
                                 <div class="action-stack">
-
                                     @if ($paymentStatus === 'pending')
                                         <form method="POST" action="{{ route('service.reservations.verify-payment', $reservation) }}">
                                             @csrf
                                             @method('PATCH')
-                                            <button
-                                                type="submit"
-                                                class="action-button bg-green-500 hover:bg-green-600 text-white"
-                                            >
+                                            <button type="submit" class="action-button bg-green-500 hover:bg-green-600 text-white">
                                                 Verify
                                             </button>
                                         </form>
@@ -891,10 +838,7 @@
                                         <form method="POST" action="{{ route('service.reservations.reject-payment', $reservation) }}">
                                             @csrf
                                             @method('PATCH')
-                                            <button
-                                                type="submit"
-                                                class="action-button bg-red-500 hover:bg-red-600 text-white"
-                                            >
+                                            <button type="submit" class="action-button bg-red-500 hover:bg-red-600 text-white">
                                                 Reject
                                             </button>
                                         </form>
@@ -911,10 +855,7 @@
                                             @csrf
                                             @method('PATCH')
                                             <input type="hidden" name="status" value="approved">
-                                            <button
-                                                type="submit"
-                                                class="action-button bg-orange-500 hover:bg-orange-600 text-white"
-                                            >
+                                            <button type="submit" class="action-button bg-orange-500 hover:bg-orange-600 text-white">
                                                 Accept
                                             </button>
                                         </form>
@@ -923,10 +864,7 @@
                                             @csrf
                                             @method('PATCH')
                                             <input type="hidden" name="status" value="declined">
-                                            <button
-                                                type="submit"
-                                                class="action-button bg-gray-100 hover:bg-gray-200 text-gray-600"
-                                            >
+                                            <button type="submit" class="action-button bg-gray-100 hover:bg-gray-200 text-gray-600">
                                                 Decline
                                             </button>
                                         </form>
@@ -943,10 +881,7 @@
                                             @csrf
                                             @method('PATCH')
                                             <input type="hidden" name="status" value="arrived">
-                                            <button
-                                                type="submit"
-                                                class="action-button bg-blue-500 hover:bg-blue-600 text-white"
-                                            >
+                                            <button type="submit" class="action-button bg-blue-500 hover:bg-blue-600 text-white">
                                                 Mark Arrived
                                             </button>
                                         </form>
@@ -969,10 +904,7 @@
                                                 class="w-20 rounded-lg border-gray-200 text-xs focus:border-orange-300 focus:ring-orange-200"
                                             >
 
-                                            <button
-                                                type="submit"
-                                                class="action-button bg-purple-500 hover:bg-purple-600 text-white"
-                                            >
+                                            <button type="submit" class="action-button bg-purple-500 hover:bg-purple-600 text-white">
                                                 Seat
                                             </button>
                                         </form>
@@ -983,10 +915,7 @@
                                             @csrf
                                             @method('PATCH')
                                             <input type="hidden" name="status" value="completed">
-                                            <button
-                                                type="submit"
-                                                class="action-button bg-gray-900 hover:bg-black text-white"
-                                            >
+                                            <button type="submit" class="action-button bg-gray-900 hover:bg-black text-white">
                                                 Complete
                                             </button>
                                         </form>
@@ -997,10 +926,7 @@
                                             @csrf
                                             @method('PATCH')
                                             <input type="hidden" name="status" value="cancelled">
-                                            <button
-                                                type="submit"
-                                                class="action-button bg-gray-100 hover:bg-gray-200 text-gray-600"
-                                            >
+                                            <button type="submit" class="action-button bg-gray-100 hover:bg-gray-200 text-gray-600">
                                                 Cancel
                                             </button>
                                         </form>
@@ -1011,7 +937,6 @@
                                             No Action Needed
                                         </span>
                                     @endif
-
                                 </div>
                             </td>
                         </tr>

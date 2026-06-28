@@ -8,7 +8,7 @@
         <div class="min-w-0">
             <h1 class="text-2xl sm:text-3xl font-bold mb-1 text-gray-900">Payment Management</h1>
             <p class="text-sm sm:text-base text-gray-500">
-                Track payment transactions by selected date or view all saved payment records.
+                Track payment transactions by selected date.
             </p>
         </div>
 
@@ -80,7 +80,7 @@
     <!-- Transaction History -->
     <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
         <div class="p-4 sm:p-5 border-b">
-            <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+            <div class="flex flex-col 2xl:flex-row 2xl:items-center 2xl:justify-between gap-4">
                 <div class="min-w-0">
                     <h2 class="text-lg font-bold">Transaction History</h2>
                     <p id="transactionSubtitle" class="text-sm text-gray-500">
@@ -88,43 +88,42 @@
                     </p>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-[180px_minmax(260px,1fr)_180px_170px_170px] gap-3 w-full 2xl:max-w-[1040px]">
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 w-full 2xl:w-auto">
                     <input
                         id="paymentDateFilter"
                         type="date"
-                        class="border rounded-xl px-4 py-2.5 w-full min-w-0"
+                        class="border border-gray-300 rounded-xl px-4 py-2.5 text-sm w-full focus:ring-2 focus:ring-orange-100 focus:border-orange-400 outline-none"
                     >
 
-                    <input
-                        id="paymentSearch"
-                        type="text"
-                        placeholder="Search transaction, order, method..."
-                        class="border rounded-xl px-4 py-2.5 w-full min-w-0"
+                    <button
+                        type="button"
+                        onclick="setPaymentViewDate()"
+                        class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold w-full"
                     >
-
-                    <select
-                        id="paymentStatusFilter"
-                        class="border rounded-xl px-4 py-2.5 w-full min-w-0"
-                    >
-                        <option value="all">All Status</option>
-                        <option value="completed">Completed</option>
-                        <option value="pending">Pending</option>
-                        <option value="failed">Failed</option>
-                    </select>
+                        View Date
+                    </button>
 
                     <button
                         type="button"
                         onclick="setPaymentDateToday()"
-                        class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold w-full">
+                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-semibold w-full"
+                    >
                         Today
                     </button>
 
                     <button
                         type="button"
-                        onclick="setPaymentViewAll()"
-                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-semibold w-full">
-                        All Records
+                        onclick="setPaymentDateTomorrow()"
+                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-semibold w-full"
+                    >
+                        Tomorrow
                     </button>
+
+                    <input id="paymentSearch" type="hidden" value="">
+
+                    <select id="paymentStatusFilter" class="hidden">
+                        <option value="all" selected>All Status</option>
+                    </select>
                 </div>
             </div>
         </div>
@@ -312,6 +311,12 @@ function todayDateString() {
     return new Date().toISOString().slice(0, 10);
 }
 
+function tomorrowDateString() {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().slice(0, 10);
+}
+
 function normalizeStatus(status) {
     const value = String(status || '').toLowerCase();
 
@@ -376,10 +381,6 @@ function getPaymentMethod(payment) {
 }
 
 function formatReadableDate(dateValue) {
-    if (paymentViewMode === 'all') {
-        return 'All Records';
-    }
-
     const date = new Date(dateValue);
 
     if (Number.isNaN(date.getTime())) {
@@ -393,6 +394,11 @@ function formatReadableDate(dateValue) {
     });
 }
 
+function setPaymentViewDate() {
+    paymentViewMode = 'daily';
+    loadPayments();
+}
+
 function setPaymentDateToday() {
     paymentViewMode = 'daily';
 
@@ -402,8 +408,12 @@ function setPaymentDateToday() {
     loadPayments();
 }
 
-function setPaymentViewAll() {
-    paymentViewMode = 'all';
+function setPaymentDateTomorrow() {
+    paymentViewMode = 'daily';
+
+    const dateInput = document.getElementById('paymentDateFilter');
+    dateInput.value = tomorrowDateString();
+
     loadPayments();
 }
 
@@ -439,7 +449,6 @@ async function loadPayments() {
 
         renderSummary(data.summary || null);
         applyFilters();
-
         updateScopeLabels(date);
     } catch (error) {
         console.error('Payment load failed:', error);
@@ -450,19 +459,12 @@ async function loadPayments() {
 function updateScopeLabels(date) {
     const readable = formatReadableDate(date);
 
-    document.getElementById('paymentScopeLabel').textContent =
-        paymentViewMode === 'all' ? 'All Saved Records' : 'Selected Date';
-
-    document.getElementById('cardSelectedDateLabel').textContent =
-        paymentViewMode === 'all' ? 'All saved records' : readable;
-
-    document.getElementById('cardAmountLabel').textContent =
-        paymentViewMode === 'all' ? 'For all records' : 'For selected date';
+    document.getElementById('paymentScopeLabel').textContent = 'Selected Date';
+    document.getElementById('cardSelectedDateLabel').textContent = readable;
+    document.getElementById('cardAmountLabel').textContent = 'For selected date';
 
     document.getElementById('transactionSubtitle').textContent =
-        paymentViewMode === 'all'
-            ? 'Showing all saved payment records.'
-            : `Showing payment records for ${readable} only.`;
+        `Showing payment records for ${readable} only.`;
 }
 
 function setLoadingRows() {
@@ -518,8 +520,11 @@ function renderSummary(summary = null) {
 }
 
 function applyFilters() {
-    const search = document.getElementById('paymentSearch').value.toLowerCase().trim();
-    const status = document.getElementById('paymentStatusFilter').value;
+    const searchInput = document.getElementById('paymentSearch');
+    const statusSelect = document.getElementById('paymentStatusFilter');
+
+    const search = searchInput ? searchInput.value.toLowerCase().trim() : '';
+    const status = statusSelect ? statusSelect.value : 'all';
 
     filteredPayments = payments.filter(payment => {
         const transaction = String(getTransactionId(payment)).toLowerCase();
@@ -733,15 +738,26 @@ function renderReceiptItems(payment) {
     }).join('');
 }
 
-document.getElementById('paymentSearch').addEventListener('input', applyFilters);
-document.getElementById('paymentStatusFilter').addEventListener('change', applyFilters);
+const paymentSearchInput = document.getElementById('paymentSearch');
+const paymentStatusSelect = document.getElementById('paymentStatusFilter');
+const paymentDateInput = document.getElementById('paymentDateFilter');
 
-document.getElementById('paymentDateFilter').addEventListener('change', function () {
-    paymentViewMode = 'daily';
-    loadPayments();
-});
+if (paymentSearchInput) {
+    paymentSearchInput.addEventListener('input', applyFilters);
+}
 
-document.getElementById('paymentDateFilter').value = todayDateString();
+if (paymentStatusSelect) {
+    paymentStatusSelect.addEventListener('change', applyFilters);
+}
+
+if (paymentDateInput) {
+    paymentDateInput.addEventListener('change', function () {
+        paymentViewMode = 'daily';
+        loadPayments();
+    });
+
+    paymentDateInput.value = todayDateString();
+}
 
 loadPayments();
 </script>

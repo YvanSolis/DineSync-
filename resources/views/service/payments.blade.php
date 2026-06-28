@@ -6,7 +6,27 @@
 @section('content')
 
 @php
-    $selectedDateLabel = \Carbon\Carbon::parse($selectedDate)->format('M d, Y');
+    $selectedDateLabel = \Carbon\Carbon::parse($selectedDate, 'Asia/Manila')->format('M d, Y');
+
+    $formatServiceDateTime = function ($value) {
+        if (!$value) {
+            return 'No date';
+        }
+
+        return \Carbon\Carbon::parse($value)
+            ->timezone('Asia/Manila')
+            ->format('M d, Y h:i A');
+    };
+
+    $formatServiceDiff = function ($value) {
+        if (!$value) {
+            return 'No date';
+        }
+
+        return \Carbon\Carbon::parse($value)
+            ->timezone('Asia/Manila')
+            ->diffForHumans();
+    };
 
     $ordersForModal = $orders->getCollection()->mapWithKeys(function ($order) {
         $tableNumber = $order->source_table_number
@@ -36,42 +56,26 @@
 
 <div class="space-y-6">
 
-    {{-- HEADER --}}
-    <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-        <div>
-            <p class="text-xs font-black text-orange-500 uppercase tracking-[0.28em] mb-2">
-                Service Payments
-            </p>
-
-            <h1 class="text-3xl font-black text-gray-950 tracking-tight">
-                Payment Records
-            </h1>
-
-            <p class="text-gray-500 mt-2 max-w-3xl">
-                Settle counter payments, Pay Later balances, and QR PH payments through Xendit.
-            </p>
+    {{-- STATS --}}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 w-full xl:w-auto">
+        <div class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm min-w-[155px]">
+            <p class="text-xs font-semibold text-gray-500">Counter Waiting</p>
+            <p class="text-2xl font-black text-orange-500 mt-1">{{ $stats['awaiting_counter'] ?? 0 }}</p>
         </div>
 
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 w-full xl:w-auto">
-            <div class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm min-w-[155px]">
-                <p class="text-xs font-semibold text-gray-500">Counter Waiting</p>
-                <p class="text-2xl font-black text-orange-500 mt-1">{{ $stats['awaiting_counter'] ?? 0 }}</p>
-            </div>
+        <div class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm min-w-[155px]">
+            <p class="text-xs font-semibold text-gray-500">Pay Later</p>
+            <p class="text-2xl font-black text-purple-500 mt-1">{{ $stats['pay_later_unpaid'] ?? 0 }}</p>
+        </div>
 
-            <div class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm min-w-[155px]">
-                <p class="text-xs font-semibold text-gray-500">Pay Later</p>
-                <p class="text-2xl font-black text-purple-500 mt-1">{{ $stats['pay_later_unpaid'] ?? 0 }}</p>
-            </div>
+        <div class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm min-w-[155px]">
+            <p class="text-xs font-semibold text-gray-500">Digital Pending</p>
+            <p class="text-2xl font-black text-blue-500 mt-1">{{ $stats['digital_pending'] ?? 0 }}</p>
+        </div>
 
-            <div class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm min-w-[155px]">
-                <p class="text-xs font-semibold text-gray-500">Digital Pending</p>
-                <p class="text-2xl font-black text-blue-500 mt-1">{{ $stats['digital_pending'] ?? 0 }}</p>
-            </div>
-
-            <div class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm min-w-[155px]">
-                <p class="text-xs font-semibold text-gray-500">Paid</p>
-                <p class="text-2xl font-black text-green-500 mt-1">{{ $stats['paid'] ?? 0 }}</p>
-            </div>
+        <div class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm min-w-[155px]">
+            <p class="text-xs font-semibold text-gray-500">Paid</p>
+            <p class="text-2xl font-black text-green-500 mt-1">{{ $stats['paid'] ?? 0 }}</p>
         </div>
     </div>
 
@@ -210,7 +214,7 @@
                             </p>
 
                             <p class="text-xs text-gray-500 mt-1">
-                                Created: {{ $order->created_at ? $order->created_at->diffForHumans() : 'No date' }}
+                                Created: {{ $formatServiceDiff($order->created_at) }}
                             </p>
                         </div>
 
@@ -275,7 +279,7 @@
 
                                 @if ($order->paid_at)
                                     <p class="text-xs text-gray-500 mt-2">
-                                        Paid: {{ \Carbon\Carbon::parse($order->paid_at)->format('M d, h:i A') }}
+                                        Paid: {{ $formatServiceDateTime($order->paid_at) }}
                                     </p>
                                 @endif
                             </div>
@@ -423,7 +427,7 @@
                                     {{ $order->order_number ?? 'No order number' }}
                                 </p>
                                 <p class="text-xs text-gray-500 mt-1">
-                                    Created: {{ $order->created_at ? $order->created_at->diffForHumans() : 'No date' }}
+                                    Created: {{ $formatServiceDiff($order->created_at) }}
                                 </p>
                             </td>
 
@@ -471,7 +475,7 @@
 
                                 @if ($order->paid_at)
                                     <p class="text-xs text-gray-500 mt-2">
-                                        Paid: {{ \Carbon\Carbon::parse($order->paid_at)->format('M d, h:i A') }}
+                                        Paid: {{ $formatServiceDateTime($order->paid_at) }}
                                     </p>
                                 @endif
                             </td>
@@ -594,8 +598,7 @@
                     </p>
                 </div>
 
-                <div id="modalItems" class="divide-y divide-gray-100">
-                </div>
+                <div id="modalItems" class="divide-y divide-gray-100"></div>
 
                 <div class="px-4 py-4 bg-orange-50 flex items-center justify-between">
                     <span class="text-sm font-black text-gray-800">

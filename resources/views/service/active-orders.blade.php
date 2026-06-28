@@ -6,22 +6,6 @@
 @section('content')
 <div class="space-y-5 sm:space-y-6">
 
-    {{-- HEADER --}}
-    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div class="min-w-0">
-            <h1 class="text-2xl sm:text-3xl font-black text-gray-950">
-                Active Orders
-            </h1>
-            <p class="text-sm sm:text-base text-gray-500 mt-1">
-                View orders that are already sent to the kitchen. Payment handling is now managed in the Payments page.
-            </p>
-        </div>
-
-        <div class="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm w-full sm:w-auto">
-            <p class="text-sm text-gray-500">Total Active Orders</p>
-            <p class="text-2xl font-black text-orange-500">{{ $orders->total() }}</p>
-        </div>
-    </div>
 
     {{-- STATS --}}
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
