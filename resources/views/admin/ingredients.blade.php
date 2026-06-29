@@ -1,6 +1,85 @@
 @extends('layouts.admin')
 
 @section('content')
+
+<style>
+    @media (max-width: 640px) {
+        #aiInsightModal,
+        #ingredientModal,
+        #manageStockModal {
+            align-items: stretch !important;
+            justify-content: stretch !important;
+            padding: 0 !important;
+        }
+
+        #aiInsightModal > div,
+        #ingredientModal > div,
+        #manageStockModal > div {
+            width: 100% !important;
+            max-width: 100% !important;
+            height: 100dvh !important;
+            max-height: 100dvh !important;
+            border-radius: 0 !important;
+        }
+
+        #aiInsightModal .text-2xl,
+        #aiInsightModal .sm\:text-3xl {
+            font-size: 24px !important;
+            line-height: 32px !important;
+        }
+
+        #aiInsightModal .px-5,
+        #aiInsightModal .sm\:px-7 {
+            padding-left: 18px !important;
+            padding-right: 18px !important;
+        }
+
+        #aiInsightModal .py-6 {
+            padding-top: 20px !important;
+            padding-bottom: 20px !important;
+        }
+
+        #aiInsightContent {
+            padding-bottom: 90px !important;
+        }
+
+        #aiInsightContent .grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        #aiInsightContent .rounded-3xl {
+            border-radius: 22px !important;
+        }
+
+        #generateAiInsightBtn {
+            width: 100% !important;
+            min-height: 52px !important;
+        }
+
+        #aiInsightGeneratedAt,
+        #aiInsightHealthBadge {
+            max-width: 100% !important;
+            white-space: normal !important;
+            line-height: 18px !important;
+        }
+
+        #manageStockModal input,
+        #manageStockModal select,
+        #ingredientModal input {
+            font-size: 16px !important;
+        }
+    }
+
+    @media (min-width: 641px) and (max-width: 1024px) {
+        #aiInsightModal > div,
+        #ingredientModal > div,
+        #manageStockModal > div {
+            max-width: calc(100vw - 32px) !important;
+            max-height: calc(100dvh - 32px) !important;
+        }
+    }
+</style>
+
 <div class="space-y-5 sm:space-y-6">
     <!-- Header -->
     <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
@@ -134,8 +213,8 @@
 </div>
 
 <!-- AI Inventory Insight Modal -->
-<div id="aiInsightModal" class="fixed inset-0 bg-black/55 backdrop-blur-[3px] hidden items-center justify-center z-50 p-3 sm:p-4">
-    <div class="bg-white rounded-[32px] shadow-2xl w-full max-w-5xl max-h-[94vh] overflow-hidden flex flex-col border border-orange-100">
+<div id="aiInsightModal" class="fixed inset-0 bg-black/55 backdrop-blur-[3px] hidden items-center justify-center z-50 p-0 sm:p-4">
+    <div class="bg-white rounded-none sm:rounded-[32px] shadow-2xl w-full sm:max-w-5xl h-[100dvh] sm:h-auto sm:max-h-[94dvh] overflow-hidden flex flex-col border border-orange-100">
         <!-- Header -->
         <div class="relative px-5 sm:px-7 py-6 border-b bg-gradient-to-br from-orange-50 via-white to-amber-50 shrink-0 overflow-hidden">
             <div class="absolute -top-12 -right-10 w-40 h-40 rounded-full bg-orange-100/60"></div>
@@ -312,8 +391,8 @@
 </div>
 
 <!-- Add/Edit Ingredient Modal -->
-<div id="ingredientModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-3 sm:p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[92vh] overflow-hidden flex flex-col">
+<div id="ingredientModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-0 sm:p-4">
+    <div class="bg-white rounded-none sm:rounded-2xl shadow-2xl w-full sm:max-w-xl h-[100dvh] sm:h-auto sm:max-h-[92dvh] overflow-hidden flex flex-col">
         <div class="flex items-start justify-between gap-3 px-5 sm:px-6 py-4 border-b shrink-0">
             <div>
                 <h3 id="ingredientModalTitle" class="text-lg sm:text-xl font-bold">Add Ingredient</h3>
@@ -354,8 +433,8 @@
 </div>
 
 <!-- Combined Manage Stock Modal -->
-<div id="manageStockModal" class="fixed inset-0 bg-black/50 backdrop-blur-[2px] hidden items-center justify-center z-50 p-3 sm:p-4">
-    <div class="bg-white rounded-[28px] shadow-2xl w-full max-w-6xl max-h-[94vh] overflow-hidden flex flex-col border border-gray-100">
+<div id="manageStockModal" class="fixed inset-0 bg-black/50 backdrop-blur-[2px] hidden items-center justify-center z-50 p-0 sm:p-4">
+    <div class="bg-white rounded-none sm:rounded-[28px] shadow-2xl w-full sm:max-w-6xl h-[100dvh] sm:h-auto sm:max-h-[94dvh] overflow-hidden flex flex-col border border-gray-100">
         <!-- Header -->
         <div class="px-5 sm:px-7 py-5 border-b bg-gradient-to-r from-orange-50 via-white to-amber-50 shrink-0">
             <div class="flex items-start justify-between gap-4">

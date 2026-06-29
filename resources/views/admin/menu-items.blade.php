@@ -2,6 +2,65 @@
 
 @section('content')
 
+<style>
+    @media (max-width: 640px) {
+        #menuModal,
+        #ingredientsModal {
+            align-items: stretch !important;
+            justify-content: stretch !important;
+            padding: 0 !important;
+        }
+
+        #menuModal > div,
+        #ingredientsModal > div {
+            width: 100% !important;
+            max-width: 100% !important;
+            height: 100dvh !important;
+            max-height: 100dvh !important;
+            border-radius: 0 !important;
+        }
+
+        #menuModal form,
+        #ingredientsModal .flex-1 {
+            -webkit-overflow-scrolling: touch;
+        }
+
+        #flavorTagsContainer {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .menu-mobile-card-actions {
+            grid-template-columns: 1fr !important;
+        }
+
+        .menu-mobile-card-main {
+            flex-direction: column !important;
+        }
+
+        .menu-mobile-card-image {
+            width: 100% !important;
+        }
+
+        .menu-mobile-card-image img,
+        .menu-mobile-card-image > div {
+            width: 100% !important;
+            height: 170px !important;
+        }
+    }
+
+    @media (min-width: 641px) and (max-width: 1024px) {
+        #menuModal > div,
+        #ingredientsModal > div {
+            max-width: calc(100vw - 32px) !important;
+            max-height: calc(100dvh - 32px) !important;
+        }
+
+        #flavorTagsContainer {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        }
+    }
+</style>
+
 <div class="space-y-5 sm:space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -78,133 +137,228 @@
 </div>
 
 <!-- Add/Edit Menu Item Modal -->
-<div id="menuModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-3 sm:p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col">
-        <div class="flex items-start justify-between gap-3 px-4 sm:px-6 py-4 border-b bg-white shrink-0">
-            <div class="min-w-0">
-                <h3 id="menuModalTitle" class="text-lg sm:text-xl font-bold">Add Menu Item</h3>
-                <p class="text-xs sm:text-sm text-gray-500">Set menu details, category, image, and AI recommendation tags.</p>
-            </div>
+<div id="menuModal" class="fixed inset-0 bg-black/50 backdrop-blur-[2px] hidden items-center justify-center z-50 p-0 sm:p-4">
+    <div class="bg-white rounded-none sm:rounded-[28px] shadow-2xl w-full sm:max-w-6xl h-[100dvh] sm:h-auto sm:max-h-[94dvh] overflow-hidden flex flex-col border border-orange-100">
+        <!-- Modal Header -->
+        <div class="relative px-5 sm:px-7 py-5 border-b bg-gradient-to-r from-orange-50 via-white to-amber-50 shrink-0 overflow-hidden">
+            <div class="absolute -top-14 -right-10 w-40 h-40 rounded-full bg-orange-100/60"></div>
+            <div class="absolute -bottom-16 -left-12 w-48 h-48 rounded-full bg-amber-100/50"></div>
 
-            <button type="button" onclick="closeMenuModal()"
-                class="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-black text-xl shrink-0">
-                &times;
-            </button>
-        </div>
+            <div class="relative flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2 mb-2">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-[11px] font-bold uppercase tracking-wide">
+                            Menu Item Setup
+                        </span>
 
-        <form id="menuForm" class="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-5 pb-6">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <!-- Left Column -->
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-semibold mb-1">Item Name</label>
-                        <input id="itemName" type="text" class="w-full border rounded-xl px-3 py-2.5" required>
+                        <span class="inline-flex items-center px-3 py-1 rounded-full bg-white border border-orange-100 text-gray-600 text-[11px] font-semibold shadow-sm">
+                            Ingredient-based availability
+                        </span>
                     </div>
 
-                    <div>
-                        <label class="block text-sm font-semibold mb-1">Category</label>
-                        <select id="itemCategory" class="w-full border rounded-xl px-3 py-2.5" required>
-                            <option value="">Select Category</option>
-                        </select>
-                        <p class="text-xs text-gray-400 mt-1">Used for menu grouping and filtering.</p>
-                    </div>
+                    <h3 id="menuModalTitle" class="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">
+                        Add Menu Item
+                    </h3>
 
-                    <div>
-                        <label class="block text-sm font-semibold mb-1">
-                            Description <span class="text-gray-400 font-normal">(optional)</span>
-                        </label>
-                        <textarea
-                            id="itemDescription"
-                            rows="4"
-                            maxlength="1000"
-                            placeholder="Enter menu item description..."
-                            class="w-full border rounded-xl px-3 py-2.5 resize-none"
-                        ></textarea>
-                        <p class="text-xs text-gray-400 mt-1">Short description for customer/mobile display.</p>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-semibold mb-1">
-                            Upload Image <span class="text-gray-400 font-normal">(optional)</span>
-                        </label>
-
-                        <input
-                            id="itemImage"
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            class="w-full border rounded-xl px-3 py-2.5 text-sm"
-                        >
-
-                        <p id="currentImageText" class="text-xs text-gray-400 mt-1 hidden">
-                            Current image will stay unless you upload a new one.
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Right Column -->
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-semibold mb-1">Price</label>
-                        <input id="itemPrice" type="number" step="0.01" class="w-full border rounded-xl px-3 py-2.5" required>
-                        <p class="text-xs text-gray-400 mt-1">Use 0.00 for custom requests with price to be confirmed.</p>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-semibold mb-1">
-                            Meal Type <span class="text-gray-400 font-normal">(for AI recommendations)</span>
-                        </label>
-
-                        <select id="itemMealType" class="w-full border rounded-xl px-3 py-2.5">
-                            <option value="">Select Meal Type</option>
-                        </select>
-
-                        <p class="text-xs text-gray-400 mt-1">
-                            Select one only, like main, side, drink, dessert, snack, or soup.
-                        </p>
-                    </div>
-
-                    <label class="flex items-center justify-between gap-3 border rounded-2xl px-4 py-3 bg-gray-50">
-                        <div class="min-w-0">
-                            <p class="text-sm font-semibold">Availability</p>
-                            <p class="text-xs text-gray-500">
-                                Turning this on still requires enough linked ingredients, except Chef Oppa Special.
-                            </p>
-                        </div>
-
-                        <input id="itemAvailable" type="checkbox" class="rounded shrink-0" checked>
-                    </label>
-
-                    <div class="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3">
-                        <p class="text-xs text-orange-700">
-                            After saving a normal menu item, use the Ingredients button to link required ingredients and quantity usage.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="border rounded-2xl p-4 bg-white">
-                <div class="mb-3">
-                    <label class="block text-sm font-bold">
-                        Flavor Tags <span class="text-gray-400 font-normal">(for AI recommendations)</span>
-                    </label>
-                    <p class="text-xs text-gray-400 mt-1">
-                        Select tags that describe the item’s taste or style.
+                    <p class="text-sm text-gray-500 mt-1 max-w-2xl">
+                        Add menu details, pricing, category, image, and recommendation tags. Availability will still depend on linked ingredients and usable stock.
                     </p>
                 </div>
 
-                <div id="flavorTagsContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
-                    <!-- Flavor tags will load here -->
+                <button type="button" onclick="closeMenuModal()"
+                    class="w-10 h-10 rounded-full bg-white hover:bg-orange-50 border border-orange-100 flex items-center justify-center text-gray-500 hover:text-orange-700 text-xl shrink-0 transition shadow-sm">
+                    &times;
+                </button>
+            </div>
+        </div>
+
+        <form id="menuForm" class="flex-1 overflow-y-auto bg-gray-50/60">
+            <div class="p-4 sm:p-6 space-y-5">
+                <!-- Basic Info Section -->
+                <div class="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                    <div class="px-5 py-4 border-b bg-white">
+                        <h4 class="font-bold text-gray-900 text-lg">Basic Information</h4>
+                        <p class="text-sm text-gray-500 mt-1">
+                            Main information shown on the admin page and customer tablet menu.
+                        </p>
+                    </div>
+
+                    <div class="p-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-sm font-semibold mb-2 text-gray-700">Item Name</label>
+                            <input id="itemName" type="text"
+                                placeholder="Example: Anju Jjampong"
+                                class="w-full border border-gray-300 rounded-2xl px-4 py-3 bg-white focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition"
+                                required>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold mb-2 text-gray-700">Price</label>
+                            <input id="itemPrice" type="number" step="0.01"
+                                placeholder="Example: 250.00"
+                                class="w-full border border-gray-300 rounded-2xl px-4 py-3 bg-white focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition"
+                                required>
+                            <p class="text-xs text-gray-400 mt-1">
+                                Use 0.00 for Chef Oppa Special or custom requests with price to be confirmed.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold mb-2 text-gray-700">Category</label>
+                            <select id="itemCategory"
+                                class="w-full border border-gray-300 rounded-2xl px-4 py-3 bg-white focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition"
+                                required>
+                                <option value="">Select Category</option>
+                            </select>
+                            <p class="text-xs text-gray-400 mt-1">Used for menu grouping and filtering.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold mb-2 text-gray-700">
+                                Meal Type <span class="text-gray-400 font-normal">(for AI recommendations)</span>
+                            </label>
+
+                            <select id="itemMealType"
+                                class="w-full border border-gray-300 rounded-2xl px-4 py-3 bg-white focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition">
+                                <option value="">Select Meal Type</option>
+                            </select>
+
+                            <p class="text-xs text-gray-400 mt-1">
+                                Select one only, like main, side, drink, dessert, snack, or soup.
+                            </p>
+                        </div>
+
+                        <div class="lg:col-span-2">
+                            <label class="block text-sm font-semibold mb-2 text-gray-700">
+                                Description <span class="text-gray-400 font-normal">(optional)</span>
+                            </label>
+                            <textarea
+                                id="itemDescription"
+                                rows="4"
+                                maxlength="1000"
+                                placeholder="Enter menu item description for customer/mobile display..."
+                                class="w-full border border-gray-300 rounded-2xl px-4 py-3 resize-none bg-white focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition"
+                            ></textarea>
+                            <p class="text-xs text-gray-400 mt-1">Keep this short and readable for the tablet menu.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Image / Availability Section -->
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                    <div class="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                        <div class="px-5 py-4 border-b bg-white">
+                            <h4 class="font-bold text-gray-900 text-lg">Menu Image</h4>
+                            <p class="text-sm text-gray-500 mt-1">
+                                Upload a clear photo for the menu item.
+                            </p>
+                        </div>
+
+                        <div class="p-5">
+                            <label class="block text-sm font-semibold mb-2 text-gray-700">
+                                Upload Image <span class="text-gray-400 font-normal">(optional)</span>
+                            </label>
+
+                            <label class="block border-2 border-dashed border-orange-100 hover:border-orange-300 bg-orange-50/40 hover:bg-orange-50 rounded-3xl px-5 py-7 text-center cursor-pointer transition">
+                                <input
+                                    id="itemImage"
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    class="hidden"
+                                >
+
+                                <div class="mx-auto w-14 h-14 rounded-2xl bg-white border border-orange-100 shadow-sm flex items-center justify-center text-orange-500 font-bold">
+                                    IMG
+                                </div>
+
+                                <p class="text-sm font-semibold text-gray-800 mt-3">
+                                    Choose menu image
+                                </p>
+
+                                <p class="text-xs text-gray-500 mt-1">
+                                    JPG, PNG, or WEBP up to 4MB.
+                                </p>
+                            </label>
+
+                            <p id="currentImageText" class="text-xs text-gray-400 mt-2 hidden">
+                                Current image will stay unless you upload a new one.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                        <div class="px-5 py-4 border-b bg-white">
+                            <h4 class="font-bold text-gray-900 text-lg">Availability Setup</h4>
+                            <p class="text-sm text-gray-500 mt-1">
+                                Manual availability still follows ingredient stock rules.
+                            </p>
+                        </div>
+
+                        <div class="p-5 space-y-4">
+                            <label class="flex items-center justify-between gap-4 border border-gray-200 rounded-3xl px-5 py-4 bg-gray-50">
+                                <div class="min-w-0">
+                                    <p class="text-sm font-bold text-gray-900">Available for ordering</p>
+                                    <p class="text-xs text-gray-500 mt-1">
+                                        Normal menu items still require enough linked ingredients. Chef Oppa Special stays available as a custom request.
+                                    </p>
+                                </div>
+
+                                <input id="itemAvailable" type="checkbox" class="rounded shrink-0 scale-110" checked>
+                            </label>
+
+                            <div class="rounded-3xl border border-orange-100 bg-orange-50 px-5 py-4">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-9 h-9 rounded-2xl bg-white border border-orange-100 flex items-center justify-center text-orange-600 font-bold shrink-0">
+                                        !
+                                    </div>
+
+                                    <div>
+                                        <p class="text-sm font-bold text-orange-800">Ingredient reminder</p>
+                                        <p class="text-xs text-orange-700 mt-1 leading-5">
+                                            After saving a normal menu item, click the <span class="font-bold">Ingredients</span> button to link required ingredients and quantity usage. If one linked ingredient is insufficient, this item becomes unavailable.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="rounded-3xl border border-blue-100 bg-blue-50 px-5 py-4">
+                                <p class="text-sm font-bold text-blue-800">Chef Oppa Special</p>
+                                <p class="text-xs text-blue-700 mt-1 leading-5">
+                                    Custom request items should use price 0.00. On mobile, price remains “To be confirmed” and quantity stays fixed to 1.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Flavor Tags Section -->
+                <div class="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                    <div class="px-5 py-4 border-b bg-white">
+                        <h4 class="font-bold text-gray-900 text-lg">
+                            Flavor Tags <span class="text-gray-400 font-normal text-sm">(for AI recommendations)</span>
+                        </h4>
+                        <p class="text-sm text-gray-500 mt-1">
+                            Select tags that describe the item’s taste, texture, or style.
+                        </p>
+                    </div>
+
+                    <div class="p-5">
+                        <div id="flavorTagsContainer" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                            <!-- Flavor tags will load here -->
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="border-t pt-4 flex flex-col sm:flex-row sm:justify-end gap-2">
+            <!-- Sticky Footer -->
+            <div class="sticky bottom-0 bg-white border-t px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:justify-end gap-2 shadow-[0_-8px_24px_rgba(15,23,42,0.06)]">
                 <button type="button" onclick="closeMenuModal()"
-                    class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium">
+                    class="w-full sm:w-auto px-5 py-3 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold transition">
                     Cancel
                 </button>
 
                 <button id="menuSaveBtn" type="submit"
-                    class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold disabled:opacity-70 disabled:cursor-not-allowed">
+                    class="w-full sm:w-auto px-6 py-3 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-bold disabled:opacity-70 disabled:cursor-not-allowed shadow-sm transition">
                     Save Menu Item
                 </button>
             </div>
@@ -213,8 +367,8 @@
 </div>
 
 <!-- Ingredients Modal -->
-<div id="ingredientsModal" class="fixed inset-0 bg-black/50 backdrop-blur-[2px] hidden items-center justify-center z-50 p-3 sm:p-4">
-    <div class="bg-white rounded-[26px] shadow-2xl w-full max-w-5xl max-h-[94vh] overflow-hidden flex flex-col border border-gray-100">
+<div id="ingredientsModal" class="fixed inset-0 bg-black/50 backdrop-blur-[2px] hidden items-center justify-center z-50 p-0 sm:p-4">
+    <div class="bg-white rounded-none sm:rounded-[26px] shadow-2xl w-full sm:max-w-5xl h-[100dvh] sm:h-auto sm:max-h-[94dvh] overflow-hidden flex flex-col border border-gray-100">
         <!-- Header -->
         <div class="relative px-5 sm:px-7 py-5 border-b bg-gradient-to-r from-orange-50 via-white to-amber-50 shrink-0">
             <div class="flex items-start justify-between gap-4">
@@ -752,14 +906,14 @@ function populateFlavorTags(selectedTags = []) {
         const checked = selected.includes(tag) ? 'checked' : '';
 
         container.innerHTML += `
-            <label class="flex items-center gap-2 text-sm bg-gray-50 border rounded-xl px-3 py-2 cursor-pointer hover:bg-orange-50 hover:border-orange-200 transition">
+            <label class="group flex items-center gap-2 text-sm bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2.5 cursor-pointer hover:bg-orange-50 hover:border-orange-200 transition">
                 <input
                     type="checkbox"
-                    class="flavor-tag-checkbox rounded text-orange-500"
+                    class="flavor-tag-checkbox rounded text-orange-500 focus:ring-orange-400"
                     value="${safeText(tag)}"
                     ${checked}
                 >
-                <span>${safeText(formatLabel(tag))}</span>
+                <span class="text-gray-700 group-hover:text-orange-700 font-medium">${safeText(formatLabel(tag))}</span>
             </label>
         `;
     });
@@ -911,17 +1065,22 @@ function renderMenuMobileList() {
     }
 
     container.innerHTML = filteredMenuItems.map(item => `
-        <div class="rounded-2xl border bg-white shadow-sm p-4">
-            <div class="flex items-start gap-3">
-                <div class="shrink-0">
-                    ${getImageHtml(item)}
+        <div class="rounded-3xl border bg-white shadow-sm p-4 overflow-hidden">
+            <div class="menu-mobile-card-main flex items-start gap-4">
+                <div class="menu-mobile-card-image shrink-0">
+                    ${getMobileImageHtml(item)}
                 </div>
 
                 <div class="min-w-0 flex-1">
                     <div class="flex items-start justify-between gap-2">
                         <div class="min-w-0">
-                            <h3 class="font-bold text-gray-900 leading-snug">${safeText(item.name)}</h3>
-                            <p class="text-xs text-gray-500 mt-1">${safeText(item.category || 'Uncategorized')}</p>
+                            <h3 class="font-bold text-gray-900 leading-snug text-base break-words">
+                                ${safeText(item.name)}
+                            </h3>
+
+                            <p class="text-xs text-gray-500 mt-1 break-words">
+                                ${safeText(item.category || 'Uncategorized')}
+                            </p>
                         </div>
 
                         <button onclick="toggleAvailability(${item.id}, ${item.is_available ? 'true' : 'false'}, this)"
@@ -932,49 +1091,49 @@ function renderMenuMobileList() {
 
                     ${
                         item.description
-                            ? `<p class="text-xs text-gray-500 mt-2 line-clamp-2">${safeText(item.description)}</p>`
+                            ? `<p class="text-xs text-gray-500 mt-2 leading-5 break-words">${safeText(item.description)}</p>`
                             : `<p class="text-xs text-gray-400 mt-2 italic">No description</p>`
                     }
-
-                    <div class="mt-3 rounded-xl bg-gray-50 border px-3 py-2 space-y-1">
-                        <p class="text-xs text-gray-600">
-                            <span class="font-semibold">Price:</span>
-                            ${
-                                item.inventory_type === 'custom' || item.category === 'Chef Oppa Special'
-                                    ? '<span class="text-orange-500 font-semibold">To be confirmed</span>'
-                                    : `<span class="font-semibold">${formatMoney(item.price)}</span>`
-                            }
-                        </p>
-
-                        <p class="text-xs text-gray-600">
-                            <span class="font-semibold">Ingredients:</span>
-                            ${safeText(getIngredientSummary(item))}
-                        </p>
-
-                        <p class="text-xs text-gray-500">
-                            ${safeText(item.stock_label || 'No stock data')}
-                        </p>
-                    </div>
-
-                    ${getFlavorTagsHtml(item)}
-
-                    <div class="grid grid-cols-3 gap-2 mt-4">
-                        <button onclick="openMenuModal(${item.id})"
-                            class="px-3 py-2 rounded-xl border text-gray-700 hover:bg-gray-50 text-xs font-semibold">
-                            Edit
-                        </button>
-
-                        <button onclick="openIngredientsModal(${item.id})"
-                            class="px-3 py-2 rounded-xl border text-gray-700 hover:bg-gray-50 text-xs font-semibold">
-                            Ingredients
-                        </button>
-
-                        <button onclick="deleteMenuItem(${item.id}, this)"
-                            class="px-3 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold">
-                            Delete
-                        </button>
-                    </div>
                 </div>
+            </div>
+
+            <div class="mt-4 rounded-2xl bg-gray-50 border px-4 py-3 space-y-1">
+                <p class="text-xs text-gray-600">
+                    <span class="font-semibold">Price:</span>
+                    ${
+                        item.inventory_type === 'custom' || item.category === 'Chef Oppa Special'
+                            ? '<span class="text-orange-500 font-semibold">To be confirmed</span>'
+                            : `<span class="font-semibold">${formatMoney(item.price)}</span>`
+                    }
+                </p>
+
+                <p class="text-xs text-gray-600">
+                    <span class="font-semibold">Ingredients:</span>
+                    ${safeText(getIngredientSummary(item))}
+                </p>
+
+                <p class="text-xs text-gray-500">
+                    ${safeText(item.stock_label || 'No stock data')}
+                </p>
+            </div>
+
+            ${getFlavorTagsHtml(item)}
+
+            <div class="menu-mobile-card-actions grid grid-cols-3 gap-2 mt-4">
+                <button onclick="openMenuModal(${item.id})"
+                    class="px-3 py-2.5 rounded-xl border text-gray-700 hover:bg-gray-50 text-xs font-semibold">
+                    Edit
+                </button>
+
+                <button onclick="openIngredientsModal(${item.id})"
+                    class="px-3 py-2.5 rounded-xl border text-gray-700 hover:bg-gray-50 text-xs font-semibold">
+                    Ingredients
+                </button>
+
+                <button onclick="deleteMenuItem(${item.id}, this)"
+                    class="px-3 py-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold">
+                    Delete
+                </button>
             </div>
         </div>
     `).join('');
