@@ -25,6 +25,18 @@
             -webkit-overflow-scrolling: touch;
         }
 
+
+        .menu-mobile-card-header {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+        }
+
+        .menu-mobile-card-actions button {
+            width: 100% !important;
+            min-height: 44px !important;
+            font-size: 13px !important;
+        }
+
         #flavorTagsContainer {
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
         }
@@ -734,6 +746,24 @@ function populateIngredientSelect() {
     select.value = selected;
 }
 
+function getImageHtml(item) {
+    const imageSrc = getImageSrc(item);
+
+    if (imageSrc) {
+        return `
+            <img src="${safeText(imageSrc)}"
+                class="w-14 h-14 object-cover rounded-xl border"
+                onerror="this.outerHTML='<div class=&quot;w-14 h-14 rounded-xl bg-gray-100 border flex items-center justify-center text-gray-400 text-xs&quot;>No Image</div>'">
+        `;
+    }
+
+    return `
+        <div class="w-14 h-14 rounded-xl bg-gray-100 border flex items-center justify-center text-gray-400 text-xs">
+            No Image
+        </div>
+    `;
+}
+
 function getMobileImageHtml(item) {
     const imageSrc = getImageSrc(item);
 
@@ -853,17 +883,21 @@ async function loadMenuItems() {
     } catch (error) {
         console.error('Load menu items failed:', error);
 
+        const errorMessage = error?.message
+            ? `Failed to load menu items: ${error.message}`
+            : 'Failed to load menu items. Please check your connection.';
+
         tbody.innerHTML = `
             <tr>
                 <td colspan="6" class="px-6 py-8 text-center text-red-500">
-                    Failed to load menu items. Please check your connection.
+                    ${safeText(errorMessage)}
                 </td>
             </tr>
         `;
 
         mobileList.innerHTML = `
             <div class="px-4 py-8 text-center text-red-500">
-                Failed to load menu items. Please check your connection.
+                ${safeText(errorMessage)}
             </div>
         `;
     }
@@ -1072,7 +1106,7 @@ function renderMenuMobileList() {
                 </div>
 
                 <div class="min-w-0 flex-1">
-                    <div class="flex items-start justify-between gap-2">
+                    <div class="menu-mobile-card-header flex items-start justify-between gap-2">
                         <div class="min-w-0">
                             <h3 class="font-bold text-gray-900 leading-snug text-base break-words">
                                 ${safeText(item.name)}
@@ -1119,7 +1153,7 @@ function renderMenuMobileList() {
 
             ${getFlavorTagsHtml(item)}
 
-            <div class="menu-mobile-card-actions grid grid-cols-3 gap-2 mt-4">
+            <div class="menu-mobile-card-actions grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4">
                 <button onclick="openMenuModal(${item.id})"
                     class="px-3 py-2.5 rounded-xl border text-gray-700 hover:bg-gray-50 text-xs font-semibold">
                     Edit
