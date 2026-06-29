@@ -61,6 +61,10 @@ class Ingredient extends Model
 
     public function getTotalStockAttribute()
     {
+        if (array_key_exists('total_stock', $this->attributes)) {
+            return (float) ($this->attributes['total_stock'] ?? 0);
+        }
+
         if (! Schema::hasTable('inventory_batches')) {
             return (float) ($this->current_stock ?? 0);
         }
@@ -70,6 +74,10 @@ class Ingredient extends Model
 
     public function getStockValueAttribute()
     {
+        if (array_key_exists('stock_value', $this->attributes)) {
+            return (float) ($this->attributes['stock_value'] ?? 0);
+        }
+
         if (! Schema::hasTable('inventory_batches')) {
             return 0;
         }
@@ -81,6 +89,10 @@ class Ingredient extends Model
 
     public function getNearestExpiryDateAttribute()
     {
+        if (array_key_exists('nearest_expiry_date', $this->attributes)) {
+            return $this->attributes['nearest_expiry_date'];
+        }
+
         if (! Schema::hasTable('inventory_batches')) {
             return null;
         }
@@ -159,7 +171,11 @@ class Ingredient extends Model
 
     public function updateLinkedMenuAvailability(): void
     {
-        MenuItem::refreshAllAvailability();
+        $this->loadMissing('menuItems.ingredients');
+
+        foreach ($this->menuItems as $menuItem) {
+            $menuItem->refreshAvailability();
+        }
     }
 
     public static function refreshAllMenuAvailability(): void

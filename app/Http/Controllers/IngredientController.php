@@ -9,20 +9,21 @@ use App\Models\MenuItem;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class IngredientController extends Controller
 {
     public function index()
     {
-        $this->syncAllInventoryAndMenuAvailability();
+        $this->syncExpiredAndUsedUpBatches();
 
-        $ingredients = Ingredient::with([
-                'batches' => function ($query) {
-                    $query->orderBy('expiry_date', 'asc');
-                }
-            ])
+        $ingredients = $this->baseIngredientQuery()
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->map(function ($ingredient) {
+                return $this->formatIngredientResponse($ingredient);
+            })
+            ->values();
 
         return response()->json($ingredients);
     }
@@ -41,14 +42,8 @@ class IngredientController extends Controller
             'threshold' => $validated['threshold'],
         ]);
 
-        $this->syncAllInventoryAndMenuAvailability();
-
         return response()->json(
-            $ingredient->fresh()->load([
-                'batches' => function ($query) {
-                    $query->orderBy('expiry_date', 'asc');
-                }
-            ]),
+            $this->freshFormattedIngredient($ingredient->id),
             201
         );
     }
@@ -56,18 +51,18 @@ class IngredientController extends Controller
     public function show(Ingredient $ingredient)
     {
         $this->syncIngredientStock($ingredient);
-        $this->refreshMenuAvailability();
 
-        return response()->json(
-            $ingredient->fresh()->load([
+        $ingredient = Ingredient::with([
                 'batches' => function ($query) {
                     $query->orderBy('expiry_date', 'asc');
                 },
                 'transactions' => function ($query) {
                     $query->latest();
-                }
+                },
             ])
-        );
+            ->findOrFail($ingredient->id);
+
+        return response()->json($this->formatIngredientResponse($ingredient, true));
     }
 
     public function update(Request $request, Ingredient $ingredient)
@@ -82,23 +77,20 @@ class IngredientController extends Controller
             'threshold' => $validated['threshold'],
         ]);
 
-        $this->syncIngredientStock($ingredient);
-        $this->refreshMenuAvailability();
-
         return response()->json(
-            $ingredient->fresh()->load([
-                'batches' => function ($query) {
-                    $query->orderBy('expiry_date', 'asc');
-                }
-            ])
+            $this->freshFormattedIngredient($ingredient->id)
         );
     }
 
     public function destroy(Ingredient $ingredient)
     {
+        $linkedMenuItems = $ingredient->menuItems()->get();
+
         $ingredient->delete();
 
-        $this->syncAllInventoryAndMenuAvailability();
+        foreach ($linkedMenuItems as $menuItem) {
+            $menuItem->refreshAvailability();
+        }
 
         return response()->json([
             'message' => 'Ingredient deleted successfully.',
@@ -126,8 +118,6 @@ class IngredientController extends Controller
                 'unit' => $validated['unit'],
             ]);
 
-            $batchStatus = $this->getBatchStatusByDateAndQuantity($expiryDate, $quantity);
-
             $batch = InventoryBatch::create([
                 'ingredient_id' => $ingredient->id,
                 'quantity_received' => $quantity,
@@ -136,29 +126,24 @@ class IngredientController extends Controller
                 'received_date' => $validated['received_date'] ?? now()->toDateString(),
                 'expiry_date' => $expiryDate,
                 'supplier' => $validated['supplier'] ?? null,
-                'status' => $batchStatus,
+                'status' => $this->getBatchStatusByDateAndQuantity($expiryDate, $quantity),
                 'remarks' => $validated['remarks'] ?? null,
             ]);
 
-            InventoryTransaction::create([
-                'ingredient_id' => $ingredient->id,
-                'inventory_batch_id' => $batch->id,
-                'type' => 'stock_in',
-                'quantity' => $quantity,
-                'unit_cost' => $unitCost,
-                'total_cost' => $quantity * $unitCost,
-                'remarks' => $validated['remarks'] ?? 'Stock batch added.',
-            ]);
+            $this->recordInventoryTransaction(
+                $ingredient,
+                $batch->id,
+                'stock_in',
+                $quantity,
+                $unitCost,
+                $validated['remarks'] ?? 'Stock batch added.'
+            );
 
             $this->syncIngredientStock($ingredient);
-            $this->refreshMenuAvailability();
+            $this->refreshLinkedMenuAvailability($ingredient);
 
             return response()->json(
-                $ingredient->fresh()->load([
-                    'batches' => function ($query) {
-                        $query->orderBy('expiry_date', 'asc');
-                    }
-                ]),
+                $this->freshFormattedIngredient($ingredient->id, true),
                 201
             );
         });
@@ -196,11 +181,6 @@ class IngredientController extends Controller
                 'unit' => $validated['unit'],
             ]);
 
-            $batchStatus = $this->getBatchStatusByDateAndQuantity(
-                $validated['expiry_date'],
-                $newQuantityRemaining
-            );
-
             $batch->update([
                 'quantity_received' => $newQuantityReceived,
                 'quantity_remaining' => $newQuantityRemaining,
@@ -208,29 +188,24 @@ class IngredientController extends Controller
                 'received_date' => $validated['received_date'] ?? $batch->received_date,
                 'expiry_date' => $validated['expiry_date'],
                 'supplier' => $validated['supplier'] ?? null,
-                'status' => $batchStatus,
+                'status' => $this->getBatchStatusByDateAndQuantity($validated['expiry_date'], $newQuantityRemaining),
                 'remarks' => $validated['remarks'] ?? null,
             ]);
 
-            InventoryTransaction::create([
-                'ingredient_id' => $ingredient->id,
-                'inventory_batch_id' => $batch->id,
-                'type' => 'adjustment',
-                'quantity' => $newQuantityReceived,
-                'unit_cost' => $newUnitCost,
-                'total_cost' => $newQuantityReceived * $newUnitCost,
-                'remarks' => $validated['remarks'] ?? 'Stock batch updated.',
-            ]);
+            $this->recordInventoryTransaction(
+                $ingredient,
+                $batch->id,
+                'adjustment',
+                $newQuantityReceived,
+                $newUnitCost,
+                $validated['remarks'] ?? 'Stock batch updated.'
+            );
 
             $this->syncIngredientStock($ingredient);
-            $this->refreshMenuAvailability();
+            $this->refreshLinkedMenuAvailability($ingredient);
 
             return response()->json(
-                $ingredient->fresh()->load([
-                    'batches' => function ($query) {
-                        $query->orderBy('expiry_date', 'asc');
-                    }
-                ])
+                $this->freshFormattedIngredient($ingredient->id, true)
             );
         });
     }
@@ -244,39 +219,44 @@ class IngredientController extends Controller
         }
 
         return DB::transaction(function () use ($ingredient, $batch) {
-            InventoryTransaction::create([
-                'ingredient_id' => $ingredient->id,
-                'inventory_batch_id' => $batch->id,
-                'type' => 'adjustment',
-                'quantity' => 0,
-                'unit_cost' => $batch->unit_cost,
-                'total_cost' => 0,
-                'remarks' => 'Stock batch deleted.',
-            ]);
+            $this->recordInventoryTransaction(
+                $ingredient,
+                $batch->id,
+                'adjustment',
+                0,
+                (float) ($batch->unit_cost ?? 0),
+                'Stock batch deleted.'
+            );
 
             $batch->delete();
 
             $this->syncIngredientStock($ingredient);
-            $this->refreshMenuAvailability();
+            $this->refreshLinkedMenuAvailability($ingredient);
 
-            return response()->json([
-                'message' => 'Stock batch deleted successfully.',
-            ]);
+            return response()->json(
+                $this->freshFormattedIngredient($ingredient->id, true)
+            );
         });
     }
 
     public function inventoryInsights()
     {
-        $this->syncAllInventoryAndMenuAvailability();
+        $this->syncExpiredAndUsedUpBatches();
 
         $ingredients = Ingredient::with([
-                'batches' => function ($query) {
-                    $query->orderBy('expiry_date', 'asc');
-                },
                 'menuItems' => function ($query) {
                     $query->orderBy('name');
                 }
             ])
+            ->select([
+                'ingredients.id',
+                'ingredients.name',
+                'ingredients.current_stock',
+                'ingredients.unit',
+                'ingredients.threshold',
+            ])
+            ->selectSub($this->usableStockSubquery(), 'total_stock')
+            ->selectSub($this->nearestExpirySubquery(), 'nearest_expiry_date')
             ->orderBy('name')
             ->get();
 
@@ -290,7 +270,7 @@ class IngredientController extends Controller
         foreach ($ingredients as $ingredient) {
             $stock = (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0);
             $threshold = (float) ($ingredient->threshold ?? 0);
-            $status = $ingredient->stock_status;
+            $status = $this->resolveStockStatus($stock, $threshold, $ingredient->nearest_expiry_date);
             $unit = $ingredient->unit ?? 'unit';
 
             $menuItems = $ingredient->menuItems
@@ -325,7 +305,7 @@ class IngredientController extends Controller
                 continue;
             }
 
-            if (in_array($status, ['low_stock', 'reorder_soon'])) {
+            if (in_array($status, ['low_stock', 'reorder_soon'], true)) {
                 $label = $status === 'reorder_soon' ? 'Reorder Soon' : 'Low Stock';
 
                 $lowStock[] = [
@@ -367,9 +347,7 @@ class IngredientController extends Controller
                 continue;
             }
 
-            if ($status === 'active') {
-                $healthy[] = $ingredient->name;
-            }
+            $healthy[] = $ingredient->name;
         }
 
         $affectedSummary = [];
@@ -486,43 +464,191 @@ class IngredientController extends Controller
         ]);
     }
 
-    private function syncAllInventoryAndMenuAvailability(): void
+    private function baseIngredientQuery()
     {
+        return Ingredient::query()
+            ->select([
+                'ingredients.id',
+                'ingredients.name',
+                'ingredients.current_stock',
+                'ingredients.unit',
+                'ingredients.threshold',
+                'ingredients.created_at',
+                'ingredients.updated_at',
+            ])
+            ->selectSub($this->usableStockSubquery(), 'total_stock')
+            ->selectSub($this->stockValueSubquery(), 'stock_value')
+            ->selectSub($this->nearestExpirySubquery(), 'nearest_expiry_date')
+            ->selectSub($this->batchCountSubquery(), 'batches_count');
+    }
+
+    private function usableStockSubquery()
+    {
+        return InventoryBatch::query()
+            ->selectRaw('COALESCE(SUM(quantity_remaining), 0)')
+            ->whereColumn('inventory_batches.ingredient_id', 'ingredients.id')
+            ->where('status', 'active')
+            ->where('quantity_remaining', '>', 0)
+            ->whereDate('expiry_date', '>=', now()->toDateString());
+    }
+
+    private function stockValueSubquery()
+    {
+        return InventoryBatch::query()
+            ->selectRaw('COALESCE(SUM(quantity_remaining * unit_cost), 0)')
+            ->whereColumn('inventory_batches.ingredient_id', 'ingredients.id')
+            ->where('status', 'active')
+            ->where('quantity_remaining', '>', 0)
+            ->whereDate('expiry_date', '>=', now()->toDateString());
+    }
+
+    private function nearestExpirySubquery()
+    {
+        return InventoryBatch::query()
+            ->selectRaw('MIN(expiry_date)')
+            ->whereColumn('inventory_batches.ingredient_id', 'ingredients.id')
+            ->where('status', 'active')
+            ->where('quantity_remaining', '>', 0)
+            ->whereDate('expiry_date', '>=', now()->toDateString());
+    }
+
+    private function batchCountSubquery()
+    {
+        return InventoryBatch::query()
+            ->selectRaw('COUNT(*)')
+            ->whereColumn('inventory_batches.ingredient_id', 'ingredients.id');
+    }
+
+    private function formatIngredientResponse(Ingredient $ingredient, bool $includeBatches = false): array
+    {
+        $totalStock = (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0);
+        $stockValue = (float) ($ingredient->stock_value ?? 0);
+        $nearestExpiryDate = $ingredient->nearest_expiry_date ?? null;
+        $threshold = (float) ($ingredient->threshold ?? 0);
+        $status = $this->resolveStockStatus($totalStock, $threshold, $nearestExpiryDate);
+
+        $data = [
+            'id' => $ingredient->id,
+            'name' => $ingredient->name,
+            'current_stock' => $totalStock,
+            'total_stock' => $totalStock,
+            'unit' => $ingredient->unit ?? 'unit',
+            'threshold' => $threshold,
+            'stock_value' => $stockValue,
+            'nearest_expiry_date' => $nearestExpiryDate,
+            'stock_status' => $status,
+            'batches_count' => (int) ($ingredient->batches_count ?? 0),
+            'created_at' => $ingredient->created_at,
+            'updated_at' => $ingredient->updated_at,
+        ];
+
+        if ($includeBatches) {
+            $data['batches'] = $ingredient->relationLoaded('batches')
+                ? $ingredient->batches->values()
+                : [];
+
+            $data['transactions'] = $ingredient->relationLoaded('transactions')
+                ? $ingredient->transactions->values()
+                : [];
+        } else {
+            $data['batches'] = [];
+        }
+
+        return $data;
+    }
+
+    private function freshFormattedIngredient(int $ingredientId, bool $includeBatches = false): array
+    {
+        $query = $this->baseIngredientQuery()
+            ->where('ingredients.id', $ingredientId);
+
+        if ($includeBatches) {
+            $query->with([
+                'batches' => function ($query) {
+                    $query->orderBy('expiry_date', 'asc');
+                },
+                'transactions' => function ($query) {
+                    $query->latest();
+                },
+            ]);
+        }
+
+        $ingredient = $query->firstOrFail();
+
+        return $this->formatIngredientResponse($ingredient, $includeBatches);
+    }
+
+    private function resolveStockStatus(float $usableStock, float $threshold, $nearestExpiryDate): string
+    {
+        if ($usableStock <= 0) {
+            return 'out_of_stock';
+        }
+
+        if ($nearestExpiryDate) {
+            $daysUntilExpiry = now()
+                ->startOfDay()
+                ->diffInDays(
+                    Carbon::parse($nearestExpiryDate)->startOfDay(),
+                    false
+                );
+
+            if ($daysUntilExpiry >= 0 && $daysUntilExpiry <= 3) {
+                return 'near_expiry';
+            }
+        }
+
+        if ($threshold > 0 && $usableStock < $threshold) {
+            return 'low_stock';
+        }
+
+        if ($threshold > 0 && $usableStock == $threshold) {
+            return 'reorder_soon';
+        }
+
+        return 'active';
+    }
+
+    private function syncExpiredAndUsedUpBatches(): void
+    {
+        if (! Schema::hasTable('inventory_batches')) {
+            return;
+        }
+
         $today = now()->toDateString();
 
         InventoryBatch::where('quantity_remaining', '>', 0)
             ->whereDate('expiry_date', '<', $today)
+            ->where('status', '!=', 'expired')
             ->update([
                 'status' => 'expired',
             ]);
 
         InventoryBatch::where('quantity_remaining', '<=', 0)
+            ->where('status', '!=', 'used_up')
             ->update([
                 'status' => 'used_up',
             ]);
-
-        Ingredient::query()->chunk(100, function ($ingredients) {
-            foreach ($ingredients as $ingredient) {
-                $this->syncIngredientStock($ingredient);
-            }
-        });
-
-        $this->refreshMenuAvailability();
     }
 
     private function syncIngredientStock(Ingredient $ingredient): void
     {
+        if (! Schema::hasTable('inventory_batches')) {
+            return;
+        }
+
         $today = now()->toDateString();
 
         InventoryBatch::where('ingredient_id', $ingredient->id)
             ->where('quantity_remaining', '>', 0)
             ->whereDate('expiry_date', '<', $today)
+            ->where('status', '!=', 'expired')
             ->update([
                 'status' => 'expired',
             ]);
 
         InventoryBatch::where('ingredient_id', $ingredient->id)
             ->where('quantity_remaining', '<=', 0)
+            ->where('status', '!=', 'used_up')
             ->update([
                 'status' => 'used_up',
             ]);
@@ -538,51 +664,46 @@ class IngredientController extends Controller
         ])->saveQuietly();
     }
 
-    private function refreshMenuAvailability(): void
+    private function refreshLinkedMenuAvailability(Ingredient $ingredient): void
     {
-        MenuItem::with('ingredients')->chunk(100, function ($menuItems) {
-            foreach ($menuItems as $menuItem) {
-                if ($menuItem->category === 'Chef Oppa Special' || $menuItem->inventory_type === 'custom') {
-                    $menuItem->forceFill([
-                        'inventory_type' => 'custom',
-                        'daily_limit' => null,
-                        'is_available' => true,
-                    ])->saveQuietly();
+        $ingredient->loadMissing('menuItems.ingredients');
 
-                    continue;
-                }
-
-                $isAvailable = $this->computeMenuAvailability($menuItem);
-
+        foreach ($ingredient->menuItems as $menuItem) {
+            if ($menuItem->category === 'Chef Oppa Special' || $menuItem->inventory_type === 'custom') {
                 $menuItem->forceFill([
-                    'inventory_type' => $menuItem->inventory_type ?: 'per_order',
+                    'inventory_type' => 'custom',
                     'daily_limit' => null,
-                    'is_available' => $isAvailable,
+                    'is_available' => true,
                 ])->saveQuietly();
+
+                continue;
             }
-        });
+
+            $menuItem->refreshAvailability();
+        }
     }
 
-    private function computeMenuAvailability(MenuItem $menuItem): bool
-    {
-        if ($menuItem->ingredients->isEmpty()) {
-            return false;
+    private function recordInventoryTransaction(
+        Ingredient $ingredient,
+        ?int $batchId,
+        string $type,
+        float $quantity,
+        float $unitCost,
+        string $remarks
+    ): void {
+        if (! Schema::hasTable('inventory_transactions')) {
+            return;
         }
 
-        foreach ($menuItem->ingredients as $ingredient) {
-            $required = (float) ($ingredient->pivot->quantity_required ?? 0);
-            $stock = (float) ($ingredient->current_stock ?? 0);
-
-            if ($required <= 0) {
-                return false;
-            }
-
-            if ($stock < $required) {
-                return false;
-            }
-        }
-
-        return true;
+        InventoryTransaction::create([
+            'ingredient_id' => $ingredient->id,
+            'inventory_batch_id' => $batchId,
+            'type' => $type,
+            'quantity' => $quantity,
+            'unit_cost' => $unitCost,
+            'total_cost' => $quantity * $unitCost,
+            'remarks' => $remarks,
+        ]);
     }
 
     private function getBatchStatusByDateAndQuantity(string $expiryDate, float $quantityRemaining): string
