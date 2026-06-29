@@ -4,7 +4,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Log;
 use App\Models\MenuItem;
-use App\Models\Ingredient;
 use App\Models\InventoryBatch;
 use App\Http\Controllers\IngredientController;
 use App\Http\Controllers\MenuItemController;
@@ -69,15 +68,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| Public / Tablet Menu API Routes
+| Public / Tablet Menu API Route
 |--------------------------------------------------------------------------
 |
 | Mobile/tablet source of truth:
-| - Returns menu-visible items.
-| - Does not hide items just because ingredients are missing.
-| - Computes max_order_quantity from usable, non-expired stock batches.
-| - Expired batches are not counted.
-| - Custom/Chef Oppa Special remains available when manually enabled.
+| - response.data.data is always the menu item array.
+| - no nested data object.
+| - no old daily_limit/sold_today capacity logic.
+| - availability is computed from linked ingredients and usable stock batches.
+| - expired and used-up batches are ignored.
+| - Chef Oppa Special/custom stays available.
 |
 */
 
@@ -86,10 +86,10 @@ Route::get('/menu', function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Lightweight batch status cleanup
+    | Clean expired / used-up batches
     |--------------------------------------------------------------------------
-    | Do not refresh all menu availability here. This endpoint should stay fast.
     */
+
     InventoryBatch::where('quantity_remaining', '>', 0)
         ->whereDate('expiry_date', '<', $today)
         ->where('status', '!=', 'expired')
@@ -107,10 +107,10 @@ Route::get('/menu', function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Compute usable stock once
+    | Precompute stock maps once
     |--------------------------------------------------------------------------
-    | This avoids repeated stock queries per ingredient/menu item.
     */
+
     $usableStockByIngredient = InventoryBatch::query()
         ->selectRaw('ingredient_id, COALESCE(SUM(quantity_remaining), 0) as usable_stock')
         ->where('status', 'active')
@@ -120,12 +120,28 @@ Route::get('/menu', function () {
         ->pluck('usable_stock', 'ingredient_id')
         ->map(fn ($value) => (float) $value);
 
+    $expiredBatchCountByIngredient = InventoryBatch::query()
+        ->selectRaw('ingredient_id, COUNT(*) as expired_count')
+        ->where('status', 'expired')
+        ->groupBy('ingredient_id')
+        ->pluck('expired_count', 'ingredient_id')
+        ->map(fn ($value) => (int) $value);
+
+    $usedUpBatchCountByIngredient = InventoryBatch::query()
+        ->selectRaw('ingredient_id, COUNT(*) as used_up_count')
+        ->where('status', 'used_up')
+        ->groupBy('ingredient_id')
+        ->pluck('used_up_count', 'ingredient_id')
+        ->map(fn ($value) => (int) $value);
+
     /*
     |--------------------------------------------------------------------------
-    | Load menu items with linked ingredients
+    | Load all menu-visible items
     |--------------------------------------------------------------------------
-    | Do not filter by is_available here. Mobile needs the full source of truth.
+    | No where('is_available', true) here.
+    | Mobile needs complete source of truth with computed fields.
     */
+
     $menuItems = MenuItem::query()
         ->select([
             'id',
@@ -150,138 +166,154 @@ Route::get('/menu', function () {
                     'ingredients.current_stock',
                     'ingredients.unit',
                     'ingredients.threshold',
-                ])->orderBy('name');
+                ])->orderBy('ingredients.name');
             }
         ])
         ->orderBy('category')
         ->orderBy('name')
         ->get();
 
-    $data = $menuItems->map(function ($item) use ($usableStockByIngredient) {
+    $menuData = $menuItems->map(function ($item) use (
+        $usableStockByIngredient,
+        $expiredBatchCountByIngredient,
+        $usedUpBatchCountByIngredient
+    ) {
         $isCustom = $item->category === 'Chef Oppa Special' || $item->inventory_type === 'custom';
-        $manualEnabled = (bool) $item->is_available;
         $ingredients = $item->ingredients ?? collect();
 
         $maxOrderQuantity = 0;
-        $computedAvailable = false;
-        $stockLabel = '';
+        $isAvailable = false;
+        $stockLabel = null;
         $unavailableReason = null;
         $ingredientDebug = [];
 
         /*
         |--------------------------------------------------------------------------
-        | Custom item rule
+        | Chef Oppa Special / Custom
         |--------------------------------------------------------------------------
         */
+
         if ($isCustom) {
-            $maxOrderQuantity = $manualEnabled ? 1 : 0;
-            $computedAvailable = $manualEnabled;
-            $stockLabel = $manualEnabled
-                ? 'Staff confirms availability'
-                : 'Manually disabled';
+            $maxOrderQuantity = 1;
+            $isAvailable = true;
+            $stockLabel = 'Custom request available';
+            $unavailableReason = null;
         }
 
         /*
         |--------------------------------------------------------------------------
-        | No linked ingredients rule
+        | No linked ingredients
         |--------------------------------------------------------------------------
-        | Do not automatically make every no-ingredient item unavailable.
-        | If admin enabled it, mobile can show it as available.
+        | Business-safe rule:
+        | - No linked ingredients should not break the mobile response.
+        | - It can still show as available if admin enabled it.
         */
+
         if (!$isCustom && $ingredients->isEmpty()) {
-            $maxOrderQuantity = $manualEnabled ? 99 : 0;
-            $computedAvailable = $manualEnabled;
-            $stockLabel = $manualEnabled
-                ? 'Available. No ingredients linked.'
-                : 'Manually disabled';
-            $unavailableReason = $manualEnabled ? null : 'Manually disabled';
+            $maxOrderQuantity = (bool) $item->is_available ? 99 : 0;
+            $isAvailable = (bool) $item->is_available;
+            $stockLabel = $isAvailable
+                ? 'Available'
+                : 'Unavailable based on ingredient stock.';
+            $unavailableReason = $isAvailable
+                ? null
+                : 'No linked ingredients found or item is disabled.';
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Ingredient-based rule
+        | Ingredient-based computation
         |--------------------------------------------------------------------------
         */
+
         if (!$isCustom && $ingredients->isNotEmpty()) {
-            $possibleQuantities = [];
-            $invalidIngredient = null;
-            $insufficientIngredient = null;
+            $servingCounts = [];
+            $insufficientIngredients = [];
+            $invalidIngredients = [];
 
             foreach ($ingredients as $ingredient) {
-                $required = (float) ($ingredient->pivot->quantity_required ?? 0);
+                $requiredQuantity = (float) ($ingredient->pivot->quantity_required ?? 0);
                 $usableStock = (float) ($usableStockByIngredient[$ingredient->id] ?? 0);
+                $expiredIgnored = (int) ($expiredBatchCountByIngredient[$ingredient->id] ?? 0);
+                $usedUpIgnored = (int) ($usedUpBatchCountByIngredient[$ingredient->id] ?? 0);
+
+                $computedServings = $requiredQuantity > 0
+                    ? (int) floor($usableStock / $requiredQuantity)
+                    : 0;
+
+                if ($requiredQuantity <= 0) {
+                    $invalidIngredients[] = $ingredient->name;
+                } elseif ($computedServings <= 0) {
+                    $insufficientIngredients[] = $ingredient->name;
+                }
+
+                $servingCounts[] = $computedServings;
 
                 $ingredientDebug[] = [
                     'id' => $ingredient->id,
                     'name' => $ingredient->name,
-                    'required_per_order' => $required,
+                    'required_quantity' => $requiredQuantity,
                     'usable_stock' => $usableStock,
                     'unit' => $ingredient->unit,
-                    'possible_orders' => $required > 0 ? (int) floor($usableStock / $required) : 0,
+                    'computed_servings' => $computedServings,
+                    'expired_batches_ignored' => $expiredIgnored,
+                    'used_up_batches_ignored' => $usedUpIgnored,
                 ];
-
-                if ($required <= 0) {
-                    $invalidIngredient = $ingredient->name;
-                    break;
-                }
-
-                if ($usableStock < $required) {
-                    $insufficientIngredient = $ingredient->name;
-                }
-
-                $possibleQuantities[] = (int) floor($usableStock / $required);
             }
 
-            if ($invalidIngredient) {
+            if (count($invalidIngredients)) {
                 $maxOrderQuantity = 0;
-                $computedAvailable = false;
-                $stockLabel = 'Invalid ingredient usage';
-                $unavailableReason = "Invalid ingredient usage for {$invalidIngredient}.";
-            } elseif ($insufficientIngredient) {
+                $isAvailable = false;
+                $stockLabel = 'Unavailable based on ingredient stock.';
+                $unavailableReason = 'Invalid ingredient quantity requirement for: ' . implode(', ', $invalidIngredients) . '.';
+            } elseif (count($insufficientIngredients)) {
                 $maxOrderQuantity = 0;
-                $computedAvailable = false;
-                $stockLabel = 'Insufficient ingredients';
-                $unavailableReason = "Insufficient stock of {$insufficientIngredient}.";
+                $isAvailable = false;
+                $stockLabel = 'Unavailable based on ingredient stock.';
+                $unavailableReason = 'Insufficient stock for: ' . implode(', ', $insufficientIngredients) . '.';
             } else {
-                $maxOrderQuantity = count($possibleQuantities)
-                    ? max(0, min($possibleQuantities))
+                $maxOrderQuantity = count($servingCounts)
+                    ? max(0, min($servingCounts))
                     : 0;
 
-                $computedAvailable = $manualEnabled && $maxOrderQuantity > 0;
-
-                if (!$manualEnabled) {
-                    $stockLabel = 'Manually disabled';
-                    $unavailableReason = 'Manually disabled in admin.';
-                } elseif ($maxOrderQuantity <= 0) {
-                    $stockLabel = 'Insufficient ingredients';
-                    $unavailableReason = 'Maximum order quantity is 0 based on ingredient stock.';
+                if ($maxOrderQuantity > 0) {
+                    $isAvailable = true;
+                    $stockLabel = 'Only ' . $maxOrderQuantity . ' order(s) available based on ingredient stock.';
+                    $unavailableReason = null;
                 } else {
-                    $stockLabel = $maxOrderQuantity . ' order(s) available based on ingredients';
+                    $isAvailable = false;
+                    $stockLabel = 'Unavailable based on ingredient stock.';
+                    $unavailableReason = 'Maximum order quantity is 0 based on ingredient stock.';
                 }
             }
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Keep DB status aligned for linked/custom items only
+        | Update stale DB availability quietly
         |--------------------------------------------------------------------------
-        | This avoids stale /api/menu values without doing heavy refreshAll.
+        | This keeps web/admin status aligned with computed ingredient availability.
         */
-        if ($item->is_available !== $computedAvailable) {
+
+        if ((bool) $item->is_available !== (bool) $isAvailable) {
             $item->forceFill([
-                'is_available' => $computedAvailable,
+                'is_available' => $isAvailable,
             ])->saveQuietly();
         }
 
-        Log::info('MOBILE_MENU_ITEM_AVAILABILITY_DEBUG', [
+        /*
+        |--------------------------------------------------------------------------
+        | Required debug log
+        |--------------------------------------------------------------------------
+        */
+
+        Log::info('MENU ITEM INVENTORY DEBUG', [
             'id' => $item->id,
             'name' => $item->name,
-            'category' => $item->category,
-            'manual_enabled_before_compute' => $manualEnabled,
-            'final_is_available' => $computedAvailable,
-            'max_order_quantity' => $maxOrderQuantity,
-            'linked_ingredients_count' => $ingredients->count(),
+            'ingredients_count' => $ingredients->count(),
             'ingredients' => $ingredientDebug,
+            'max_order_quantity' => $maxOrderQuantity,
+            'is_available' => $isAvailable,
             'stock_label' => $stockLabel,
             'unavailable_reason' => $unavailableReason,
         ]);
@@ -290,28 +322,20 @@ Route::get('/menu', function () {
             'id' => $item->id,
             'name' => $item->name,
             'category' => $item->category,
-            'description' => $item->description,
             'price' => (float) $item->price,
-            'image' => $item->image,
+            'description' => $item->description,
             'image_url' => $item->image_url,
-            'is_available' => $computedAvailable,
 
-            'inventory_type' => $isCustom ? 'custom' : ($item->inventory_type ?: 'per_order'),
-            'daily_limit' => null,
-
-            'flavor_tags' => $item->flavor_tags ?? [],
-            'meal_type' => $item->meal_type,
-
-            'sold_today' => 0,
-            'remaining_today' => $isCustom ? null : $maxOrderQuantity,
-            'max_order_quantity' => $isCustom ? ($computedAvailable ? 1 : 0) : $maxOrderQuantity,
+            'is_available' => (bool) $isAvailable,
+            'max_order_quantity' => (int) $maxOrderQuantity,
+            'remaining_today' => (int) $maxOrderQuantity,
 
             'stock_label' => $stockLabel,
-            'daily_inventory_label' => $stockLabel,
+            'daily_inventory_label' => null,
             'unavailable_reason' => $unavailableReason,
 
             'ingredients' => $ingredients->map(function ($ingredient) use ($usableStockByIngredient) {
-                $required = (float) ($ingredient->pivot->quantity_required ?? 0);
+                $requiredQuantity = (float) ($ingredient->pivot->quantity_required ?? 0);
                 $usableStock = (float) ($usableStockByIngredient[$ingredient->id] ?? 0);
 
                 return [
@@ -321,18 +345,22 @@ Route::get('/menu', function () {
                     'total_stock' => $usableStock,
                     'unit' => $ingredient->unit,
                     'threshold' => (float) ($ingredient->threshold ?? 0),
-                    'quantity_required' => $required,
+                    'quantity_required' => $requiredQuantity,
                     'pivot' => [
-                        'quantity_required' => $required,
+                        'quantity_required' => $requiredQuantity,
                     ],
                 ];
             })->values(),
+
+            'inventory_type' => $isCustom ? 'custom' : 'ingredient',
+            'flavor_tags' => $item->flavor_tags ?? [],
+            'meal_type' => $item->meal_type ?? 'main',
         ];
     })->values();
 
     return response()->json([
         'success' => true,
-        'debug_source' => 'INGREDIENT_BASED_PUBLIC_MENU_API_V2',
-        'data' => $data,
+        'debug_source' => 'WEB_MENU_INGREDIENT_AVAILABILITY_FIXED_2026',
+        'data' => $menuData,
     ]);
 });
