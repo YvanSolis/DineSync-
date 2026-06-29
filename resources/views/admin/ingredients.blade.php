@@ -3,6 +3,13 @@
 @section('content')
 
 <style>
+    /*
+        Responsive modal rules:
+        - Mobile: modals become true full-screen sheets.
+        - Manage Stock modal: header and summary scroll together with the form,
+          summary cards become compact 2-column cards, and the form is easier to reach.
+        - AI modal: header and insight cards are compact on mobile; the whole modal scrolls naturally.
+    */
     @media (max-width: 640px) {
         #aiInsightModal,
         #ingredientModal,
@@ -22,51 +29,335 @@
             border-radius: 0 !important;
         }
 
-        #aiInsightModal .text-2xl,
-        #aiInsightModal .sm\:text-3xl {
-            font-size: 24px !important;
-            line-height: 32px !important;
+        #aiInsightModal > div {
+            display: block !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch !important;
         }
 
-        #aiInsightModal .px-5,
-        #aiInsightModal .sm\:px-7 {
-            padding-left: 18px !important;
-            padding-right: 18px !important;
+        .ai-insight-header {
+            position: relative !important;
+            padding: 16px 18px 14px !important;
+            overflow: hidden !important;
         }
 
-        #aiInsightModal .py-6 {
-            padding-top: 20px !important;
-            padding-bottom: 20px !important;
+        .ai-insight-header .absolute {
+            opacity: 0.45 !important;
+            transform: scale(0.78) !important;
         }
 
-        #aiInsightContent {
-            padding-bottom: 90px !important;
+        .ai-insight-header > .relative:first-of-type {
+            gap: 12px !important;
         }
 
-        #aiInsightContent .grid {
-            grid-template-columns: 1fr !important;
+        .ai-insight-header h3 {
+            font-size: 22px !important;
+            line-height: 1.18 !important;
+            margin-top: 6px !important;
         }
 
-        #aiInsightContent .rounded-3xl {
-            border-radius: 22px !important;
+        .ai-insight-header p.text-sm {
+            font-size: 12.5px !important;
+            line-height: 1.45 !important;
+            margin-top: 8px !important;
+        }
+
+        .ai-insight-header .flex.flex-wrap {
+            gap: 6px !important;
+            margin-bottom: 8px !important;
+        }
+
+        .ai-insight-header span.inline-flex {
+            font-size: 10px !important;
+            line-height: 1.2 !important;
+            padding: 5px 10px !important;
+        }
+
+        .ai-insight-close-btn {
+            width: 38px !important;
+            height: 38px !important;
+            font-size: 20px !important;
+        }
+
+        .ai-insight-actions {
+            margin-top: 14px !important;
+            gap: 8px !important;
         }
 
         #generateAiInsightBtn {
             width: 100% !important;
-            min-height: 52px !important;
+            min-height: 46px !important;
+            padding: 11px 14px !important;
+            border-radius: 16px !important;
+            font-size: 14px !important;
+        }
+
+        .ai-insight-actions p {
+            font-size: 11.5px !important;
+            line-height: 1.35 !important;
         }
 
         #aiInsightGeneratedAt,
         #aiInsightHealthBadge {
             max-width: 100% !important;
             white-space: normal !important;
-            line-height: 18px !important;
+            line-height: 15px !important;
+        }
+
+        .ai-insight-body {
+            overflow: visible !important;
+            padding: 14px !important;
+            padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important;
+            min-height: auto !important;
+        }
+
+        #aiInsightLoading,
+        #aiInsightEmpty {
+            padding: 22px 16px !important;
+            border-radius: 20px !important;
+        }
+
+        #aiInsightContent {
+            padding-bottom: 0 !important;
+        }
+
+        .ai-health-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 10px !important;
+        }
+
+        .ai-health-card {
+            padding: 13px !important;
+            border-radius: 18px !important;
+            min-height: 128px !important;
+        }
+
+        .ai-health-card p:first-child {
+            font-size: 11px !important;
+            line-height: 1.25 !important;
+        }
+
+        .ai-health-card span {
+            width: 32px !important;
+            height: 32px !important;
+            border-radius: 14px !important;
+            font-size: 13px !important;
+        }
+
+        .ai-health-card p[id^="aiMetric"] {
+            font-size: 26px !important;
+            line-height: 1.05 !important;
+            margin-top: 12px !important;
+        }
+
+        .ai-health-card p:last-child {
+            font-size: 10.5px !important;
+            line-height: 1.2 !important;
+        }
+
+        #aiInsightContent .rounded-3xl {
+            border-radius: 18px !important;
+        }
+
+        #aiInsightContent .px-5 {
+            padding-left: 14px !important;
+            padding-right: 14px !important;
+        }
+
+        #aiInsightContent .py-4 {
+            padding-top: 12px !important;
+            padding-bottom: 12px !important;
+        }
+
+        #aiInsightContent .p-5 {
+            padding: 14px !important;
+        }
+
+        #aiInsightContent h4 {
+            font-size: 15px !important;
+            line-height: 1.25 !important;
+        }
+
+        #aiInsightContent p.text-sm {
+            font-size: 12px !important;
+            line-height: 1.4 !important;
+        }
+
+        #aiInsightSummary {
+            font-size: 13px !important;
+            line-height: 1.55 !important;
+        }
+
+        #ingredientModal > div {
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+        }
+
+        #ingredientForm {
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important;
+        }
+
+        #manageStockModal > div {
+            display: block !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+        }
+
+        .manage-stock-header {
+            position: relative !important;
+            padding: 18px !important;
+        }
+
+        .manage-stock-header > .flex {
+            align-items: flex-start !important;
+        }
+
+        #manageStockModalTitle {
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            font-size: 24px !important;
+            line-height: 1.16 !important;
+        }
+
+        .manage-stock-header p.text-sm {
+            font-size: 13px !important;
+            line-height: 1.45 !important;
+        }
+
+        .manage-stock-summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 10px !important;
+            margin-top: 16px !important;
+        }
+
+        .manage-stock-summary-card {
+            padding: 12px !important;
+            border-radius: 18px !important;
+            min-height: 88px !important;
+        }
+
+        .manage-stock-summary-card p:first-child {
+            font-size: 10px !important;
+            line-height: 1.2 !important;
+        }
+
+        .manage-stock-summary-card p[id] {
+            font-size: 20px !important;
+            line-height: 1.1 !important;
+            word-break: break-word !important;
+        }
+
+        .manage-stock-summary-card p.text-xs {
+            display: none !important;
+        }
+
+        .manage-stock-body {
+            overflow: visible !important;
+            padding: 16px !important;
+            padding-bottom: calc(28px + env(safe-area-inset-bottom)) !important;
+            min-height: auto !important;
+        }
+
+        .manage-stock-body .rounded-3xl {
+            border-radius: 22px !important;
+        }
+
+        .manage-stock-body .px-5 {
+            padding-left: 16px !important;
+            padding-right: 16px !important;
+        }
+
+        .manage-stock-body .p-5 {
+            padding: 16px !important;
+        }
+
+        #stockForm .grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        #stockForm button {
+            min-height: 44px !important;
+        }
+
+        #batchMobileList button,
+        #ingredientsMobileList button {
+            min-height: 42px !important;
         }
 
         #manageStockModal input,
         #manageStockModal select,
         #ingredientModal input {
             font-size: 16px !important;
+        }
+    }
+
+    @media (max-width: 420px) {
+        .manage-stock-header {
+            padding: 14px 16px !important;
+        }
+
+        #manageStockModalTitle {
+            font-size: 22px !important;
+            line-height: 1.12 !important;
+        }
+
+        .manage-stock-header p.text-sm {
+            font-size: 12px !important;
+            line-height: 1.35 !important;
+        }
+
+        .manage-stock-summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 8px !important;
+            margin-top: 12px !important;
+        }
+
+        .manage-stock-summary-card {
+            min-height: 78px !important;
+            padding: 10px 11px !important;
+            border-radius: 16px !important;
+        }
+
+        .manage-stock-summary-card p:first-child {
+            font-size: 8.5px !important;
+            letter-spacing: 0.06em !important;
+            line-height: 1.1 !important;
+        }
+
+        .manage-stock-summary-card p[id] {
+            font-size: 18px !important;
+            line-height: 1.05 !important;
+            margin-top: 5px !important;
+        }
+
+        .manage-stock-summary-card p.text-xs {
+            display: none !important;
+        }
+
+        .manage-stock-body {
+            padding: 12px !important;
+            gap: 12px !important;
+        }
+
+        .manage-stock-body .rounded-3xl {
+            border-radius: 18px !important;
+        }
+
+        .manage-stock-body .px-5,
+        .manage-stock-body .p-5 {
+            padding-left: 14px !important;
+            padding-right: 14px !important;
+        }
+
+        .manage-stock-body h4 {
+            font-size: 18px !important;
+            line-height: 1.2 !important;
         }
     }
 
@@ -216,7 +507,7 @@
 <div id="aiInsightModal" class="fixed inset-0 bg-black/55 backdrop-blur-[3px] hidden items-center justify-center z-50 p-0 sm:p-4">
     <div class="bg-white rounded-none sm:rounded-[32px] shadow-2xl w-full sm:max-w-5xl h-[100dvh] sm:h-auto sm:max-h-[94dvh] overflow-hidden flex flex-col border border-orange-100">
         <!-- Header -->
-        <div class="relative px-5 sm:px-7 py-6 border-b bg-gradient-to-br from-orange-50 via-white to-amber-50 shrink-0 overflow-hidden">
+        <div class="ai-insight-header relative px-5 sm:px-7 py-6 border-b bg-gradient-to-br from-orange-50 via-white to-amber-50 shrink-0 overflow-hidden">
             <div class="absolute -top-12 -right-10 w-40 h-40 rounded-full bg-orange-100/60"></div>
             <div class="absolute -bottom-16 -left-10 w-48 h-48 rounded-full bg-amber-100/50"></div>
 
@@ -249,12 +540,12 @@
                 </div>
 
                 <button type="button" onclick="closeAiInsightModal()"
-                    class="w-11 h-11 rounded-full bg-white hover:bg-orange-50 border border-orange-100 flex items-center justify-center text-gray-500 hover:text-orange-700 text-xl shrink-0 transition shadow-sm">
+                    class="ai-insight-close-btn w-11 h-11 rounded-full bg-white hover:bg-orange-50 border border-orange-100 flex items-center justify-center text-gray-500 hover:text-orange-700 text-xl shrink-0 transition shadow-sm">
                     &times;
                 </button>
             </div>
 
-            <div class="relative mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div class="ai-insight-actions relative mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <button id="generateAiInsightBtn" onclick="generateAiInventoryInsight()"
                     class="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-2xl font-bold shadow-sm disabled:opacity-70 disabled:cursor-not-allowed transition">
                     Generate Latest Insight
@@ -267,7 +558,7 @@
         </div>
 
         <!-- Body -->
-        <div class="flex-1 overflow-y-auto px-4 sm:px-6 py-5 bg-gradient-to-b from-orange-50/40 to-white">
+        <div class="ai-insight-body flex-1 overflow-y-auto px-4 sm:px-6 py-5 bg-gradient-to-b from-orange-50/40 to-white">
             <!-- Loading -->
             <div id="aiInsightLoading" class="hidden rounded-3xl border border-orange-100 bg-white p-8 text-center shadow-sm">
                 <div class="mx-auto w-14 h-14 rounded-full border-4 border-orange-100 border-t-orange-500 animate-spin"></div>
@@ -289,8 +580,8 @@
             <!-- Content -->
             <div id="aiInsightContent" class="hidden space-y-5">
                 <!-- AI Health Strip -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                    <div class="rounded-3xl border border-red-100 bg-red-50 p-5 shadow-sm">
+                <div class="ai-health-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                    <div class="ai-health-card rounded-3xl border border-red-100 bg-red-50 p-5 shadow-sm">
                         <div class="flex items-center justify-between gap-3">
                             <p class="text-sm font-bold text-red-700">Out of Stock</p>
                             <span class="w-10 h-10 rounded-2xl bg-white flex items-center justify-center text-red-500 shadow-sm">!</span>
@@ -299,7 +590,7 @@
                         <p class="text-xs text-red-600 mt-1">Immediate attention</p>
                     </div>
 
-                    <div class="rounded-3xl border border-yellow-100 bg-yellow-50 p-5 shadow-sm">
+                    <div class="ai-health-card rounded-3xl border border-yellow-100 bg-yellow-50 p-5 shadow-sm">
                         <div class="flex items-center justify-between gap-3">
                             <p class="text-sm font-bold text-yellow-700">Low Stock</p>
                             <span class="w-10 h-10 rounded-2xl bg-white flex items-center justify-center text-yellow-500 shadow-sm">↯</span>
@@ -308,7 +599,7 @@
                         <p class="text-xs text-yellow-700 mt-1">Restock soon</p>
                     </div>
 
-                    <div class="rounded-3xl border border-blue-100 bg-blue-50 p-5 shadow-sm">
+                    <div class="ai-health-card rounded-3xl border border-blue-100 bg-blue-50 p-5 shadow-sm">
                         <div class="flex items-center justify-between gap-3">
                             <p class="text-sm font-bold text-blue-700">Near Expiry</p>
                             <span class="w-10 h-10 rounded-2xl bg-white flex items-center justify-center text-blue-500 shadow-sm">⏱</span>
@@ -317,7 +608,7 @@
                         <p class="text-xs text-blue-700 mt-1">Use soon</p>
                     </div>
 
-                    <div class="rounded-3xl border border-orange-100 bg-orange-50 p-5 shadow-sm">
+                    <div class="ai-health-card rounded-3xl border border-orange-100 bg-orange-50 p-5 shadow-sm">
                         <div class="flex items-center justify-between gap-3">
                             <p class="text-sm font-bold text-orange-700">Affected Items</p>
                             <span class="w-10 h-10 rounded-2xl bg-white flex items-center justify-center text-orange-500 shadow-sm">🍽</span>
@@ -436,7 +727,7 @@
 <div id="manageStockModal" class="fixed inset-0 bg-black/50 backdrop-blur-[2px] hidden items-center justify-center z-50 p-0 sm:p-4">
     <div class="bg-white rounded-none sm:rounded-[28px] shadow-2xl w-full sm:max-w-6xl h-[100dvh] sm:h-auto sm:max-h-[94dvh] overflow-hidden flex flex-col border border-gray-100">
         <!-- Header -->
-        <div class="px-5 sm:px-7 py-5 border-b bg-gradient-to-r from-orange-50 via-white to-amber-50 shrink-0">
+        <div class="manage-stock-header px-5 sm:px-7 py-5 border-b bg-gradient-to-r from-orange-50 via-white to-amber-50 shrink-0">
             <div class="flex items-start justify-between gap-4">
                 <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2 mb-2">
@@ -466,26 +757,26 @@
             </div>
 
             <!-- Summary -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-5">
-                <div class="rounded-2xl border border-orange-100 bg-white/90 px-4 py-3">
+            <div class="manage-stock-summary-grid grid grid-cols-1 md:grid-cols-4 gap-3 mt-5">
+                <div class="manage-stock-summary-card rounded-2xl border border-orange-100 bg-white/90 px-4 py-3">
                     <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Current Stock</p>
                     <p id="manageStockCurrentStock" class="mt-1 text-2xl font-bold text-gray-900">0</p>
                     <p class="text-xs text-gray-500 mt-1">Usable stock on hand</p>
                 </div>
 
-                <div class="rounded-2xl border border-blue-100 bg-white/90 px-4 py-3">
+                <div class="manage-stock-summary-card rounded-2xl border border-blue-100 bg-white/90 px-4 py-3">
                     <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Unit</p>
                     <p id="manageStockUnit" class="mt-1 text-2xl font-bold text-blue-700">unit</p>
                     <p class="text-xs text-gray-500 mt-1">Measurement unit for this ingredient</p>
                 </div>
 
-                <div class="rounded-2xl border border-yellow-100 bg-white/90 px-4 py-3">
+                <div class="manage-stock-summary-card rounded-2xl border border-yellow-100 bg-white/90 px-4 py-3">
                     <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Threshold</p>
                     <p id="manageStockThreshold" class="mt-1 text-2xl font-bold text-yellow-700">0</p>
                     <p class="text-xs text-gray-500 mt-1">Low stock alert basis</p>
                 </div>
 
-                <div class="rounded-2xl border border-emerald-100 bg-white/90 px-4 py-3">
+                <div class="manage-stock-summary-card rounded-2xl border border-emerald-100 bg-white/90 px-4 py-3">
                     <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Stock Batches</p>
                     <p id="manageStockBatchCount" class="mt-1 text-2xl font-bold text-emerald-700">0</p>
                     <p class="text-xs text-gray-500 mt-1">Recorded stock batches</p>
@@ -493,7 +784,7 @@
             </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-5 bg-gray-50/60">
+        <div class="manage-stock-body flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-5 bg-gray-50/60">
             <input type="hidden" id="manageStockIngredientId">
 
             <!-- Add / Edit Stock Form -->

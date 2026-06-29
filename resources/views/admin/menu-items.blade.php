@@ -3,6 +3,12 @@
 @section('content')
 
 <style>
+    /*
+        Responsive modal rules:
+        - Mobile: modals become true full-screen sheets.
+        - Menu modal: footer is NOT sticky on mobile so it will not cover fields.
+        - Ingredients modal: header/summary scrolls together with the content so the form is not hidden.
+    */
     @media (max-width: 640px) {
         #menuModal,
         #ingredientsModal {
@@ -20,29 +26,89 @@
             border-radius: 0 !important;
         }
 
-        #menuModal form,
-        #ingredientsModal .flex-1 {
-            -webkit-overflow-scrolling: touch;
+        #menuModal > div {
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
         }
 
+        #menuForm {
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+        }
+
+        #menuForm > .p-4 {
+            padding-bottom: 18px !important;
+        }
+
+        .menu-modal-footer {
+            position: static !important;
+            padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+            box-shadow: none !important;
+        }
+
+        #ingredientsModal > div {
+            display: block !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+        }
+
+        #ingredientsModal > div > .relative {
+            position: relative !important;
+            padding: 18px !important;
+        }
+
+        #ingredientsModal > div > .flex-1 {
+            overflow: visible !important;
+            padding: 16px !important;
+            padding-bottom: calc(28px + env(safe-area-inset-bottom)) !important;
+            min-height: auto !important;
+        }
+
+        #ingredientsModalTitle {
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            font-size: 24px !important;
+            line-height: 1.18 !important;
+        }
+
+        #ingredientsModal .grid.grid-cols-1.md\:grid-cols-3 {
+            gap: 10px !important;
+            margin-top: 16px !important;
+        }
+
+        #ingredientsModal .grid.grid-cols-1.md\:grid-cols-3 > div {
+            padding: 14px !important;
+            border-radius: 18px !important;
+        }
+
+        #ingredientsSummaryCount,
+        #ingredientsSummaryPossibleOrders {
+            font-size: 26px !important;
+            line-height: 1.1 !important;
+        }
+
+        #ingredientsStockLabel {
+            font-size: 16px !important;
+            line-height: 1.3 !important;
+        }
 
         .menu-mobile-card-header {
             flex-direction: column !important;
             align-items: flex-start !important;
         }
 
+        .menu-mobile-card-actions {
+            grid-template-columns: 1fr !important;
+        }
+
         .menu-mobile-card-actions button {
             width: 100% !important;
             min-height: 44px !important;
             font-size: 13px !important;
-        }
-
-        #flavorTagsContainer {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-        }
-
-        .menu-mobile-card-actions {
-            grid-template-columns: 1fr !important;
         }
 
         .menu-mobile-card-main {
@@ -57,6 +123,19 @@
         .menu-mobile-card-image > div {
             width: 100% !important;
             height: 170px !important;
+            border-radius: 18px !important;
+        }
+
+        #flavorTagsContainer {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        #menuModal input,
+        #menuModal select,
+        #menuModal textarea,
+        #ingredientsModal input,
+        #ingredientsModal select {
+            font-size: 16px !important;
         }
     }
 
@@ -69,6 +148,13 @@
 
         #flavorTagsContainer {
             grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        }
+    }
+
+    @media (min-width: 641px) {
+        .menu-modal-footer {
+            position: sticky;
+            bottom: 0;
         }
     }
 </style>
@@ -171,10 +257,6 @@
                     <h3 id="menuModalTitle" class="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">
                         Add Menu Item
                     </h3>
-
-                    <p class="text-sm text-gray-500 mt-1 max-w-2xl">
-                        Add menu details, pricing, category, image, and recommendation tags. Availability will still depend on linked ingredients and usable stock.
-                    </p>
                 </div>
 
                 <button type="button" onclick="closeMenuModal()"
@@ -272,25 +354,33 @@
                             </label>
 
                             <label class="block border-2 border-dashed border-orange-100 hover:border-orange-300 bg-orange-50/40 hover:bg-orange-50 rounded-3xl px-5 py-7 text-center cursor-pointer transition">
-                                <input
-                                    id="itemImage"
-                                    type="file"
-                                    accept="image/jpeg,image/png,image/webp"
-                                    class="hidden"
-                                >
+                            <input
+                                id="itemImage"
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                class="hidden"
+                            >
 
-                                <div class="mx-auto w-14 h-14 rounded-2xl bg-white border border-orange-100 shadow-sm flex items-center justify-center text-orange-500 font-bold">
-                                    IMG
+                            <div id="imagePreviewBox" class="mx-auto w-full max-w-[320px] h-[180px] rounded-3xl bg-white border border-orange-100 shadow-sm flex items-center justify-center overflow-hidden">
+                                <div id="imagePlaceholder" class="text-center">
+                                    <div class="mx-auto w-14 h-14 rounded-2xl bg-orange-50 border border-orange-100 shadow-sm flex items-center justify-center text-orange-500 font-bold">
+                                        IMG
+                                    </div>
+
+                                    <p class="text-sm font-semibold text-gray-800 mt-3">
+                                        Choose menu image
+                                    </p>
+
+                                    <p class="text-xs text-gray-500 mt-1">
+                                        JPG, PNG, or WEBP up to 4MB.
+                                    </p>
                                 </div>
 
-                                <p class="text-sm font-semibold text-gray-800 mt-3">
-                                    Choose menu image
-                                </p>
+                                <img id="imagePreview" src="" alt="Image Preview" class="hidden w-full h-full object-cover">
+                            </div>
 
-                                <p class="text-xs text-gray-500 mt-1">
-                                    JPG, PNG, or WEBP up to 4MB.
-                                </p>
-                            </label>
+                            <p id="selectedImageName" class="text-xs text-gray-500 mt-3 hidden"></p>
+                        </label>
 
                             <p id="currentImageText" class="text-xs text-gray-400 mt-2 hidden">
                                 Current image will stay unless you upload a new one.
@@ -363,7 +453,7 @@
             </div>
 
             <!-- Sticky Footer -->
-            <div class="sticky bottom-0 bg-white border-t px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:justify-end gap-2 shadow-[0_-8px_24px_rgba(15,23,42,0.06)]">
+            <div class="menu-modal-footer bg-white border-t px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:justify-end gap-2 sm:shadow-[0_-8px_24px_rgba(15,23,42,0.06)]">
                 <button type="button" onclick="closeMenuModal()"
                     class="w-full sm:w-auto px-5 py-3 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold transition">
                     Cancel
@@ -1173,6 +1263,85 @@ function renderMenuMobileList() {
     `).join('');
 }
 
+
+function resetImagePreview(previewSrc = '', label = '') {
+    const preview = document.getElementById('imagePreview');
+    const placeholder = document.getElementById('imagePlaceholder');
+    const selectedName = document.getElementById('selectedImageName');
+
+    if (!preview || !placeholder || !selectedName) {
+        return;
+    }
+
+    if (previewSrc) {
+        preview.src = previewSrc;
+        preview.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+        selectedName.textContent = label || 'Selected image';
+        selectedName.classList.remove('hidden');
+        return;
+    }
+
+    preview.src = '';
+    preview.classList.add('hidden');
+    placeholder.classList.remove('hidden');
+    selectedName.textContent = '';
+    selectedName.classList.add('hidden');
+}
+
+function clearSelectedImageFile() {
+    const imageInput = document.getElementById('itemImage');
+
+    if (imageInput) {
+        imageInput.value = '';
+    }
+
+    resetImagePreview();
+}
+
+function setupImagePreviewHandler() {
+    const itemImageInput = document.getElementById('itemImage');
+
+    if (!itemImageInput) {
+        return;
+    }
+
+    itemImageInput.addEventListener('change', function () {
+        const file = this.files && this.files[0] ? this.files[0] : null;
+
+        if (!file) {
+            resetImagePreview();
+            return;
+        }
+
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+
+        if (!allowedTypes.includes(file.type)) {
+            alert('Please upload JPG, PNG, or WEBP image only.');
+            this.value = '';
+            resetImagePreview();
+            return;
+        }
+
+        const maxSize = 4 * 1024 * 1024;
+
+        if (file.size > maxSize) {
+            alert('Image must not be larger than 4MB.');
+            this.value = '';
+            resetImagePreview();
+            return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = function (event) {
+            resetImagePreview(event.target.result, file.name);
+        };
+
+        reader.readAsDataURL(file);
+    });
+}
+
 function openMenuModal(id = null) {
     editingMenuItemId = id;
 
@@ -1194,7 +1363,18 @@ function openMenuModal(id = null) {
         document.getElementById('itemDescription').value = item.description || '';
         document.getElementById('itemPrice').value = item.price || '';
 
-        imageInput.value = '';
+        if (imageInput) {
+            imageInput.value = '';
+        }
+
+        const currentImageSrc = getImageSrc(item);
+
+        if (currentImageSrc) {
+            resetImagePreview(currentImageSrc, 'Current image');
+        } else {
+            resetImagePreview();
+        }
+
         currentImageText.classList.toggle('hidden', !item.image && !item.image_url);
         document.getElementById('itemAvailable').checked = Boolean(item.is_available);
 
@@ -1205,7 +1385,12 @@ function openMenuModal(id = null) {
         document.getElementById('menuSaveBtn').textContent = 'Save Menu Item';
         document.getElementById('menuForm').reset();
         document.getElementById('itemDescription').value = '';
-        imageInput.value = '';
+
+        if (imageInput) {
+            imageInput.value = '';
+        }
+
+        resetImagePreview();
         currentImageText.classList.add('hidden');
         document.getElementById('itemAvailable').checked = true;
 
@@ -1691,6 +1876,7 @@ async function detachIngredient(menuItemId, ingredientId, button) {
 document.getElementById('menuSearch').addEventListener('input', applyFilters);
 document.getElementById('categoryFilter').addEventListener('change', applyFilters);
 
+setupImagePreviewHandler();
 loadIngredientsList();
 loadMenuItems();
 </script>
