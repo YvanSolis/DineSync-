@@ -68,9 +68,31 @@ class MenuItemController extends Controller
         $selectedCategory = $request->query('category');
         $search = $request->query('search');
 
-        $query = MenuItem::with([
+        $query = MenuItem::query()
+            ->select([
+                'id',
+                'name',
+                'description',
+                'category',
+                'price',
+                'image',
+                'is_available',
+                'flavor_tags',
+                'meal_type',
+                'inventory_type',
+                'daily_limit',
+                'created_at',
+                'updated_at',
+            ])
+            ->with([
                 'ingredients' => function ($query) {
-                    $query->orderBy('name');
+                    $query->select([
+                        'ingredients.id',
+                        'ingredients.name',
+                        'ingredients.current_stock',
+                        'ingredients.unit',
+                        'ingredients.threshold',
+                    ])->orderBy('name');
                 }
             ])
             ->orderBy('name');
@@ -90,9 +112,9 @@ class MenuItemController extends Controller
             'flavor_tags_options' => $this->flavorTags,
             'meal_type_options' => $this->mealTypes,
             'selected_category' => $selectedCategory,
-            'menu_items' => $menuItems->map(function ($item) {
-                return $this->formatMenuItemResponse($item);
-            })->values(),
+            'menu_items' => $menuItems
+                ->map(fn ($item) => $this->formatMenuItemResponse($item))
+                ->values(),
         ]);
     }
 
@@ -136,12 +158,9 @@ class MenuItemController extends Controller
             'flavor_tags' => $validated['flavor_tags'] ?? [],
             'meal_type' => $validated['meal_type'] ?? 'main',
 
-            // Keep this NOT NULL for database compatibility.
-            // Availability is still ingredient-based.
             'inventory_type' => $isCustom ? 'custom' : 'per_order',
             'daily_limit' => null,
-
-            'is_available' => $isCustom ? true : false,
+            'is_available' => $isCustom,
         ]);
 
         $this->refreshAvailability($menuItem);
@@ -204,9 +223,6 @@ class MenuItemController extends Controller
             $updateData['inventory_type'] = 'custom';
             $updateData['daily_limit'] = null;
         } else {
-            // IMPORTANT:
-            // inventory_type column is NOT NULL in your database.
-            // Do not set this to null.
             $updateData['inventory_type'] = $menuItem->inventory_type ?: 'per_order';
             $updateData['daily_limit'] = null;
         }
@@ -251,7 +267,8 @@ class MenuItemController extends Controller
         $this->refreshAvailability($menuItem);
 
         return response()->json(
-            $this->formatMenuItemResponse($this->freshMenuItem($menuItem))
+            $this->formatMenuItemResponse($this->freshMenuItem($menuItem)),
+            201
         );
     }
 
@@ -268,9 +285,31 @@ class MenuItemController extends Controller
 
     private function freshMenuItem(MenuItem $menuItem): MenuItem
     {
-        return MenuItem::with([
+        return MenuItem::query()
+            ->select([
+                'id',
+                'name',
+                'description',
+                'category',
+                'price',
+                'image',
+                'is_available',
+                'flavor_tags',
+                'meal_type',
+                'inventory_type',
+                'daily_limit',
+                'created_at',
+                'updated_at',
+            ])
+            ->with([
                 'ingredients' => function ($query) {
-                    $query->orderBy('name');
+                    $query->select([
+                        'ingredients.id',
+                        'ingredients.name',
+                        'ingredients.current_stock',
+                        'ingredients.unit',
+                        'ingredients.threshold',
+                    ])->orderBy('name');
                 }
             ])
             ->findOrFail($menuItem->id);
@@ -328,11 +367,82 @@ class MenuItemController extends Controller
         }
 
         $menuItem->forceFill([
-            // Keep old value, but make sure it is never null.
             'inventory_type' => $menuItem->inventory_type ?: 'per_order',
             'daily_limit' => null,
             'is_available' => $menuItem->computeAvailability(),
         ])->saveQuietly();
+    }
+
+    private function calculateMaxOrderQuantity(MenuItem $item): int
+    {
+        if ($item->category === 'Chef Oppa Special' || $item->inventory_type === 'custom') {
+            return 99;
+        }
+
+        $ingredients = $item->relationLoaded('ingredients')
+            ? $item->ingredients
+            : collect();
+
+        if ($ingredients->isEmpty()) {
+            return 0;
+        }
+
+        $maxServings = null;
+
+        foreach ($ingredients as $ingredient) {
+            $required = (float) ($ingredient->pivot->quantity_required ?? 0);
+            $stock = (float) ($ingredient->current_stock ?? 0);
+
+            if ($required <= 0) {
+                return 0;
+            }
+
+            $possibleServings = (int) floor($stock / $required);
+
+            if ($possibleServings <= 0) {
+                return 0;
+            }
+
+            if ($maxServings === null || $possibleServings < $maxServings) {
+                $maxServings = $possibleServings;
+            }
+        }
+
+        return max(0, (int) ($maxServings ?? 0));
+    }
+
+    private function getStockLabel(MenuItem $item, int $maxOrderQuantity): string
+    {
+        if ($item->category === 'Chef Oppa Special' || $item->inventory_type === 'custom') {
+            return 'Staff confirms availability';
+        }
+
+        $ingredients = $item->relationLoaded('ingredients')
+            ? $item->ingredients
+            : collect();
+
+        if ($ingredients->isEmpty()) {
+            return 'No ingredients linked';
+        }
+
+        foreach ($ingredients as $ingredient) {
+            $required = (float) ($ingredient->pivot->quantity_required ?? 0);
+            $stock = (float) ($ingredient->current_stock ?? 0);
+
+            if ($required <= 0) {
+                return 'Invalid ingredient usage';
+            }
+
+            if ($stock < $required) {
+                return 'Insufficient ingredients';
+            }
+        }
+
+        if ($maxOrderQuantity <= 0) {
+            return 'Insufficient ingredients';
+        }
+
+        return $maxOrderQuantity . ' orders available based on ingredients';
     }
 
     private function formatMenuItemResponse(MenuItem $item): array
@@ -341,8 +451,8 @@ class MenuItemController extends Controller
             ? $item->ingredients
             : collect();
 
-        $maxOrderQuantity = $item->max_order_quantity;
-        $stockLabel = $item->stock_label;
+        $maxOrderQuantity = $this->calculateMaxOrderQuantity($item);
+        $stockLabel = $this->getStockLabel($item, $maxOrderQuantity);
 
         return [
             'id' => $item->id,
@@ -363,7 +473,6 @@ class MenuItemController extends Controller
             'max_order_quantity' => $maxOrderQuantity,
             'stock_label' => $stockLabel,
 
-            // Compatibility fields para hindi masira old frontend/mobile references.
             'sold_today' => 0,
             'remaining_today' => $maxOrderQuantity,
             'daily_inventory_label' => $stockLabel,
@@ -376,7 +485,7 @@ class MenuItemController extends Controller
                     'id' => $ingredient->id,
                     'name' => $ingredient->name,
                     'current_stock' => $currentStock,
-                    'total_stock' => (float) ($ingredient->total_stock ?? $currentStock),
+                    'total_stock' => $currentStock,
                     'unit' => $ingredient->unit,
                     'threshold' => (float) ($ingredient->threshold ?? 0),
                     'quantity_required' => $quantityRequired,

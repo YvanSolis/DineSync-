@@ -1,137 +1,203 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Models;
 
-use App\Models\Ingredient;
-use App\Models\MenuItem;
-use App\Models\MenuItemIngredient;
-use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\Model;
 
-class MenuItemIngredientController extends Controller
+class MenuItem extends Model
 {
-    public function index()
+    protected $fillable = [
+        'name',
+        'category',
+        'description',
+        'price',
+        'image',
+        'is_available',
+        'flavor_tags',
+        'meal_type',
+        'inventory_type',
+        'daily_limit',
+    ];
+
+    protected $casts = [
+        'is_available' => 'boolean',
+        'price' => 'decimal:2',
+        'flavor_tags' => 'array',
+        'daily_limit' => 'integer',
+    ];
+
+    protected $appends = [
+        'image_url',
+        'max_order_quantity',
+        'stock_label',
+    ];
+
+    public function ingredients()
     {
-        return response()->json(
-            MenuItemIngredient::with(['menuItem', 'ingredient'])->get()
-        );
+        return $this->belongsToMany(Ingredient::class, 'menu_item_ingredients')
+            ->withPivot('quantity_required')
+            ->withTimestamps();
     }
 
-    public function store(Request $request)
+    public function orderItems()
     {
-        $validated = $request->validate([
-            'menu_item_id' => 'required|exists:menu_items,id',
-            'ingredient_id' => 'required|exists:ingredients,id',
-            'quantity_required' => 'required|numeric|min:0.01',
-        ]);
-
-        $menuItem = MenuItem::findOrFail($validated['menu_item_id']);
-
-        $menuItem->ingredients()->syncWithoutDetaching([
-            $validated['ingredient_id'] => [
-                'quantity_required' => $validated['quantity_required'],
-            ],
-        ]);
-
-        MenuItem::refreshAllAvailability();
-
-        return response()->json([
-            'message' => 'Ingredient linked successfully.',
-            'menu_item' => $menuItem->fresh()->load('ingredients'),
-        ], 201);
+        return $this->hasMany(OrderItem::class);
     }
 
-    public function show(MenuItemIngredient $menuItemIngredient)
+    public function getImageUrlAttribute(): ?string
     {
-        return response()->json(
-            $menuItemIngredient->load(['menuItem', 'ingredient'])
-        );
-    }
-
-    public function update(Request $request, MenuItemIngredient $menuItemIngredient)
-    {
-        $validated = $request->validate([
-            'quantity_required' => 'required|numeric|min:0.01',
-        ]);
-
-        $menuItemIngredient->update([
-            'quantity_required' => $validated['quantity_required'],
-        ]);
-
-        MenuItem::refreshAllAvailability();
-
-        return response()->json([
-            'message' => 'Ingredient requirement updated successfully.',
-            'menu_item_ingredient' => $menuItemIngredient->fresh()->load(['menuItem', 'ingredient']),
-        ]);
-    }
-
-    public function destroy(MenuItemIngredient $menuItemIngredient)
-    {
-        $menuItemIngredient->delete();
-
-        MenuItem::refreshAllAvailability();
-
-        return response()->json([
-            'message' => 'Ingredient removed successfully.',
-        ]);
-    }
-
-    public function link(Request $request, MenuItem $menuItem)
-    {
-        $validated = $request->validate([
-            'ingredient_id' => 'required|exists:ingredients,id',
-            'quantity_required' => 'required|numeric|min:0.01',
-        ]);
-
-        $menuItem->ingredients()->syncWithoutDetaching([
-            $validated['ingredient_id'] => [
-                'quantity_required' => $validated['quantity_required'],
-            ],
-        ]);
-
-        MenuItem::refreshAllAvailability();
-
-        return response()->json([
-            'message' => 'Ingredient linked successfully.',
-            'menu_item' => $menuItem->fresh()->load('ingredients'),
-        ], 201);
-    }
-
-    public function unlink(MenuItem $menuItem, Ingredient $ingredient)
-    {
-        $menuItem->ingredients()->detach($ingredient->id);
-
-        MenuItem::refreshAllAvailability();
-
-        return response()->json([
-            'message' => 'Ingredient removed successfully.',
-            'menu_item' => $menuItem->fresh()->load('ingredients'),
-        ]);
-    }
-
-    public function sync(Request $request, MenuItem $menuItem)
-    {
-        $validated = $request->validate([
-            'ingredients' => 'required|array',
-            'ingredients.*.ingredient_id' => 'required|exists:ingredients,id',
-            'ingredients.*.quantity_required' => 'required|numeric|min:0.01',
-        ]);
-
-        $syncData = [];
-
-        foreach ($validated['ingredients'] as $ingredient) {
-            $syncData[$ingredient['ingredient_id']] = [
-                'quantity_required' => $ingredient['quantity_required'],
-            ];
+        if (!$this->image) {
+            return null;
         }
 
-        $menuItem->ingredients()->sync($syncData);
+        if (str_starts_with($this->image, 'http://') || str_starts_with($this->image, 'https://')) {
+            return $this->image;
+        }
 
-        MenuItem::refreshAllAvailability();
+        return asset('storage/' . $this->image);
+    }
 
-        return response()->json([
-            'message' => 'Ingredients synced successfully.',
-            'menu_item' => $menuItem->fresh()->load('ingredients'),
-        ]);
+    public function isCustomRequest(): bool
+    {
+        return $this->category === 'Chef Oppa Special' || $this->inventory_type === 'custom';
+    }
+
+    public function getMaxOrderQuantityAttribute(): int
+    {
+        if ($this->isCustomRequest()) {
+            return 99;
+        }
+
+        $ingredients = $this->relationLoaded('ingredients')
+            ? $this->getRelation('ingredients')
+            : $this->ingredients()->get();
+
+        return $this->computeMaxOrderQuantityFromIngredients($ingredients);
+    }
+
+    public function getStockLabelAttribute(): string
+    {
+        if ($this->isCustomRequest()) {
+            return 'Staff confirms availability';
+        }
+
+        $ingredients = $this->relationLoaded('ingredients')
+            ? $this->getRelation('ingredients')
+            : $this->ingredients()->get();
+
+        if ($ingredients->isEmpty()) {
+            return 'No ingredients linked';
+        }
+
+        foreach ($ingredients as $ingredient) {
+            $required = (float) ($ingredient->pivot->quantity_required ?? 0);
+            $stock = (float) ($ingredient->current_stock ?? 0);
+
+            if ($required <= 0) {
+                return 'Invalid ingredient usage';
+            }
+
+            if ($stock < $required) {
+                return 'Insufficient ingredients';
+            }
+        }
+
+        $maxOrderQuantity = $this->computeMaxOrderQuantityFromIngredients($ingredients);
+
+        if ($maxOrderQuantity <= 0) {
+            return 'Insufficient ingredients';
+        }
+
+        return $maxOrderQuantity . ' orders available based on ingredients';
+    }
+
+    public function computeAvailability(): bool
+    {
+        if ($this->isCustomRequest()) {
+            return true;
+        }
+
+        $ingredients = $this->relationLoaded('ingredients')
+            ? $this->getRelation('ingredients')
+            : $this->ingredients()->get();
+
+        if ($ingredients->isEmpty()) {
+            return false;
+        }
+
+        foreach ($ingredients as $ingredient) {
+            $required = (float) ($ingredient->pivot->quantity_required ?? 0);
+            $stock = (float) ($ingredient->current_stock ?? 0);
+
+            if ($required <= 0) {
+                return false;
+            }
+
+            if ($stock < $required) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public function refreshAvailability(): void
+    {
+        $this->loadMissing('ingredients');
+
+        if ($this->isCustomRequest()) {
+            $this->forceFill([
+                'inventory_type' => 'custom',
+                'daily_limit' => null,
+                'is_available' => true,
+            ])->saveQuietly();
+
+            return;
+        }
+
+        $this->forceFill([
+            'inventory_type' => $this->inventory_type ?: 'per_order',
+            'daily_limit' => null,
+            'is_available' => $this->computeAvailability(),
+        ])->saveQuietly();
+    }
+
+    public static function refreshAllAvailability(): void
+    {
+        self::with('ingredients')->chunk(100, function ($menuItems) {
+            foreach ($menuItems as $menuItem) {
+                $menuItem->refreshAvailability();
+            }
+        });
+    }
+
+    private function computeMaxOrderQuantityFromIngredients($ingredients): int
+    {
+        if ($ingredients->isEmpty()) {
+            return 0;
+        }
+
+        $maxServings = null;
+
+        foreach ($ingredients as $ingredient) {
+            $required = (float) ($ingredient->pivot->quantity_required ?? 0);
+            $stock = (float) ($ingredient->current_stock ?? 0);
+
+            if ($required <= 0) {
+                return 0;
+            }
+
+            $possibleServings = (int) floor($stock / $required);
+
+            if ($possibleServings <= 0) {
+                return 0;
+            }
+
+            if ($maxServings === null || $possibleServings < $maxServings) {
+                $maxServings = $possibleServings;
+            }
+        }
+
+        return max(0, (int) ($maxServings ?? 0));
     }
 }

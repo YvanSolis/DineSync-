@@ -50,16 +50,21 @@ class MenuItem extends Model
             return null;
         }
 
-        if (str_starts_with($this->image, 'http')) {
+        if (str_starts_with($this->image, 'http://') || str_starts_with($this->image, 'https://')) {
             return $this->image;
         }
 
         return asset('storage/' . $this->image);
     }
 
+    public function isCustomRequest(): bool
+    {
+        return $this->category === 'Chef Oppa Special' || $this->inventory_type === 'custom';
+    }
+
     public function getMaxOrderQuantityAttribute(): int
     {
-        if ($this->category === 'Chef Oppa Special' || $this->inventory_type === 'custom') {
+        if ($this->isCustomRequest()) {
             return 99;
         }
 
@@ -67,37 +72,12 @@ class MenuItem extends Model
             ? $this->getRelation('ingredients')
             : $this->ingredients()->get();
 
-        if ($ingredients->isEmpty()) {
-            return 0;
-        }
-
-        $maxServings = null;
-
-        foreach ($ingredients as $ingredient) {
-            $required = (float) ($ingredient->pivot->quantity_required ?? 0);
-
-            if ($required <= 0) {
-                return 0;
-            }
-
-            $stock = (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0);
-            $possibleServings = (int) floor($stock / $required);
-
-            if ($possibleServings <= 0) {
-                return 0;
-            }
-
-            if ($maxServings === null || $possibleServings < $maxServings) {
-                $maxServings = $possibleServings;
-            }
-        }
-
-        return max(0, (int) ($maxServings ?? 0));
+        return $this->computeMaxOrderQuantityFromIngredients($ingredients);
     }
 
     public function getStockLabelAttribute(): string
     {
-        if ($this->category === 'Chef Oppa Special' || $this->inventory_type === 'custom') {
+        if ($this->isCustomRequest()) {
             return 'Staff confirms availability';
         }
 
@@ -111,7 +91,7 @@ class MenuItem extends Model
 
         foreach ($ingredients as $ingredient) {
             $required = (float) ($ingredient->pivot->quantity_required ?? 0);
-            $stock = (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0);
+            $stock = (float) ($ingredient->current_stock ?? 0);
 
             if ($required <= 0) {
                 return 'Invalid ingredient usage';
@@ -122,7 +102,7 @@ class MenuItem extends Model
             }
         }
 
-        $maxOrderQuantity = $this->getMaxOrderQuantityAttribute();
+        $maxOrderQuantity = $this->computeMaxOrderQuantityFromIngredients($ingredients);
 
         if ($maxOrderQuantity <= 0) {
             return 'Insufficient ingredients';
@@ -131,26 +111,9 @@ class MenuItem extends Model
         return $maxOrderQuantity . ' orders available based on ingredients';
     }
 
-    public function refreshAvailability(): void
-    {
-        $this->forceFill([
-            'inventory_type' => $this->inventory_type ?: 'per_order',
-            'is_available' => $this->computeAvailability(),
-        ])->saveQuietly();
-    }
-
-    public static function refreshAllAvailability(): void
-    {
-        self::with('ingredients')->chunk(100, function ($menuItems) {
-            foreach ($menuItems as $menuItem) {
-                $menuItem->refreshAvailability();
-            }
-        });
-    }
-
     public function computeAvailability(): bool
     {
-        if ($this->category === 'Chef Oppa Special' || $this->inventory_type === 'custom') {
+        if ($this->isCustomRequest()) {
             return true;
         }
 
@@ -164,7 +127,7 @@ class MenuItem extends Model
 
         foreach ($ingredients as $ingredient) {
             $required = (float) ($ingredient->pivot->quantity_required ?? 0);
-            $stock = (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0);
+            $stock = (float) ($ingredient->current_stock ?? 0);
 
             if ($required <= 0) {
                 return false;
@@ -176,5 +139,65 @@ class MenuItem extends Model
         }
 
         return true;
+    }
+
+    public function refreshAvailability(): void
+    {
+        $this->loadMissing('ingredients');
+
+        if ($this->isCustomRequest()) {
+            $this->forceFill([
+                'inventory_type' => 'custom',
+                'daily_limit' => null,
+                'is_available' => true,
+            ])->saveQuietly();
+
+            return;
+        }
+
+        $this->forceFill([
+            'inventory_type' => $this->inventory_type ?: 'per_order',
+            'daily_limit' => null,
+            'is_available' => $this->computeAvailability(),
+        ])->saveQuietly();
+    }
+
+    public static function refreshAllAvailability(): void
+    {
+        self::with('ingredients')->chunk(100, function ($menuItems) {
+            foreach ($menuItems as $menuItem) {
+                $menuItem->refreshAvailability();
+            }
+        });
+    }
+
+    private function computeMaxOrderQuantityFromIngredients($ingredients): int
+    {
+        if ($ingredients->isEmpty()) {
+            return 0;
+        }
+
+        $maxServings = null;
+
+        foreach ($ingredients as $ingredient) {
+            $required = (float) ($ingredient->pivot->quantity_required ?? 0);
+            $stock = (float) ($ingredient->current_stock ?? 0);
+
+            if ($required <= 0) {
+                return 0;
+            }
+
+            $possibleServings = (int) floor($stock / $required);
+
+            if ($possibleServings <= 0) {
+                return 0;
+            }
+
+            if ($maxServings === null || $possibleServings < $maxServings) {
+                $maxServings = $possibleServings;
+            }
+        }
+
+        return max(0, (int) ($maxServings ?? 0));
     }
 }
