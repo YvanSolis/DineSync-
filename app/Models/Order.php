@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Order extends Model
 {
+    protected $table = 'orders';
+
     protected $fillable = [
         'order_number',
         'status',
@@ -17,6 +19,7 @@ class Order extends Model
         'table_session_id',
         'customer_name',
         'notes',
+        'remarks',
         'special_instructions',
         'xendit_invoice_id',
         'xendit_external_id',
@@ -33,21 +36,26 @@ class Order extends Model
 
     public function items()
     {
-        return $this->hasMany(OrderItem::class);
+        return $this->hasMany(OrderItem::class, 'order_id');
     }
 
     public function payment()
     {
-        return $this->hasOne(Payment::class);
+        return $this->hasOne(Payment::class, 'order_id');
     }
 
     public function ingredientUsages()
     {
-        return $this->hasMany(IngredientUsage::class);
+        return $this->hasMany(IngredientUsage::class, 'order_id');
     }
 
     public function tableSession()
     {
-        return $this->belongsTo(\App\Models\TableSession::class, 'table_session_id');
+        return $this->belongsTo(TableSession::class, 'table_session_id');
+    }
+
+    public function table()
+    {
+        return $this->belongsTo(RestaurantTable::class, 'table_id');
     }
 }
