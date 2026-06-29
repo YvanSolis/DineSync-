@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 
 class Ingredient extends Model
 {
@@ -59,11 +61,19 @@ class Ingredient extends Model
 
     public function getTotalStockAttribute()
     {
+        if (! Schema::hasTable('inventory_batches')) {
+            return (float) ($this->current_stock ?? 0);
+        }
+
         return (float) $this->usableBatches()->sum('quantity_remaining');
     }
 
     public function getStockValueAttribute()
     {
+        if (! Schema::hasTable('inventory_batches')) {
+            return 0;
+        }
+
         return (float) $this->usableBatches()
             ->selectRaw('COALESCE(SUM(quantity_remaining * unit_cost), 0) as total_value')
             ->value('total_value');
@@ -71,8 +81,12 @@ class Ingredient extends Model
 
     public function getNearestExpiryDateAttribute()
     {
+        if (! Schema::hasTable('inventory_batches')) {
+            return null;
+        }
+
         $batch = $this->usableBatches()
-            ->orderBy('expiry_date')
+            ->orderBy('expiry_date', 'asc')
             ->first();
 
         return $batch ? $batch->expiry_date : null;
@@ -81,10 +95,25 @@ class Ingredient extends Model
     public function getStockStatusAttribute()
     {
         $usableStock = (float) $this->total_stock;
-        $threshold = (float) $this->threshold;
+        $threshold = (float) ($this->threshold ?? 0);
 
         if ($usableStock <= 0) {
             return 'out_of_stock';
+        }
+
+        $nearestExpiry = $this->nearest_expiry_date;
+
+        if ($nearestExpiry) {
+            $daysUntilExpiry = now()
+                ->startOfDay()
+                ->diffInDays(
+                    Carbon::parse($nearestExpiry)->startOfDay(),
+                    false
+                );
+
+            if ($daysUntilExpiry >= 0 && $daysUntilExpiry <= 3) {
+                return 'near_expiry';
+            }
         }
 
         if ($threshold > 0 && $usableStock < $threshold) {
@@ -95,25 +124,39 @@ class Ingredient extends Model
             return 'reorder_soon';
         }
 
-        $nearestExpiry = $this->nearest_expiry_date;
-
-        if ($nearestExpiry && now()->diffInDays($nearestExpiry, false) <= 3) {
-            return 'near_expiry';
-        }
-
         return 'active';
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Refresh linked menu item availability
-    |--------------------------------------------------------------------------
-    | After this ingredient changes, refresh all menu items.
-    | Rule:
-    | - No linked ingredients = unavailable
-    | - Has linked ingredients but one ingredient stock is not enough = unavailable
-    | - Has linked ingredients and all stocks are enough = available
-    */
+    public function syncCurrentStockFromBatches(): void
+    {
+        if (! Schema::hasTable('inventory_batches')) {
+            return;
+        }
+
+        InventoryBatch::where('ingredient_id', $this->id)
+            ->where('quantity_remaining', '>', 0)
+            ->whereDate('expiry_date', '<', now()->toDateString())
+            ->update([
+                'status' => 'expired',
+            ]);
+
+        InventoryBatch::where('ingredient_id', $this->id)
+            ->where('quantity_remaining', '<=', 0)
+            ->update([
+                'status' => 'used_up',
+            ]);
+
+        $totalUsableStock = InventoryBatch::where('ingredient_id', $this->id)
+            ->where('status', 'active')
+            ->where('quantity_remaining', '>', 0)
+            ->whereDate('expiry_date', '>=', now()->toDateString())
+            ->sum('quantity_remaining');
+
+        $this->forceFill([
+            'current_stock' => $totalUsableStock,
+        ])->saveQuietly();
+    }
+
     public function updateLinkedMenuAvailability(): void
     {
         MenuItem::refreshAllAvailability();
@@ -121,6 +164,17 @@ class Ingredient extends Model
 
     public static function refreshAllMenuAvailability(): void
     {
+        MenuItem::refreshAllAvailability();
+    }
+
+    public static function syncAllCurrentStockAndMenuAvailability(): void
+    {
+        self::query()->chunk(100, function ($ingredients) {
+            foreach ($ingredients as $ingredient) {
+                $ingredient->syncCurrentStockFromBatches();
+            }
+        });
+
         MenuItem::refreshAllAvailability();
     }
 }

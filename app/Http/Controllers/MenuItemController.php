@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\MenuItem;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -64,35 +63,16 @@ class MenuItemController extends Controller
         'alcohol',
     ];
 
-    private array $inventoryTypes = [
-        'per_order',
-        'per_head',
-        'custom',
-    ];
-
     public function index(Request $request)
     {
         $selectedCategory = $request->query('category');
         $search = $request->query('search');
 
-        $selectedDate = now('Asia/Manila')->toDateString();
-
-        $startOfDayUtc = Carbon::parse($selectedDate, 'Asia/Manila')
-            ->startOfDay()
-            ->timezone('UTC');
-
-        $endOfDayUtc = Carbon::parse($selectedDate, 'Asia/Manila')
-            ->endOfDay()
-            ->timezone('UTC');
-
-        $query = MenuItem::with('ingredients')
-            ->withSum([
-                'orderItems as sold_today' => function ($query) use ($startOfDayUtc, $endOfDayUtc) {
-                    $query->whereHas('order', function ($orderQuery) use ($startOfDayUtc, $endOfDayUtc) {
-                        $orderQuery->whereBetween('created_at', [$startOfDayUtc, $endOfDayUtc]);
-                    });
-                },
-            ], 'quantity')
+        $query = MenuItem::with([
+                'ingredients' => function ($query) {
+                    $query->orderBy('name');
+                }
+            ])
             ->orderBy('name');
 
         if ($selectedCategory) {
@@ -109,12 +89,10 @@ class MenuItemController extends Controller
             'categories' => $this->categories,
             'flavor_tags_options' => $this->flavorTags,
             'meal_type_options' => $this->mealTypes,
-            'inventory_type_options' => $this->inventoryTypes,
             'selected_category' => $selectedCategory,
-            'selected_date' => $selectedDate,
             'menu_items' => $menuItems->map(function ($item) {
                 return $this->formatMenuItemResponse($item);
-            }),
+            })->values(),
         ]);
     }
 
@@ -131,8 +109,6 @@ class MenuItemController extends Controller
             'flavor_tags.*' => 'string|in:' . implode(',', $this->flavorTags),
             'meal_type' => 'nullable|string|in:' . implode(',', $this->mealTypes),
 
-            'inventory_type' => 'nullable|string|in:' . implode(',', $this->inventoryTypes),
-            'daily_limit' => 'nullable|integer|min:0',
             'is_available' => 'nullable|boolean',
         ]);
 
@@ -142,25 +118,13 @@ class MenuItemController extends Controller
             ], 422);
         }
 
-        $inventoryType = $validated['inventory_type'] ?? 'per_order';
-
-        if (!in_array($inventoryType, $this->inventoryTypes, true)) {
-            $inventoryType = 'per_order';
-        }
-
-        if ($validated['category'] === 'Chef Oppa Special') {
-            $inventoryType = 'custom';
-        }
-
-        $dailyLimit = $inventoryType === 'custom'
-            ? null
-            : (int) ($validated['daily_limit'] ?? 0);
-
         $imageUrl = null;
 
         if ($request->hasFile('image')) {
             $imageUrl = $this->uploadImageToSupabase($request->file('image'));
         }
+
+        $isCustom = $validated['category'] === 'Chef Oppa Special';
 
         $menuItem = MenuItem::create([
             'name' => $validated['name'],
@@ -172,10 +136,12 @@ class MenuItemController extends Controller
             'flavor_tags' => $validated['flavor_tags'] ?? [],
             'meal_type' => $validated['meal_type'] ?? 'main',
 
-            'inventory_type' => $inventoryType,
-            'daily_limit' => $dailyLimit,
+            // Keep this NOT NULL for database compatibility.
+            // Availability is still ingredient-based.
+            'inventory_type' => $isCustom ? 'custom' : 'per_order',
+            'daily_limit' => null,
 
-            'is_available' => $request->boolean('is_available', true),
+            'is_available' => $isCustom ? true : false,
         ]);
 
         $this->refreshAvailability($menuItem);
@@ -208,9 +174,6 @@ class MenuItemController extends Controller
             'flavor_tags' => 'sometimes|nullable|array',
             'flavor_tags.*' => 'string|in:' . implode(',', $this->flavorTags),
             'meal_type' => 'sometimes|nullable|string|in:' . implode(',', $this->mealTypes),
-
-            'inventory_type' => 'sometimes|nullable|string|in:' . implode(',', $this->inventoryTypes),
-            'daily_limit' => 'sometimes|nullable|integer|min:0',
         ]);
 
         if (isset($validated['category']) && !in_array($validated['category'], $this->categories, true)) {
@@ -227,33 +190,6 @@ class MenuItemController extends Controller
             }
         }
 
-        if ($request->has('inventory_type')) {
-            $updateData['inventory_type'] = $validated['inventory_type'] ?? 'per_order';
-        }
-
-        if ($request->has('daily_limit')) {
-            $updateData['daily_limit'] = (int) ($validated['daily_limit'] ?? 0);
-        }
-
-        $finalCategory = $updateData['category'] ?? $menuItem->category;
-        $finalInventoryType = $updateData['inventory_type'] ?? $menuItem->inventory_type ?? 'per_order';
-
-        if (!in_array($finalInventoryType, $this->inventoryTypes, true)) {
-            $finalInventoryType = 'per_order';
-        }
-
-        if ($finalCategory === 'Chef Oppa Special') {
-            $finalInventoryType = 'custom';
-        }
-
-        $updateData['inventory_type'] = $finalInventoryType;
-
-        if ($finalInventoryType === 'custom') {
-            $updateData['daily_limit'] = null;
-        } elseif (!array_key_exists('daily_limit', $updateData) && $menuItem->daily_limit === null) {
-            $updateData['daily_limit'] = 0;
-        }
-
         if ($request->has('flavor_tags')) {
             $updateData['flavor_tags'] = $validated['flavor_tags'] ?? [];
         }
@@ -262,12 +198,25 @@ class MenuItemController extends Controller
             $updateData['image'] = $this->uploadImageToSupabase($request->file('image'));
         }
 
+        $finalCategory = $updateData['category'] ?? $menuItem->category;
+
+        if ($finalCategory === 'Chef Oppa Special') {
+            $updateData['inventory_type'] = 'custom';
+            $updateData['daily_limit'] = null;
+        } else {
+            // IMPORTANT:
+            // inventory_type column is NOT NULL in your database.
+            // Do not set this to null.
+            $updateData['inventory_type'] = $menuItem->inventory_type ?: 'per_order';
+            $updateData['daily_limit'] = null;
+        }
+
         $menuItem->update($updateData);
 
         if ($request->has('is_available') && $request->boolean('is_available') === false) {
-            $menuItem->update([
+            $menuItem->forceFill([
                 'is_available' => false,
-            ]);
+            ])->saveQuietly();
         } else {
             $this->refreshAvailability($menuItem);
         }
@@ -319,24 +268,11 @@ class MenuItemController extends Controller
 
     private function freshMenuItem(MenuItem $menuItem): MenuItem
     {
-        $selectedDate = now('Asia/Manila')->toDateString();
-
-        $startOfDayUtc = Carbon::parse($selectedDate, 'Asia/Manila')
-            ->startOfDay()
-            ->timezone('UTC');
-
-        $endOfDayUtc = Carbon::parse($selectedDate, 'Asia/Manila')
-            ->endOfDay()
-            ->timezone('UTC');
-
-        return MenuItem::with('ingredients')
-            ->withSum([
-                'orderItems as sold_today' => function ($query) use ($startOfDayUtc, $endOfDayUtc) {
-                    $query->whereHas('order', function ($orderQuery) use ($startOfDayUtc, $endOfDayUtc) {
-                        $orderQuery->whereBetween('created_at', [$startOfDayUtc, $endOfDayUtc]);
-                    });
-                },
-            ], 'quantity')
+        return MenuItem::with([
+                'ingredients' => function ($query) {
+                    $query->orderBy('name');
+                }
+            ])
             ->findOrFail($menuItem->id);
     }
 
@@ -375,60 +311,38 @@ class MenuItemController extends Controller
 
     private function refreshAvailability(MenuItem $menuItem): void
     {
-        $menuItem->refresh();
+        $menuItem = MenuItem::with('ingredients')->find($menuItem->id);
+
+        if (!$menuItem) {
+            return;
+        }
 
         if ($menuItem->category === 'Chef Oppa Special') {
-            $menuItem->update([
+            $menuItem->forceFill([
                 'inventory_type' => 'custom',
                 'daily_limit' => null,
                 'is_available' => true,
-            ]);
+            ])->saveQuietly();
 
             return;
         }
 
-        $menuItem->update([
+        $menuItem->forceFill([
+            // Keep old value, but make sure it is never null.
             'inventory_type' => $menuItem->inventory_type ?: 'per_order',
-            'daily_limit' => $menuItem->inventory_type === 'custom'
-                ? null
-                : ($menuItem->daily_limit ?? 0),
+            'daily_limit' => null,
             'is_available' => $menuItem->computeAvailability(),
-        ]);
+        ])->saveQuietly();
     }
 
     private function formatMenuItemResponse(MenuItem $item): array
     {
-        $soldToday = (int) ($item->sold_today ?? 0);
+        $ingredients = $item->relationLoaded('ingredients')
+            ? $item->ingredients
+            : collect();
 
-        $remainingToday = null;
-
-        if ($item->inventory_type !== 'custom'
-            && in_array($item->inventory_type, ['per_order', 'per_head'], true)
-            && $item->daily_limit !== null) {
-            $remainingToday = max(0, (int) $item->daily_limit - $soldToday);
-        }
-
-        $unit = $item->inventory_type === 'per_head' ? 'heads' : 'orders';
-
-        if (!$item->inventory_type) {
-            $dailyInventoryLabel = 'Inventory type not set';
-        } elseif ($item->inventory_type === 'custom') {
-            $dailyInventoryLabel = 'Staff confirms';
-        } elseif ($item->daily_limit === null) {
-            $dailyInventoryLabel = 'Daily limit not set';
-        } elseif ((int) $remainingToday <= 0) {
-            $dailyInventoryLabel = 'Sold out today';
-        } else {
-            $dailyInventoryLabel = "{$remainingToday} {$unit} left today";
-        }
-
-        if ($item->inventory_type === 'custom') {
-            $maxOrderQuantity = 99;
-        } elseif ($remainingToday !== null) {
-            $maxOrderQuantity = max(0, (int) $remainingToday);
-        } else {
-            $maxOrderQuantity = 0;
-        }
+        $maxOrderQuantity = $item->max_order_quantity;
+        $stockLabel = $item->stock_label;
 
         return [
             'id' => $item->id,
@@ -443,15 +357,35 @@ class MenuItemController extends Controller
             'flavor_tags' => $item->flavor_tags ?? [],
             'meal_type' => $item->meal_type,
 
-            'inventory_type' => $item->inventory_type,
-            'daily_limit' => $item->daily_limit,
-            'sold_today' => $soldToday,
-            'remaining_today' => $remainingToday,
-            'daily_inventory_label' => $dailyInventoryLabel,
-            'stock_label' => $dailyInventoryLabel,
-            'max_order_quantity' => $maxOrderQuantity,
+            'inventory_type' => $item->inventory_type ?: 'per_order',
+            'daily_limit' => null,
 
-            'ingredients' => $item->ingredients,
+            'max_order_quantity' => $maxOrderQuantity,
+            'stock_label' => $stockLabel,
+
+            // Compatibility fields para hindi masira old frontend/mobile references.
+            'sold_today' => 0,
+            'remaining_today' => $maxOrderQuantity,
+            'daily_inventory_label' => $stockLabel,
+
+            'ingredients' => $ingredients->map(function ($ingredient) {
+                $quantityRequired = (float) ($ingredient->pivot->quantity_required ?? 0);
+                $currentStock = (float) ($ingredient->current_stock ?? 0);
+
+                return [
+                    'id' => $ingredient->id,
+                    'name' => $ingredient->name,
+                    'current_stock' => $currentStock,
+                    'total_stock' => (float) ($ingredient->total_stock ?? $currentStock),
+                    'unit' => $ingredient->unit,
+                    'threshold' => (float) ($ingredient->threshold ?? 0),
+                    'quantity_required' => $quantityRequired,
+                    'pivot' => [
+                        'quantity_required' => $quantityRequired,
+                    ],
+                ];
+            })->values(),
+
             'created_at' => $item->created_at,
             'updated_at' => $item->updated_at,
         ];

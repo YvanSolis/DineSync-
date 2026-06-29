@@ -2,16 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Ingredient;
+use App\Models\InventoryBatch;
+use App\Models\InventoryTransaction;
+use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\MenuItem;
 use App\Models\RestaurantTable;
 use App\Models\TableSession;
-use App\Services\InventoryDeductionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
@@ -23,7 +25,7 @@ class OrderController extends Controller
         );
     }
 
-    public function store(Request $request, InventoryDeductionService $inventoryDeductionService)
+    public function store(Request $request)
     {
         Log::info('ORDER STORE HIT FROM MOBILE/WEB', [
             'full_url' => $request->fullUrl(),
@@ -60,8 +62,12 @@ class OrderController extends Controller
 
         $items = $request->input('items', $request->input('order_items', []));
 
-        return DB::transaction(function () use ($request, $items, $inventoryDeductionService) {
-            $this->validateInventoryBeforeOrder($items);
+        return DB::transaction(function () use ($request, $items) {
+            $normalizedItems = $this->normalizeOrderItems($items);
+
+            $this->syncAllIngredientStocks();
+            $this->refreshAllMenuAvailability();
+            $this->validateInventoryBeforeOrder($normalizedItems);
 
             $table = $this->detectTableFromRequest($request);
             $tableNumber = $table?->table_number ?? $request->input('table_number');
@@ -69,11 +75,6 @@ class OrderController extends Controller
             $tableSession = null;
 
             if ($table) {
-                /*
-                * IMPORTANT:
-                * Tablet/mobile customers cannot place an order unless
-                * service staff has already assigned/occupied the table.
-                */
                 if ($table->status !== 'occupied') {
                     return response()->json([
                         'message' => 'Please wait for service staff to assign your table before placing an order.',
@@ -93,17 +94,6 @@ class OrderController extends Controller
                     }
                 }
             }
-            if ($table && Schema::hasTable('table_sessions')) {
-                /*
-                * Do not create a table session automatically from tablet/mobile order.
-                * A table session should only start when service staff assigns a walk-in
-                * or seats a reservation.
-                */
-                $tableSession = TableSession::where('restaurant_table_id', $table->id)
-                    ->where('status', 'active')
-                    ->latest()
-                    ->first();
-            }
 
             $order = new Order();
 
@@ -115,13 +105,15 @@ class OrderController extends Controller
             $this->setIfColumn($order, 'table_session_id', $tableSession?->id);
             $this->setIfColumn($order, 'remarks', $request->input('remarks'));
             $this->setIfColumn($order, 'notes', $request->input('notes'));
+            $this->setIfColumn($order, 'payment_method', $request->input('payment_method', 'Cash'));
+            $this->setIfColumn($order, 'payment_status', $request->input('payment_status', 'pending'));
             $this->setIfColumn($order, 'total_amount', 0);
 
             $order->save();
 
             $totalAmount = 0;
 
-            foreach ($items as $itemData) {
+            foreach ($normalizedItems as $itemData) {
                 $menuItem = MenuItem::findOrFail($itemData['menu_item_id']);
                 $quantity = (int) $itemData['quantity'];
                 $price = (float) $menuItem->price;
@@ -146,28 +138,26 @@ class OrderController extends Controller
             $order->save();
 
             if ($table && $table->status === 'occupied') {
-                /*
-                * Only link order to table if the table is already occupied
-                * by service staff assignment.
-                */
                 $table->update([
                     'current_order_id' => $order->id,
                     'notes' => $table->notes ?? 'Active table order',
                 ]);
             }
+
             if (Schema::hasTable('payments')) {
                 DB::table('payments')->insert([
                     'order_id' => $order->id,
                     'payment_method' => $request->input('payment_method', 'Cash'),
                     'amount' => $totalAmount,
-                    'status' => $request->input('payment_status', 'paid'),
+                    'status' => $request->input('payment_status', 'pending'),
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
             }
 
-            $inventoryDeductionService->deductForOrder($order);
+            $this->deductIngredientsForOrder($order);
 
+            $this->syncAllIngredientStocks();
             $this->refreshAllMenuAvailability();
 
             return response()->json(
@@ -251,27 +241,23 @@ class OrderController extends Controller
         }
 
         if ($table) {
-        $activeSession = null;
+            $activeSession = null;
 
-        if (Schema::hasTable('table_sessions')) {
-            $activeSession = TableSession::where('restaurant_table_id', $table->id)
-                ->where('status', 'active')
-                ->latest()
-                ->first();
+            if (Schema::hasTable('table_sessions')) {
+                $activeSession = TableSession::where('restaurant_table_id', $table->id)
+                    ->where('status', 'active')
+                    ->latest()
+                    ->first();
+            }
+
+            $this->setIfColumn($order, 'table_number', $table->table_number);
+            $this->setIfColumn($order, 'table_id', $table->id);
+            $this->setIfColumn($order, 'table_session_id', $activeSession?->id);
+
+            $table->update([
+                'notes' => $table->notes ?? 'Order linked to table',
+            ]);
         }
-
-        $this->setIfColumn($order, 'table_number', $table->table_number);
-        $this->setIfColumn($order, 'table_id', $table->id);
-        $this->setIfColumn($order, 'table_session_id', $activeSession?->id);
-
-        /*
-        * Do not mark table as occupied from order update.
-        * Table occupancy is controlled by service staff only.
-        */
-        $table->update([
-            'notes' => $table->notes ?? 'Order linked to table',
-        ]);
-    }
 
         $order->save();
 
@@ -297,6 +283,325 @@ class OrderController extends Controller
         return response()->json([
             'message' => 'Order deleted successfully.',
         ]);
+    }
+
+    private function normalizeOrderItems(array $items): array
+    {
+        $normalized = [];
+
+        foreach ($items as $itemData) {
+            $menuItemId = (int) $itemData['menu_item_id'];
+            $quantity = (int) $itemData['quantity'];
+
+            if (! isset($normalized[$menuItemId])) {
+                $normalized[$menuItemId] = [
+                    'menu_item_id' => $menuItemId,
+                    'quantity' => 0,
+                    'notes' => $itemData['notes'] ?? null,
+                ];
+            }
+
+            $normalized[$menuItemId]['quantity'] += $quantity;
+        }
+
+        return array_values($normalized);
+    }
+
+    private function validateInventoryBeforeOrder(array $items): void
+    {
+        $requiredIngredients = [];
+
+        foreach ($items as $itemData) {
+            $menuItemId = (int) $itemData['menu_item_id'];
+            $orderQuantity = (int) $itemData['quantity'];
+
+            $menuItem = MenuItem::with('ingredients')->findOrFail($menuItemId);
+
+            if ($menuItem->category === 'Chef Oppa Special' || $menuItem->inventory_type === 'custom') {
+                continue;
+            }
+
+            if (! $menuItem->is_available) {
+                throw ValidationException::withMessages([
+                    'inventory' => "{$menuItem->name} is currently unavailable.",
+                ]);
+            }
+
+            if ($menuItem->ingredients->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'inventory' => "{$menuItem->name} has no linked ingredients yet.",
+                ]);
+            }
+
+            foreach ($menuItem->ingredients as $ingredient) {
+                $requiredPerItem = (float) ($ingredient->pivot->quantity_required ?? 0);
+
+                if ($requiredPerItem <= 0) {
+                    throw ValidationException::withMessages([
+                        'inventory' => "{$menuItem->name} has invalid ingredient usage for {$ingredient->name}.",
+                    ]);
+                }
+
+                $totalRequired = $requiredPerItem * $orderQuantity;
+
+                if (! isset($requiredIngredients[$ingredient->id])) {
+                    $requiredIngredients[$ingredient->id] = [
+                        'ingredient_id' => $ingredient->id,
+                        'ingredient_name' => $ingredient->name,
+                        'ingredient_unit' => $ingredient->unit,
+                        'required' => 0,
+                        'menu_items' => [],
+                    ];
+                }
+
+                $requiredIngredients[$ingredient->id]['required'] += $totalRequired;
+                $requiredIngredients[$ingredient->id]['menu_items'][] = $menuItem->name;
+            }
+        }
+
+        foreach ($requiredIngredients as $data) {
+            $ingredient = Ingredient::where('id', $data['ingredient_id'])
+                ->lockForUpdate()
+                ->first();
+
+            if (! $ingredient) {
+                throw ValidationException::withMessages([
+                    'inventory' => 'Ingredient not found.',
+                ]);
+            }
+
+            $availableStock = $this->getAvailableIngredientStock($ingredient);
+            $requiredStock = (float) $data['required'];
+
+            if ($availableStock < $requiredStock) {
+                $menuNames = implode(', ', array_unique($data['menu_items']));
+
+                throw ValidationException::withMessages([
+                    'inventory' => "Cannot place order. Not enough stock for {$ingredient->name}. Available: {$availableStock} {$ingredient->unit}. Required: {$requiredStock} {$ingredient->unit}. Affected item/s: {$menuNames}.",
+                ]);
+            }
+        }
+    }
+
+    private function deductIngredientsForOrder(Order $order): void
+    {
+        $order->load(['items.menuItem.ingredients']);
+
+        foreach ($order->items as $orderItem) {
+            $menuItem = $orderItem->menuItem;
+
+            if (! $menuItem) {
+                continue;
+            }
+
+            if ($menuItem->category === 'Chef Oppa Special' || $menuItem->inventory_type === 'custom') {
+                continue;
+            }
+
+            foreach ($menuItem->ingredients as $ingredient) {
+                $requiredPerItem = (float) ($ingredient->pivot->quantity_required ?? 0);
+                $orderQuantity = (int) $orderItem->quantity;
+                $totalRequired = $requiredPerItem * $orderQuantity;
+
+                if ($totalRequired <= 0) {
+                    continue;
+                }
+
+                $this->deductIngredientStock($order, $orderItem, $ingredient, $totalRequired);
+            }
+        }
+    }
+
+    private function deductIngredientStock(Order $order, OrderItem $orderItem, Ingredient $ingredient, float $requiredQuantity): void
+    {
+        $remainingToDeduct = $requiredQuantity;
+
+        $batches = InventoryBatch::where('ingredient_id', $ingredient->id)
+            ->where('status', 'active')
+            ->where('quantity_remaining', '>', 0)
+            ->whereDate('expiry_date', '>=', now()->toDateString())
+            ->orderBy('expiry_date', 'asc')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($batches as $batch) {
+            if ($remainingToDeduct <= 0) {
+                break;
+            }
+
+            $availableInBatch = (float) $batch->quantity_remaining;
+            $deductedFromBatch = min($availableInBatch, $remainingToDeduct);
+
+            $batch->quantity_remaining = $availableInBatch - $deductedFromBatch;
+
+            if ($batch->quantity_remaining <= 0) {
+                $batch->quantity_remaining = 0;
+                $batch->status = 'used_up';
+            }
+
+            $batch->save();
+
+            $this->recordInventoryTransaction(
+                $ingredient,
+                $batch->id,
+                'stock_out',
+                $deductedFromBatch,
+                (float) ($batch->unit_cost ?? 0),
+                "Used for Order #{$order->order_number}"
+            );
+
+            $this->recordIngredientUsage(
+                $order,
+                $orderItem,
+                $ingredient,
+                $deductedFromBatch,
+                $batch->id
+            );
+
+            $remainingToDeduct -= $deductedFromBatch;
+        }
+
+        $this->syncIngredientStock($ingredient);
+    }
+
+    private function syncAllIngredientStocks(): void
+    {
+        $today = now()->toDateString();
+
+        InventoryBatch::where('quantity_remaining', '>', 0)
+            ->whereDate('expiry_date', '<', $today)
+            ->update([
+                'status' => 'expired',
+            ]);
+
+        InventoryBatch::where('quantity_remaining', '<=', 0)
+            ->update([
+                'status' => 'used_up',
+            ]);
+
+        Ingredient::query()->chunk(100, function ($ingredients) {
+            foreach ($ingredients as $ingredient) {
+                $this->syncIngredientStock($ingredient);
+            }
+        });
+    }
+
+    private function syncIngredientStock(Ingredient $ingredient): void
+    {
+        $today = now()->toDateString();
+
+        InventoryBatch::where('ingredient_id', $ingredient->id)
+            ->where('quantity_remaining', '>', 0)
+            ->whereDate('expiry_date', '<', $today)
+            ->update([
+                'status' => 'expired',
+            ]);
+
+        InventoryBatch::where('ingredient_id', $ingredient->id)
+            ->where('quantity_remaining', '<=', 0)
+            ->update([
+                'status' => 'used_up',
+            ]);
+
+        $totalUsableStock = InventoryBatch::where('ingredient_id', $ingredient->id)
+            ->where('status', 'active')
+            ->where('quantity_remaining', '>', 0)
+            ->whereDate('expiry_date', '>=', $today)
+            ->sum('quantity_remaining');
+
+        $ingredient->forceFill([
+            'current_stock' => $totalUsableStock,
+        ])->saveQuietly();
+    }
+
+    private function getAvailableIngredientStock(Ingredient $ingredient): float
+    {
+        $this->syncIngredientStock($ingredient);
+
+        return (float) InventoryBatch::where('ingredient_id', $ingredient->id)
+            ->where('status', 'active')
+            ->where('quantity_remaining', '>', 0)
+            ->whereDate('expiry_date', '>=', now()->toDateString())
+            ->sum('quantity_remaining');
+    }
+
+    private function recordInventoryTransaction(
+        Ingredient $ingredient,
+        ?int $batchId,
+        string $type,
+        float $quantity,
+        float $unitCost,
+        string $remarks
+    ): void {
+        if (! Schema::hasTable('inventory_transactions')) {
+            return;
+        }
+
+        InventoryTransaction::create([
+            'ingredient_id' => $ingredient->id,
+            'inventory_batch_id' => $batchId,
+            'type' => $type,
+            'quantity' => $quantity,
+            'unit_cost' => $unitCost,
+            'total_cost' => $quantity * $unitCost,
+            'remarks' => $remarks,
+        ]);
+    }
+
+    private function recordIngredientUsage(
+        Order $order,
+        OrderItem $orderItem,
+        Ingredient $ingredient,
+        float $quantityUsed,
+        ?int $batchId
+    ): void {
+        if (! Schema::hasTable('ingredient_usages')) {
+            return;
+        }
+
+        $data = [
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+
+        $this->addColumnValue($data, 'order_id', $order->id, 'ingredient_usages');
+        $this->addColumnValue($data, 'order_item_id', $orderItem->id, 'ingredient_usages');
+        $this->addColumnValue($data, 'menu_item_id', $orderItem->menu_item_id, 'ingredient_usages');
+        $this->addColumnValue($data, 'ingredient_id', $ingredient->id, 'ingredient_usages');
+        $this->addColumnValue($data, 'inventory_batch_id', $batchId, 'ingredient_usages');
+        $this->addColumnValue($data, 'quantity_used', $quantityUsed, 'ingredient_usages');
+        $this->addColumnValue($data, 'quantity', $quantityUsed, 'ingredient_usages');
+        $this->addColumnValue($data, 'unit', $ingredient->unit, 'ingredient_usages');
+        $this->addColumnValue($data, 'remarks', "Used for Order #{$order->order_number}", 'ingredient_usages');
+
+        DB::table('ingredient_usages')->insert($data);
+    }
+
+    private function refreshAllMenuAvailability(): void
+    {
+        if (! Schema::hasColumn('menu_items', 'is_available')) {
+            return;
+        }
+
+        MenuItem::with('ingredients')->chunk(100, function ($menuItems) {
+            foreach ($menuItems as $menuItem) {
+                if ($menuItem->category === 'Chef Oppa Special' || $menuItem->inventory_type === 'custom') {
+                    $menuItem->forceFill([
+                        'inventory_type' => 'custom',
+                        'daily_limit' => null,
+                        'is_available' => true,
+                    ])->saveQuietly();
+
+                    continue;
+                }
+
+                $menuItem->forceFill([
+                    'inventory_type' => $menuItem->inventory_type ?: 'per_order',
+                    'daily_limit' => null,
+                    'is_available' => $menuItem->computeAvailability(),
+                ])->saveQuietly();
+            }
+        });
     }
 
     private function detectTableFromRequest(Request $request): ?RestaurantTable
@@ -351,200 +656,10 @@ class OrderController extends Controller
         return $orderNumber;
     }
 
-    private function generateTableSessionCode(): string
+    private function addColumnValue(array &$data, string $column, $value, string $table): void
     {
-        do {
-            $sessionCode = 'TS-' . now()->format('YmdHis') . '-' . random_int(100, 999);
-        } while (TableSession::where('session_code', $sessionCode)->exists());
-
-        return $sessionCode;
-    }
-
-    private function validateInventoryBeforeOrder(array $items): void
-    {
-        $requiredIngredients = [];
-        $requestedMenuItems = [];
-
-        /*
-        * Combine duplicate menu items first.
-        * Example:
-        * Same item appears twice in cart:
-        * - Item 1 qty 3
-        * - Item 1 qty 4
-        * Total should be checked as 7.
-        */
-        foreach ($items as $itemData) {
-            $menuItemId = (int) $itemData['menu_item_id'];
-            $quantity = (int) $itemData['quantity'];
-
-            if (! isset($requestedMenuItems[$menuItemId])) {
-                $requestedMenuItems[$menuItemId] = 0;
-            }
-
-            $requestedMenuItems[$menuItemId] += $quantity;
-        }
-
-        foreach ($requestedMenuItems as $menuItemId => $orderQuantity) {
-            $menuItem = MenuItem::with('ingredients')->findOrFail($menuItemId);
-
-            $inventoryType = Schema::hasColumn('menu_items', 'inventory_type')
-                ? ($menuItem->inventory_type ?? 'per_order')
-                : null;
-
-            /*
-            * NEW DAILY INVENTORY LOGIC
-            * per_order = ala carte, count by order quantity
-            * per_head = unlimited, count by head/person quantity
-            * custom = Chef Oppa Special, staff confirms, no stock limit
-            */
-            if (in_array($inventoryType, ['per_order', 'per_head', 'custom'])) {
-                if (
-                    Schema::hasColumn('menu_items', 'is_available') &&
-                    ! $menuItem->is_available
-                ) {
-                    throw ValidationException::withMessages([
-                        'inventory' => "{$menuItem->name} is currently unavailable.",
-                    ]);
-                }
-
-                if ($inventoryType === 'custom') {
-                    continue;
-                }
-
-                if ($menuItem->daily_limit !== null) {
-                    $remainingToday = (int) $menuItem->remaining_today;
-
-                    if ($remainingToday <= 0) {
-                        throw ValidationException::withMessages([
-                            'inventory' => "{$menuItem->name} is sold out for today.",
-                        ]);
-                    }
-
-                    if ($orderQuantity > $remainingToday) {
-                        $unit = $inventoryType === 'per_head' ? 'head' : 'order';
-
-                        throw ValidationException::withMessages([
-                            'inventory' => "{$menuItem->name} only has {$remainingToday} {$unit}" . ($remainingToday === 1 ? '' : 's') . " left today.",
-                        ]);
-                    }
-                }
-
-                continue;
-            }
-
-            /*
-            * OLD FALLBACK INGREDIENT LOGIC
-            * This only runs for old items without inventory_type.
-            */
-            $maxOrderQuantity = (int) $menuItem->max_order_quantity;
-
-            if (
-                Schema::hasColumn('menu_items', 'is_available') &&
-                ! $menuItem->is_available
-            ) {
-                throw ValidationException::withMessages([
-                    'inventory' => "{$menuItem->name} is currently unavailable.",
-                ]);
-            }
-
-            if ($maxOrderQuantity <= 0) {
-                throw ValidationException::withMessages([
-                    'inventory' => "{$menuItem->name} is out of stock.",
-                ]);
-            }
-
-            if ($orderQuantity > $maxOrderQuantity) {
-                throw ValidationException::withMessages([
-                    'inventory' => "{$menuItem->name} only has {$maxOrderQuantity} order" . ($maxOrderQuantity === 1 ? '' : 's') . " left.",
-                ]);
-            }
-
-            foreach ($menuItem->ingredients as $ingredient) {
-                $requiredPerItem = (float) $ingredient->pivot->quantity_required;
-                $totalRequired = $requiredPerItem * $orderQuantity;
-
-                if (! isset($requiredIngredients[$ingredient->id])) {
-                    $requiredIngredients[$ingredient->id] = [
-                        'ingredient_id' => $ingredient->id,
-                        'ingredient_name' => $ingredient->name,
-                        'ingredient_unit' => $ingredient->unit,
-                        'required' => 0,
-                        'menu_items' => [],
-                    ];
-                }
-
-                $requiredIngredients[$ingredient->id]['required'] += $totalRequired;
-                $requiredIngredients[$ingredient->id]['menu_items'][] = $menuItem->name;
-            }
-        }
-
-        foreach ($requiredIngredients as $data) {
-            $ingredient = \App\Models\Ingredient::where('id', $data['ingredient_id'])
-                ->lockForUpdate()
-                ->first();
-
-            if (! $ingredient) {
-                throw ValidationException::withMessages([
-                    'inventory' => 'Ingredient not found.',
-                ]);
-            }
-
-            $availableStock = (float) ($ingredient->current_stock ?? 0);
-            $requiredStock = (float) $data['required'];
-
-            if ($availableStock < $requiredStock) {
-                $menuNames = implode(', ', array_unique($data['menu_items']));
-
-                throw ValidationException::withMessages([
-                    'inventory' => "Cannot place order. Not enough stock for {$ingredient->name}. Available: {$availableStock} {$ingredient->unit}. Affected item/s: {$menuNames}.",
-                ]);
-            }
-        }
-    }
-
-   private function refreshAllMenuAvailability(): void
-    {
-        if (! Schema::hasColumn('menu_items', 'is_available')) {
-            return;
-        }
-
-        $menuItems = MenuItem::with('ingredients')->get();
-
-        foreach ($menuItems as $menuItem) {
-            if (Schema::hasColumn('menu_items', 'inventory_type')) {
-                $inventoryType = $menuItem->inventory_type ?? 'per_order';
-
-                if ($inventoryType === 'custom') {
-                    $menuItem->update([
-                        'is_available' => true,
-                    ]);
-
-                    continue;
-                }
-
-                if (in_array($inventoryType, ['per_order', 'per_head'])) {
-                    if ($menuItem->daily_limit === null) {
-                        $menuItem->update([
-                            'is_available' => true,
-                        ]);
-
-                        continue;
-                    }
-
-                    $menuItem->update([
-                        'is_available' => $menuItem->remaining_today > 0,
-                    ]);
-
-                    continue;
-                }
-            }
-
-            /*
-            * Old fallback ingredient-based logic.
-            */
-            $menuItem->update([
-                'is_available' => $menuItem->max_order_quantity > 0,
-            ]);
+        if (Schema::hasColumn($table, $column)) {
+            $data[$column] = $value;
         }
     }
 

@@ -2,200 +2,149 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Ingredient;
+use App\Models\InventoryBatch;
+use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\MenuItem;
 use App\Models\Payment;
+use App\Services\OpenAIForecastService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Cache;
-use App\Services\OpenAIForecastService;
 
 class AdminReportController extends Controller
 {
     public function dashboard()
     {
         $today = now()->toDateString();
-        $startOfWeek = now()->subDays(6)->startOfDay();
         $paidStatuses = ['paid', 'completed', 'success', 'successful'];
 
-        $totalSalesToday = 0;
+        /*
+        |--------------------------------------------------------------------------
+        | Sync Ingredient-Based Inventory
+        |--------------------------------------------------------------------------
+        */
 
-        if (Schema::hasTable('payments')) {
-            $totalSalesToday = Payment::where(function ($query) use ($today) {
-                    $query->whereDate('created_at', $today)
-                        ->orWhereNull('created_at');
-                })
-                ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
-                ->sum('amount');
+        if (Schema::hasTable('inventory_batches')) {
+            InventoryBatch::where('quantity_remaining', '>', 0)
+                ->whereDate('expiry_date', '<', $today)
+                ->update([
+                    'status' => 'expired',
+                ]);
+
+            InventoryBatch::where('quantity_remaining', '<=', 0)
+                ->update([
+                    'status' => 'used_up',
+                ]);
         }
 
-        if ($totalSalesToday <= 0 && Schema::hasTable('orders')) {
-            $totalSalesToday = Order::whereDate('created_at', $today)->sum('total_amount');
+        if (Schema::hasTable('ingredients')) {
+            Ingredient::query()->chunk(100, function ($ingredients) use ($today) {
+                foreach ($ingredients as $ingredient) {
+                    if (! Schema::hasTable('inventory_batches')) {
+                        continue;
+                    }
+
+                    $totalUsableStock = InventoryBatch::where('ingredient_id', $ingredient->id)
+                        ->where('status', 'active')
+                        ->where('quantity_remaining', '>', 0)
+                        ->whereDate('expiry_date', '>=', $today)
+                        ->sum('quantity_remaining');
+
+                    $ingredient->forceFill([
+                        'current_stock' => $totalUsableStock,
+                    ])->saveQuietly();
+                }
+            });
         }
+
+        if (Schema::hasTable('menu_items')) {
+            MenuItem::refreshAllAvailability();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Daily Orders / Sales
+        |--------------------------------------------------------------------------
+        */
 
         $totalOrdersToday = 0;
         $activeOrders = 0;
+        $totalSalesToday = 0;
 
         if (Schema::hasTable('orders')) {
             $totalOrdersToday = Order::whereDate('created_at', $today)->count();
 
             if (Schema::hasColumn('orders', 'status')) {
-                $activeOrders = Order::whereIn(DB::raw('LOWER(status)'), [
-                    'pending',
-                    'preparing',
-                    'ongoing',
-                    'active',
-                    'processing'
-                ])->count();
+                $activeOrders = Order::whereDate('created_at', $today)
+                    ->whereIn(DB::raw('LOWER(status)'), [
+                        'pending',
+                        'preparing',
+                        'ready',
+                        'ongoing',
+                        'active',
+                        'processing',
+                    ])
+                    ->count();
             }
+        }
+
+        if (Schema::hasTable('payments')) {
+            $totalSalesToday = Payment::whereDate('created_at', $today)
+                ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
+                ->sum('amount');
+        }
+
+        if ($totalSalesToday <= 0 && Schema::hasTable('orders')) {
+            $totalSalesToday = Order::whereDate('created_at', $today)
+                ->where(function ($query) {
+                    if (Schema::hasColumn('orders', 'payment_status')) {
+                        $query->whereIn(DB::raw('LOWER(payment_status)'), [
+                            'paid',
+                            'completed',
+                            'success',
+                            'successful',
+                        ]);
+                    }
+
+                    if (Schema::hasColumn('orders', 'status')) {
+                        $query->orWhereIn(DB::raw('LOWER(status)'), [
+                            'served',
+                            'completed',
+                        ]);
+                    }
+                })
+                ->sum('total_amount');
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Daily Menu Capacity / Low Stock Alerts
-        |--------------------------------------------------------------------------
-        | New inventory logic:
-        | - per_order = ala carte, counted by order quantity
-        | - per_head = unlimited meals, counted by heads/persons
-        | - custom = Chef Oppa Special, staff confirms
-        |
-        | Low stock now means low remaining menu capacity for today.
-        */
-
-        $menuItems = collect();
-
-        if (Schema::hasTable('menu_items')) {
-            $menuItems = MenuItem::query()
-                ->orderBy('category')
-                ->orderBy('name')
-                ->get();
-        }
-
-        $menuCapacityUsage = $menuItems->map(function ($item) {
-            $type = $item->inventory_type ?? 'per_order';
-            $unit = $type === 'per_head'
-                ? 'heads'
-                : ($type === 'custom' ? 'requests' : 'orders');
-
-            return [
-                'id' => $item->id,
-                'name' => $item->name,
-                'item_name' => $item->name,
-                'menu_item' => $item->name,
-                'category' => $item->category ?: 'Uncategorized',
-                'inventory_type' => $type,
-                'unit' => $unit,
-                'daily_limit' => $item->daily_limit,
-                'sold_today' => $item->sold_today,
-                'remaining_today' => $item->remaining_today,
-                'is_available' => (bool) $item->is_available,
-                'stock_label' => $item->stock_label,
-                'daily_inventory_label' => $item->daily_inventory_label,
-            ];
-        })->values();
-
-        $lowStockItems = $menuCapacityUsage->filter(function ($item) {
-            if (($item['inventory_type'] ?? 'per_order') === 'custom') {
-                return false;
-            }
-
-            if ($item['daily_limit'] === null) {
-                return false;
-            }
-
-            $remaining = (int) ($item['remaining_today'] ?? 0);
-
-            return $remaining > 0 && $remaining <= 5;
-        })->values();
-
-        $soldOutItems = $menuCapacityUsage->filter(function ($item) {
-            if (($item['inventory_type'] ?? 'per_order') === 'custom') {
-                return false;
-            }
-
-            if ($item['daily_limit'] === null) {
-                return false;
-            }
-
-            return (int) ($item['remaining_today'] ?? 0) <= 0;
-        })->values();
-
-        $lowStockAlerts = $lowStockItems->map(function ($item) {
-            return [
-                'name' => $item['name'],
-                'item_name' => $item['name'],
-                'menu_item' => $item['name'],
-                'category' => $item['category'],
-                'inventory_type' => $item['inventory_type'],
-                'unit' => $item['unit'],
-                'current_stock' => (int) $item['remaining_today'],
-                'stock' => (int) $item['remaining_today'],
-                'remaining' => (int) $item['remaining_today'],
-                'remaining_today' => (int) $item['remaining_today'],
-                'daily_limit' => $item['daily_limit'],
-                'sold_today' => (int) $item['sold_today'],
-                'threshold' => 5,
-                'reason' => "Only {$item['remaining_today']} {$item['unit']} left today.",
-            ];
-        })->values();
-
-        $preparationSuggestions = $lowStockItems
-            ->merge($soldOutItems)
-            ->map(function ($item) {
-                $remaining = (int) ($item['remaining_today'] ?? 0);
-                $unit = $item['unit'];
-
-                if ($remaining <= 0) {
-                    $reason = "Sold out for today. Consider preparing more {$unit} if service is still ongoing.";
-                    $recommendation = "Prepare additional {$unit} or mark as unavailable.";
-                } else {
-                    $reason = "Low daily capacity. Only {$remaining} {$unit} left today.";
-                    $recommendation = "Prepare additional {$unit} if demand is expected to continue.";
-                }
-
-                return [
-                    'name' => $item['name'],
-                    'item_name' => $item['name'],
-                    'menu_item' => $item['name'],
-                    'category' => $item['category'],
-                    'inventory_type' => $item['inventory_type'],
-                    'unit' => $unit,
-                    'current_stock' => $remaining,
-                    'remaining_today' => $remaining,
-                    'daily_limit' => $item['daily_limit'],
-                    'sold_today' => (int) $item['sold_today'],
-                    'suggested_quantity' => max(5, (int) ceil(((int) $item['daily_limit']) * 0.25)),
-                    'recommended_quantity' => max(5, (int) ceil(((int) $item['daily_limit']) * 0.25)),
-                    'reason' => $reason,
-                    'recommendation' => $recommendation,
-                ];
-            })
-            ->values();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Top Selling Items
+        | Top Selling Items Today
         |--------------------------------------------------------------------------
         */
 
         $topSellingItems = collect();
 
-        if (Schema::hasTable('order_items')) {
-            $topSellingItems = OrderItem::select(
-                    'menu_item_id',
-                    DB::raw('SUM(quantity) as total_sold')
+        if (Schema::hasTable('order_items') && Schema::hasTable('orders')) {
+            $topSellingItems = DB::table('order_items')
+                ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                ->leftJoin('menu_items', 'order_items.menu_item_id', '=', 'menu_items.id')
+                ->select(
+                    'order_items.menu_item_id',
+                    DB::raw('COALESCE(menu_items.name, "Unknown Item") as name'),
+                    DB::raw('SUM(order_items.quantity) as total_sold')
                 )
-                ->with('menuItem')
-                ->whereDate('created_at', $today)
-                ->groupBy('menu_item_id')
+                ->whereDate('orders.created_at', $today)
+                ->groupBy('order_items.menu_item_id', 'menu_items.name')
                 ->orderByDesc('total_sold')
                 ->limit(5)
                 ->get()
                 ->map(function ($item) {
                     return [
-                        'name' => optional($item->menuItem)->name ?? 'Unknown Item',
-                        'item_name' => optional($item->menuItem)->name ?? 'Unknown Item',
+                        'id' => $item->menu_item_id,
+                        'name' => $item->name,
+                        'item_name' => $item->name,
+                        'menu_item' => $item->name,
                         'quantity' => (int) $item->total_sold,
                         'total_sold' => (int) $item->total_sold,
                     ];
@@ -204,141 +153,200 @@ class AdminReportController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Menu Usage Today
+        | Recent Orders Today
         |--------------------------------------------------------------------------
         */
 
-        $menuUsageToday = collect();
+        $recentOrdersToday = collect();
 
-        if (Schema::hasTable('order_items') && Schema::hasTable('menu_items')) {
-            $menuUsageToday = DB::table('order_items')
-                ->join('menu_items', 'order_items.menu_item_id', '=', 'menu_items.id')
-                ->select(
-                    'menu_items.name',
-                    'menu_items.category',
-                    'menu_items.inventory_type',
-                    DB::raw('SUM(order_items.quantity) as quantity_used')
-                )
-                ->whereDate('order_items.created_at', $today)
-                ->groupBy('menu_items.name', 'menu_items.category', 'menu_items.inventory_type')
-                ->orderByDesc('quantity_used')
+        if (Schema::hasTable('orders')) {
+            $recentOrdersToday = Order::query()
+                ->whereDate('created_at', $today)
+                ->latest()
                 ->limit(8)
                 ->get()
-                ->map(function ($usage) {
-                    $type = $usage->inventory_type ?? 'per_order';
-
+                ->map(function ($order) {
                     return [
-                        'name' => $usage->name,
-                        'item_name' => $usage->name,
-                        'menu_item' => $usage->name,
-                        'category' => $usage->category ?: 'Uncategorized',
-                        'inventory_type' => $type,
-                        'unit' => $type === 'per_head' ? 'heads' : ($type === 'custom' ? 'requests' : 'orders'),
-                        'quantity_used' => (int) $usage->quantity_used,
-                        'used' => (int) $usage->quantity_used,
+                        'id' => $order->id,
+                        'order_number' => $order->order_number ?? ('Order #' . $order->id),
+                        'status' => $order->status ?? 'pending',
+                        'payment_status' => $order->payment_status ?? null,
+                        'payment_method' => $order->payment_method ?? null,
+                        'table_number' => $order->table_number ?? '—',
+                        'total_amount' => (float) ($order->total_amount ?? 0),
+                        'time' => optional($order->created_at)->format('h:i A'),
+                        'created_time' => optional($order->created_at)->format('h:i A'),
                     ];
                 });
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Simple Demand Forecast
+        | Ingredient Inventory Alerts
         |--------------------------------------------------------------------------
         */
 
-        $simpleForecast = collect();
+        $inventoryAlerts = collect();
 
-        if (Schema::hasTable('order_items') && Schema::hasTable('menu_items')) {
-            $simpleForecast = DB::table('order_items')
-                ->join('menu_items', 'order_items.menu_item_id', '=', 'menu_items.id')
-                ->select(
-                    'menu_items.name',
-                    'menu_items.category',
-                    'menu_items.inventory_type',
-                    DB::raw('SUM(order_items.quantity) as total_sold'),
-                    DB::raw('COUNT(DISTINCT DATE(order_items.created_at)) as active_days')
-                )
-                ->whereBetween('order_items.created_at', [$startOfWeek, now()->endOfDay()])
-                ->groupBy('menu_items.name', 'menu_items.category', 'menu_items.inventory_type')
-                ->orderByDesc('total_sold')
-                ->limit(8)
+        if (Schema::hasTable('ingredients')) {
+            $inventoryAlerts = Ingredient::query()
+                ->orderBy('name')
                 ->get()
-                ->map(function ($item) {
-                    $totalSold = (int) $item->total_sold;
-                    $activeDays = max(1, (int) $item->active_days);
-                    $avgDaily = $totalSold / 7;
-                    $predicted = (int) max(1, ceil($avgDaily * 1.15));
+                ->filter(function ($ingredient) {
+                    return in_array($ingredient->stock_status, [
+                        'out_of_stock',
+                        'low_stock',
+                        'reorder_soon',
+                        'near_expiry',
+                    ]);
+                })
+                ->map(function ($ingredient) {
+                    return [
+                        'id' => $ingredient->id,
+                        'name' => $ingredient->name,
+                        'ingredient_name' => $ingredient->name,
+                        'current_stock' => (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0),
+                        'total_stock' => (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0),
+                        'stock' => (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0),
+                        'unit' => $ingredient->unit ?? 'unit',
+                        'threshold' => (float) ($ingredient->threshold ?? 0),
+                        'nearest_expiry_date' => $ingredient->nearest_expiry_date,
+                        'stock_status' => $ingredient->stock_status,
+                        'status' => $ingredient->stock_status,
+                    ];
+                })
+                ->values();
+        }
 
-                    if ($totalSold >= 20 && $activeDays >= 3) {
-                        $confidence = 'High';
-                    } elseif ($totalSold >= 8 && $activeDays >= 2) {
-                        $confidence = 'Medium';
-                    } else {
-                        $confidence = 'Low';
+        /*
+        |--------------------------------------------------------------------------
+        | Unavailable Menu Items Based on Ingredients
+        |--------------------------------------------------------------------------
+        */
+
+        $unavailableMenuItems = collect();
+
+        if (Schema::hasTable('menu_items')) {
+            $unavailableMenuItems = MenuItem::with('ingredients')
+                ->where(function ($query) {
+                    $query->where('is_available', false)
+                        ->orWhere('is_available', 0);
+                })
+                ->orderBy('category')
+                ->orderBy('name')
+                ->get()
+                ->filter(function ($item) {
+                    return $item->category !== 'Chef Oppa Special'
+                        && $item->inventory_type !== 'custom';
+                })
+                ->map(function ($item) {
+                    $missingIngredients = [];
+
+                    foreach ($item->ingredients as $ingredient) {
+                        $required = (float) ($ingredient->pivot->quantity_required ?? 0);
+                        $stock = (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0);
+
+                        if ($required <= 0) {
+                            $missingIngredients[] = $ingredient->name . ' has invalid usage.';
+                            continue;
+                        }
+
+                        if ($stock < $required) {
+                            $missingIngredients[] = $ingredient->name . " is insufficient.";
+                        }
                     }
 
-                    $type = $item->inventory_type ?? 'per_order';
-                    $unit = $type === 'per_head' ? 'heads' : ($type === 'custom' ? 'requests' : 'orders');
+                    $reason = count($missingIngredients)
+                        ? implode(' ', $missingIngredients)
+                        : ($item->stock_label ?? 'Insufficient linked ingredients.');
 
                     return [
+                        'id' => $item->id,
                         'name' => $item->name,
                         'item_name' => $item->name,
                         'menu_item' => $item->name,
                         'category' => $item->category ?: 'Uncategorized',
-                        'unit' => $unit,
-                        'predicted_demand' => $predicted,
-                        'forecast_quantity' => $predicted,
-                        'confidence' => $confidence,
-                        'recommendation' => "Prepare for approximately {$predicted} {$unit} tomorrow.",
+                        'stock_label' => $item->stock_label,
+                        'reason' => $reason,
                     ];
-                });
+                })
+                ->values();
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Sales This Week
+        | Ingredient Usage Today
         |--------------------------------------------------------------------------
         */
 
-        $salesThisWeek = [];
+        $ingredientUsageToday = collect();
 
-        for ($i = 6; $i >= 0; $i--) {
-            $date = now()->subDays($i);
-            $dateString = $date->toDateString();
+        if (Schema::hasTable('ingredient_usages') && Schema::hasTable('ingredients')) {
+            $quantityColumn = Schema::hasColumn('ingredient_usages', 'quantity_used')
+                ? 'ingredient_usages.quantity_used'
+                : 'ingredient_usages.quantity';
 
-            $paymentSales = 0;
-            $orderSales = 0;
-
-            if (Schema::hasTable('payments')) {
-                $paymentSales = Payment::whereDate('created_at', $dateString)
-                    ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
-                    ->sum('amount');
-
-                if ($i === 0) {
-                    $nullDatePaymentSales = Payment::whereNull('created_at')
-                        ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
-                        ->sum('amount');
-
-                    $paymentSales += $nullDatePaymentSales;
-                }
-            }
-
-            if (Schema::hasTable('orders')) {
-                $orderSales = Order::whereDate('created_at', $dateString)
-                    ->sum('total_amount');
-            }
-
-            $total = $paymentSales > 0 ? $paymentSales : $orderSales;
-
-            $salesThisWeek[] = [
-                'label' => $date->format('D'),
-                'date' => $dateString,
-                'total' => (float) $total,
-                'sales' => (float) $total,
-            ];
+            $ingredientUsageToday = DB::table('ingredient_usages')
+                ->join('ingredients', 'ingredient_usages.ingredient_id', '=', 'ingredients.id')
+                ->select(
+                    'ingredients.id',
+                    'ingredients.name',
+                    'ingredients.unit',
+                    DB::raw("SUM({$quantityColumn}) as quantity_used")
+                )
+                ->whereDate('ingredient_usages.created_at', $today)
+                ->groupBy('ingredients.id', 'ingredients.name', 'ingredients.unit')
+                ->orderByDesc('quantity_used')
+                ->limit(10)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'name' => $item->name,
+                        'ingredient_name' => $item->name,
+                        'unit' => $item->unit ?? 'unit',
+                        'quantity_used' => (float) $item->quantity_used,
+                        'used' => (float) $item->quantity_used,
+                        'quantity' => (float) $item->quantity_used,
+                    ];
+                });
+        } elseif (Schema::hasTable('inventory_transactions') && Schema::hasTable('ingredients')) {
+            $ingredientUsageToday = DB::table('inventory_transactions')
+                ->join('ingredients', 'inventory_transactions.ingredient_id', '=', 'ingredients.id')
+                ->select(
+                    'ingredients.id',
+                    'ingredients.name',
+                    'ingredients.unit',
+                    DB::raw('SUM(inventory_transactions.quantity) as quantity_used')
+                )
+                ->whereDate('inventory_transactions.created_at', $today)
+                ->whereIn(DB::raw('LOWER(inventory_transactions.type)'), [
+                    'stock_out',
+                    'out',
+                    'deduct',
+                    'deduction',
+                ])
+                ->groupBy('ingredients.id', 'ingredients.name', 'ingredients.unit')
+                ->orderByDesc('quantity_used')
+                ->limit(10)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'name' => $item->name,
+                        'ingredient_name' => $item->name,
+                        'unit' => $item->unit ?? 'unit',
+                        'quantity_used' => (float) $item->quantity_used,
+                        'used' => (float) $item->quantity_used,
+                        'quantity' => (float) $item->quantity_used,
+                    ];
+                });
         }
 
         return response()->json([
+            'scope' => 'today',
+            'scope_label' => 'Today / Daily Monitoring',
+
             'total_sales_today' => (float) $totalSalesToday,
             'sales_today' => (float) $totalSalesToday,
             'today_sales' => (float) $totalSalesToday,
@@ -350,37 +358,25 @@ class AdminReportController extends Controller
             'active_orders' => (int) $activeOrders,
             'pending_orders' => (int) $activeOrders,
 
-            'low_stock_count' => $lowStockItems->count(),
-            'low_stock_items_count' => $lowStockItems->count(),
-
-            'sales_this_week' => $salesThisWeek,
-            'weekly_sales' => $salesThisWeek,
-            'sales_chart' => $salesThisWeek,
+            'inventory_alert_count' => $inventoryAlerts->count(),
+            'low_stock_count' => $inventoryAlerts->count(),
 
             'top_selling_items' => $topSellingItems,
             'popular_menu_items' => $topSellingItems,
             'top_items' => $topSellingItems,
 
-            /*
-            * Keep old keys for compatibility with existing dashboard JS.
-            * The values are now menu-capacity based, not ingredient based.
-            */
-            'ingredient_usage_today' => $menuUsageToday,
-            'ingredient_usage' => $menuUsageToday,
-            'menu_capacity_usage' => $menuCapacityUsage,
-            'menu_usage_today' => $menuUsageToday,
+            'recent_orders_today' => $recentOrdersToday,
+            'recent_orders' => $recentOrdersToday,
 
-            'low_stock_items' => $lowStockAlerts,
-            'low_stock_alerts' => $lowStockAlerts,
+            'inventory_alerts' => $inventoryAlerts,
+            'low_stock_alerts' => $inventoryAlerts,
+            'low_stock_items' => $inventoryAlerts,
 
-            'restock_suggestions' => $preparationSuggestions,
-            'restock' => $preparationSuggestions,
-            'preparation_suggestions' => $preparationSuggestions,
+            'unavailable_menu_items' => $unavailableMenuItems,
+            'affected_menu_items' => $unavailableMenuItems,
 
-            'simple_forecast' => $simpleForecast,
-            'ai_demand_forecast' => $simpleForecast,
-            'forecast' => $simpleForecast,
-            'demand_forecast' => $simpleForecast,
+            'ingredient_usage_today' => $ingredientUsageToday,
+            'ingredient_usage' => $ingredientUsageToday,
         ]);
     }
 
@@ -389,14 +385,6 @@ class AdminReportController extends Controller
         $startDate = now()->subDays(6)->startOfDay();
         $endDate = now()->endOfDay();
         $paidStatuses = ['paid', 'completed', 'success', 'successful'];
-
-        /*
-        |--------------------------------------------------------------------------
-        | 7-Day Revenue
-        |--------------------------------------------------------------------------
-        | Reports page is for the last 7 days.
-        | Dashboard is for today only.
-        */
 
         $totalRevenue7d = 0;
 
@@ -410,12 +398,6 @@ class AdminReportController extends Controller
             $totalRevenue7d = Order::whereBetween('created_at', [$startDate, $endDate])
                 ->sum('total_amount');
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | 7-Day Orders
-        |--------------------------------------------------------------------------
-        */
 
         $totalOrders7d = 0;
 
@@ -436,12 +418,6 @@ class AdminReportController extends Controller
 
         $dailyAverageRevenue = $totalRevenue7d / 7;
         $forecastedRevenue = round($dailyAverageRevenue * 1.10, 2);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Sales & Orders Trend — Last 7 Days
-        |--------------------------------------------------------------------------
-        */
 
         $salesOrderTrends = [];
 
@@ -482,12 +458,6 @@ class AdminReportController extends Controller
             ];
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Revenue by Category — Last 7 Days
-        |--------------------------------------------------------------------------
-        */
-
         $revenueByCategory = collect();
 
         if (Schema::hasTable('order_items') && Schema::hasTable('menu_items')) {
@@ -510,13 +480,6 @@ class AdminReportController extends Controller
                 });
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Menu Demand Forecast — Last 7 Days
-        |--------------------------------------------------------------------------
-        | Uses order_items from the last 7 days.
-        */
-
         $forecastDetails = collect();
 
         if (Schema::hasTable('order_items') && Schema::hasTable('menu_items')) {
@@ -526,8 +489,6 @@ class AdminReportController extends Controller
                     'menu_items.id',
                     'menu_items.name',
                     'menu_items.category',
-                    'menu_items.inventory_type',
-                    'menu_items.daily_limit',
                     DB::raw('SUM(order_items.quantity) as total_sold_7d'),
                     DB::raw('COUNT(DISTINCT DATE(order_items.created_at)) as active_sales_days')
                 )
@@ -535,9 +496,7 @@ class AdminReportController extends Controller
                 ->groupBy(
                     'menu_items.id',
                     'menu_items.name',
-                    'menu_items.category',
-                    'menu_items.inventory_type',
-                    'menu_items.daily_limit'
+                    'menu_items.category'
                 )
                 ->orderByDesc('total_sold_7d')
                 ->limit(12)
@@ -549,14 +508,6 @@ class AdminReportController extends Controller
                     $avgDaily = $sold7d / 7;
                     $predictedDemand = (int) max(1, ceil($avgDaily * 1.15));
 
-                    $inventoryType = $item->inventory_type ?? 'per_order';
-
-                    $unit = match ($inventoryType) {
-                        'per_head' => 'heads',
-                        'custom' => 'requests',
-                        default => 'orders',
-                    };
-
                     if ($sold7d >= 20 && $activeDays >= 3) {
                         $confidence = 'High';
                     } elseif ($sold7d >= 8 && $activeDays >= 2) {
@@ -565,123 +516,23 @@ class AdminReportController extends Controller
                         $confidence = 'Low';
                     }
 
-                    if ($inventoryType === 'custom') {
-                        $recommendation = 'Treat as custom request. Staff should confirm price and availability before accepting.';
-                    } elseif ($predictedDemand >= 15) {
-                        $recommendation = "Prepare for high demand. Estimated {$predictedDemand} {$unit} next operating day.";
-                    } elseif ($predictedDemand >= 8) {
-                        $recommendation = "Prepare a moderate amount. Estimated {$predictedDemand} {$unit} next operating day.";
-                    } else {
-                        $recommendation = "Normal preparation is enough. Estimated {$predictedDemand} {$unit} next operating day.";
-                    }
-
                     return [
                         'id' => $item->id,
                         'name' => $item->name,
                         'menu_item' => $item->name,
                         'category' => $item->category ?: 'Uncategorized',
-                        'inventory_type' => $inventoryType,
-                        'daily_limit' => $item->daily_limit,
-                        'unit' => $unit,
-
-                        // Important: this makes it clear reports are 7-day based
+                        'unit' => 'orders',
                         'recent_sold_7d' => $sold7d,
                         'sold_7d' => $sold7d,
                         'total_sold' => $sold7d,
-
                         'active_sales_days' => $activeDays,
                         'predicted_demand' => $predictedDemand,
                         'forecast_quantity' => $predictedDemand,
                         'confidence' => $confidence,
-                        'recommendation' => $recommendation,
+                        'recommendation' => "Prepare for approximately {$predictedDemand} order(s) next operating day.",
                     ];
                 });
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Menu Capacity Forecast Chart Data
-        |--------------------------------------------------------------------------
-        */
-
-        $menuCapacityForecast = $forecastDetails->map(function ($item) {
-            return [
-                'id' => $item['id'],
-                'name' => $item['name'],
-                'menu_item' => $item['menu_item'],
-                'category' => $item['category'],
-                'inventory_type' => $item['inventory_type'],
-                'daily_limit' => $item['daily_limit'],
-                'unit' => $item['unit'],
-                'recent_sold_7d' => $item['recent_sold_7d'],
-                'sold_7d' => $item['sold_7d'],
-                'total_sold' => $item['total_sold'],
-                'predicted_demand' => $item['predicted_demand'],
-                'forecast_quantity' => $item['forecast_quantity'],
-                'confidence' => $item['confidence'],
-                'recommendation' => $item['recommendation'],
-            ];
-        })->values();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Daily Capacity Alerts
-        |--------------------------------------------------------------------------
-        | This is still daily because capacity is reset daily.
-        | But it is shown as a separate alert, not the main 7-day report metric.
-        */
-
-        $capacityAlerts = collect();
-
-        if (Schema::hasTable('menu_items')) {
-            $capacityAlerts = MenuItem::query()
-                ->where('inventory_type', '!=', 'custom')
-                ->whereNotNull('daily_limit')
-                ->get()
-                ->map(function ($item) {
-                    $remaining = (int) ($item->remaining_today ?? 0);
-                    $dailyLimit = (int) ($item->daily_limit ?? 0);
-
-                    if ($dailyLimit <= 0) {
-                        return null;
-                    }
-
-                    if ($remaining <= 0) {
-                        $risk = 'High';
-                    } elseif ($remaining <= 5) {
-                        $risk = 'Low';
-                    } else {
-                        $risk = 'Normal';
-                    }
-
-                    if ($risk === 'Normal') {
-                        return null;
-                    }
-
-                    $unit = $item->inventory_type === 'per_head' ? 'heads' : 'orders';
-
-                    return [
-                        'id' => $item->id,
-                        'name' => $item->name,
-                        'menu_item' => $item->name,
-                        'category' => $item->category ?: 'Uncategorized',
-                        'inventory_type' => $item->inventory_type,
-                        'unit' => $unit,
-                        'daily_limit' => $dailyLimit,
-                        'sold_today' => (int) ($item->sold_today ?? 0),
-                        'remaining_today' => $remaining,
-                        'risk_level' => $risk,
-                    ];
-                })
-                ->filter()
-                ->values();
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | System Summary
-        |--------------------------------------------------------------------------
-        */
 
         $forecastConfidence = $totalOrders7d >= 20
             ? 'High'
@@ -696,12 +547,8 @@ class AdminReportController extends Controller
         $recommendations = [
             'Use this Reports & Forecast page for 7-day sales, revenue, and demand review.',
             'Use the Dashboard for today’s daily monitoring only.',
-            'Review top-selling menu items from the last 7 days before preparing tomorrow’s menu capacity.',
+            'Review top-selling menu items from the last 7 days before preparing tomorrow’s operations.',
         ];
-
-        if ($capacityAlerts->count() > 0) {
-            $recommendations[] = 'Some menu items have low daily capacity today. Review Daily Capacity Alerts before service continues.';
-        }
 
         return response()->json([
             'period_label' => 'Last 7 Days',
@@ -716,11 +563,8 @@ class AdminReportController extends Controller
             'sales_order_trends' => $salesOrderTrends,
             'revenue_by_category' => $revenueByCategory,
 
-            'menu_capacity_forecast' => $menuCapacityForecast,
-            'menu_demand_forecast' => $menuCapacityForecast,
+            'menu_demand_forecast' => $forecastDetails,
             'forecast_details' => $forecastDetails,
-
-            'capacity_alerts' => $capacityAlerts,
 
             'summary' => $summary,
             'ai_summary' => $summary,

@@ -8,18 +8,18 @@
         <div class="min-w-0">
             <h1 class="text-2xl sm:text-3xl font-bold mb-1 text-gray-900">Reports & Forecast</h1>
             <p class="text-sm sm:text-base text-gray-500">
-                Analytics based on sales, orders, and 7-day menu demand.
+                Review the last 7 days of sales, order trends, category revenue, and menu demand forecast.
             </p>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full sm:w-auto">
             <button type="button"
-                class="border rounded-xl px-4 py-2.5 text-sm bg-white text-gray-700 font-semibold">
+                class="border border-orange-100 rounded-xl px-4 py-2.5 text-sm bg-white text-gray-700 font-semibold">
                 Last 7 Days
             </button>
 
             <button onclick="refreshForecast(event)"
-                class="border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 px-4 py-2.5 rounded-xl font-semibold text-sm">
+                class="border border-orange-200 bg-orange-500 text-white hover:bg-orange-600 px-4 py-2.5 rounded-xl font-semibold text-sm shadow-sm">
                 Refresh Forecast
             </button>
         </div>
@@ -28,68 +28,110 @@
     <!-- Summary Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
-            <p class="text-sm text-gray-500 mb-2">Total Revenue (7d)</p>
-            <h2 id="cardRevenue7d" class="text-2xl sm:text-3xl font-bold">₱0.00</h2>
-            <p class="text-xs text-green-500 mt-2">Recent completed sales</p>
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-sm text-gray-500 mb-2">Total Revenue</p>
+                    <h2 id="cardRevenue7d" class="text-2xl sm:text-3xl font-bold">₱0.00</h2>
+                    <p class="text-xs text-gray-400 mt-2">Revenue from the last 7 days</p>
+                </div>
+
+                <div class="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center text-green-500 shrink-0">
+                    ₱
+                </div>
+            </div>
         </div>
 
         <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
-            <p class="text-sm text-gray-500 mb-2">Avg Order Value</p>
-            <h2 id="cardAvgOrderValue" class="text-2xl sm:text-3xl font-bold">₱0.00</h2>
-            <p class="text-xs text-green-500 mt-2">Average per order/payment</p>
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-sm text-gray-500 mb-2">Average Order Value</p>
+                    <h2 id="cardAvgOrderValue" class="text-2xl sm:text-3xl font-bold">₱0.00</h2>
+                    <p class="text-xs text-gray-400 mt-2">Average revenue per order</p>
+                </div>
+
+                <div class="w-11 h-11 rounded-xl bg-orange-50 flex items-center justify-center text-orange-500 shrink-0">
+                    📊
+                </div>
+            </div>
         </div>
 
         <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
-            <p class="text-sm text-gray-500 mb-2">Total Orders (7d)</p>
-            <h2 id="cardOrders7d" class="text-2xl sm:text-3xl font-bold">0</h2>
-            <p class="text-xs text-green-500 mt-2">Based on recent orders</p>
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-sm text-gray-500 mb-2">Total Orders</p>
+                    <h2 id="cardOrders7d" class="text-2xl sm:text-3xl font-bold">0</h2>
+                    <p class="text-xs text-gray-400 mt-2">Orders from the last 7 days</p>
+                </div>
+
+                <div class="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500 shrink-0">
+                    🧾
+                </div>
+            </div>
         </div>
 
         <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
-            <p class="text-sm text-gray-500 mb-2">Forecasted Revenue</p>
-            <h2 id="cardForecastRevenue" class="text-2xl sm:text-3xl font-bold">₱0.00</h2>
-            <p id="forecastModeText" class="text-xs text-gray-500 mt-2">System forecast</p>
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-sm text-gray-500 mb-2">Forecasted Revenue</p>
+                    <h2 id="cardForecastRevenue" class="text-2xl sm:text-3xl font-bold">₱0.00</h2>
+                    <p id="forecastModeText" class="text-xs text-gray-400 mt-2">System forecast</p>
+                </div>
+
+                <div class="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500 shrink-0">
+                    🔮
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Forecast Insight -->
-    <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
-        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
-            <div class="min-w-0">
-                <h3 class="font-bold text-base sm:text-lg">Menu Demand Forecast Insight</h3>
-                <p id="forecastMode" class="text-sm text-gray-500">Loading forecast...</p>
-            </div>
+    <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+        <div class="p-4 sm:p-5 border-b bg-gradient-to-r from-orange-50 via-white to-amber-50">
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2 mb-2">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-[11px] font-semibold uppercase tracking-wide">
+                            Forecast Insight
+                        </span>
 
-            <span id="confidenceBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-600 w-fit">
-                Confidence: -
-            </span>
-        </div>
+                        <span id="confidenceBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-600 w-fit">
+                            Confidence: -
+                        </span>
+                    </div>
 
-        <p id="summaryText" class="text-sm sm:text-base text-gray-700 leading-7">
-            Waiting for forecast...
-        </p>
-
-        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
-            <div class="border rounded-2xl p-4 bg-orange-50 border-orange-100">
-                <h4 class="font-bold mb-3">Preparation Recommendations</h4>
-                <div id="recommendationsList" class="space-y-2 text-sm text-gray-700">
-                    <p class="text-gray-400">No recommendations yet.</p>
+                    <h3 class="font-bold text-base sm:text-lg">7-Day Performance Summary</h3>
+                    <p id="forecastMode" class="text-sm text-gray-500 mt-1">Loading forecast...</p>
                 </div>
             </div>
+        </div>
 
-            <div class="border rounded-2xl p-4 bg-blue-50 border-blue-100">
-                <h4 class="font-bold mb-3">Next-Day Revenue Forecast</h4>
-                <p class="text-sm text-gray-500">Estimated revenue for the next operating day.</p>
-                <h2 id="revenueForecast" class="text-2xl sm:text-3xl font-bold mt-3">₱0.00</h2>
+        <div class="p-4 sm:p-5">
+            <p id="summaryText" class="text-sm sm:text-base text-gray-700 leading-7">
+                Waiting for forecast...
+            </p>
+
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
+                <div class="border rounded-2xl p-4 bg-orange-50 border-orange-100">
+                    <h4 class="font-bold mb-3">System Recommendations</h4>
+                    <div id="recommendationsList" class="space-y-2 text-sm text-gray-700">
+                        <p class="text-gray-400">No recommendations yet.</p>
+                    </div>
+                </div>
+
+                <div class="border rounded-2xl p-4 bg-green-50 border-green-100">
+                    <h4 class="font-bold mb-3">Next-Day Revenue Forecast</h4>
+                    <p class="text-sm text-gray-500">Estimated revenue for the next operating day based on recent 7-day performance.</p>
+                    <h2 id="revenueForecast" class="text-2xl sm:text-3xl font-bold mt-3">₱0.00</h2>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Main Trend Chart -->
+    <!-- Sales & Orders Trend -->
     <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5 min-w-0">
         <div class="mb-4">
             <h3 class="font-bold text-base sm:text-lg">Sales & Order Trends</h3>
-            <p class="text-sm text-gray-500">Recent sales and order performance over the last 7 days.</p>
+            <p class="text-sm text-gray-500">Sales and order performance over the last 7 days.</p>
         </div>
 
         <div class="h-72 sm:h-96">
@@ -97,12 +139,12 @@
         </div>
     </div>
 
-    <!-- Two Smaller Charts -->
+    <!-- Charts -->
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5 min-w-0">
             <div class="mb-4">
                 <h3 class="font-bold text-base sm:text-lg">Revenue by Category</h3>
-                <p class="text-sm text-gray-500">Which menu categories contributed most to revenue in the last 7 days.</p>
+                <p class="text-sm text-gray-500">Menu categories that contributed most to revenue in the last 7 days.</p>
             </div>
 
             <div class="h-72 sm:h-80">
@@ -112,96 +154,23 @@
 
         <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5 min-w-0">
             <div class="mb-4">
-                <h3 class="font-bold text-base sm:text-lg">7-Day Menu Demand Forecast</h3>
-                <p class="text-sm text-gray-500">Sold in the last 7 days compared with forecasted demand.</p>
+                <h3 class="font-bold text-base sm:text-lg">Menu Demand Forecast Chart</h3>
+                <p class="text-sm text-gray-500">Actual 7-day sales compared with predicted next-day demand.</p>
             </div>
 
             <div class="h-[360px] sm:h-[420px]">
-                <canvas id="capacityForecastChart"></canvas>
+                <canvas id="demandForecastChart"></canvas>
             </div>
         </div>
     </div>
 
-    <!-- Forecast Tables -->
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <!-- Menu Demand Forecast -->
-        <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
-            <div class="p-4 sm:p-5 border-b">
-                <h3 class="font-bold text-base sm:text-lg">Menu Demand Forecast</h3>
-                <p class="text-sm text-gray-500">Predicted demand for menu items based on recent orders.</p>
-            </div>
-
-            <!-- Desktop Table -->
-            <div class="hidden md:block overflow-x-auto">
-                <table class="w-full min-w-[760px] text-sm">
-                    <thead class="bg-gray-50 text-gray-600">
-                        <tr>
-                            <th class="text-left px-6 py-4 font-semibold">Menu Item</th>
-                            <th class="text-left px-6 py-4 font-semibold">7-Day Sold</th>
-                            <th class="text-left px-6 py-4 font-semibold">Predicted Demand</th>
-                            <th class="text-left px-6 py-4 font-semibold">Recommendation</th>
-                        </tr>
-                    </thead>
-                    <tbody id="menuForecastBody">
-                        <tr>
-                            <td colspan="4" class="px-6 py-8 text-center text-gray-400">
-                                Loading menu forecast...
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Mobile Cards -->
-            <div id="menuForecastMobileList" class="md:hidden p-4 space-y-3">
-                <div class="px-4 py-8 text-center text-gray-400">
-                    Loading menu forecast...
-                </div>
-            </div>
-        </div>
-
-        <!-- Daily Capacity Alerts -->
-        <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
-            <div class="p-4 sm:p-5 border-b">
-                <h3 class="font-bold text-base sm:text-lg">Daily Capacity Alerts</h3>
-                <p class="text-sm text-gray-500">Low or sold-out daily menu capacity.</p>
-            </div>
-
-            <!-- Desktop Table -->
-            <div class="hidden md:block overflow-x-auto">
-                <table class="w-full min-w-[680px] text-sm">
-                    <thead class="bg-gray-50 text-gray-600">
-                        <tr>
-                            <th class="text-left px-6 py-4 font-semibold">Menu Item</th>
-                            <th class="text-left px-6 py-4 font-semibold">Type</th>
-                            <th class="text-left px-6 py-4 font-semibold">Remaining</th>
-                            <th class="text-left px-6 py-4 font-semibold">Risk</th>
-                        </tr>
-                    </thead>
-                    <tbody id="capacityAlertsBody">
-                        <tr>
-                            <td colspan="4" class="px-6 py-8 text-center text-gray-400">
-                                Loading capacity alerts...
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Mobile Cards -->
-            <div id="capacityAlertsMobileList" class="md:hidden p-4 space-y-3">
-                <div class="px-4 py-8 text-center text-gray-400">
-                    Loading capacity alerts...
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Forecast Detail Table -->
+    <!-- Single Forecast Table -->
     <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
         <div class="p-4 sm:p-5 border-b">
-            <h3 class="font-bold text-base sm:text-lg">Detailed Forecast Recommendations</h3>
-            <p class="text-sm text-gray-500">System-generated forecast based on sales, orders, and daily capacity.</p>
+            <h3 class="font-bold text-base sm:text-lg">Menu Demand Forecast</h3>
+            <p class="text-sm text-gray-500">
+                Use this to prepare menu items for the next operating day based on the last 7 days of orders.
+            </p>
         </div>
 
         <!-- Desktop Table -->
@@ -211,16 +180,16 @@
                     <tr>
                         <th class="text-left px-6 py-4 font-semibold">Menu Item</th>
                         <th class="text-left px-6 py-4 font-semibold">Category</th>
-                        <th class="text-left px-6 py-4 font-semibold">Sold (7d)</th>
+                        <th class="text-left px-6 py-4 font-semibold">Sold 7 Days</th>
                         <th class="text-left px-6 py-4 font-semibold">Predicted Demand</th>
                         <th class="text-left px-6 py-4 font-semibold">Confidence</th>
                         <th class="text-left px-6 py-4 font-semibold">Recommendation</th>
                     </tr>
                 </thead>
-                <tbody id="forecastDetailsBody">
+                <tbody id="menuDemandForecastBody">
                     <tr>
                         <td colspan="6" class="px-6 py-8 text-center text-gray-400">
-                            Loading forecast details...
+                            Loading menu demand forecast...
                         </td>
                     </tr>
                 </tbody>
@@ -228,9 +197,9 @@
         </div>
 
         <!-- Mobile / Tablet Cards -->
-        <div id="forecastDetailsMobileList" class="lg:hidden p-4 space-y-3">
+        <div id="menuDemandForecastMobileList" class="lg:hidden p-4 space-y-3">
             <div class="px-4 py-8 text-center text-gray-400">
-                Loading forecast details...
+                Loading menu demand forecast...
             </div>
         </div>
     </div>
@@ -242,7 +211,7 @@
 let reportsData = {};
 let salesOrdersTrendChart = null;
 let revenueByCategoryChart = null;
-let capacityForecastChart = null;
+let demandForecastChart = null;
 
 function safeText(value) {
     return String(value ?? '')
@@ -255,7 +224,7 @@ function safeText(value) {
 
 function formatMoney(value) {
     return `₱${Number(value || 0).toLocaleString(undefined, {
-        minimumFractionDigits: 0,
+        minimumFractionDigits: 2,
         maximumFractionDigits: 2
     })}`;
 }
@@ -284,16 +253,22 @@ function shortLabel(value, max = 20) {
     return text.substring(0, max - 3) + '...';
 }
 
-function formatInventoryType(value) {
-    switch (value) {
-        case 'per_head':
-            return 'Per Head';
-        case 'custom':
-            return 'Custom';
-        case 'per_order':
-        default:
-            return 'Per Order';
+function confidenceBadge(confidence) {
+    const value = String(confidence || '').toLowerCase();
+
+    if (value === 'high') {
+        return '<span class="px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">High</span>';
     }
+
+    if (value === 'medium') {
+        return '<span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-semibold">Medium</span>';
+    }
+
+    if (value === 'low') {
+        return '<span class="px-3 py-1 rounded-full bg-red-100 text-red-700 text-xs font-semibold">Low</span>';
+    }
+
+    return '<span class="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">N/A</span>';
 }
 
 function renderCards(data) {
@@ -308,7 +283,7 @@ function renderCards(data) {
     document.getElementById('cardForecastRevenue').textContent = formatMoney(forecastRevenue);
     document.getElementById('revenueForecast').textContent = formatMoney(forecastRevenue);
 
-    const mode = pick(data, ['forecast_mode'], 'System forecast');
+    const mode = pick(data, ['forecast_mode'], '7-day system forecast');
     document.getElementById('forecastModeText').textContent = mode;
 }
 
@@ -330,7 +305,7 @@ function renderInsight(data) {
     }
 
     list.innerHTML = recommendations.map(item => `
-        <div class="rounded-xl bg-white/70 border border-orange-100 px-3 py-2">
+        <div class="rounded-xl bg-white border border-orange-100 px-3 py-2">
             ${safeText(item)}
         </div>
     `).join('');
@@ -367,20 +342,20 @@ function renderSalesOrdersTrendChart(data) {
     salesOrdersTrendChart = new Chart(canvas.getContext('2d'), {
         type: 'line',
         data: {
-            labels: normalized.labels,
+            labels: normalized.labels.length ? normalized.labels : ['No Data'],
             datasets: [
                 {
                     label: 'Sales',
-                    data: normalized.sales,
-                    borderColor: '#fb923c',
-                    backgroundColor: 'rgba(251, 146, 60, 0.12)',
+                    data: normalized.sales.length ? normalized.sales : [0],
+                    borderColor: '#f97316',
+                    backgroundColor: 'rgba(249, 115, 22, 0.12)',
                     fill: true,
                     tension: 0.35,
                     yAxisID: 'y'
                 },
                 {
                     label: 'Orders',
-                    data: normalized.orders,
+                    data: normalized.orders.length ? normalized.orders : [0],
                     borderColor: '#60a5fa',
                     backgroundColor: 'rgba(96, 165, 250, 0.12)',
                     fill: false,
@@ -468,7 +443,7 @@ function renderRevenueByCategoryChart(data) {
             datasets: [{
                 label: 'Revenue',
                 data: values,
-                backgroundColor: '#fb923c',
+                backgroundColor: '#f97316',
                 borderRadius: 8,
                 maxBarThickness: 42
             }]
@@ -502,7 +477,6 @@ function renderRevenueByCategoryChart(data) {
 function getMenuForecastRows(data) {
     const rows = pick(data, [
         'menu_demand_forecast',
-        'menu_capacity_forecast',
         'forecast_details',
         'capacity_forecast'
     ], []);
@@ -516,8 +490,7 @@ function getSold7d(item) {
         'sold_7d',
         'total_sold_7d',
         'total_sold',
-        'quantity_sold',
-        'sold_today'
+        'quantity_sold'
     ], 0));
 }
 
@@ -531,12 +504,12 @@ function getPredictedDemand(item) {
     ], 0));
 }
 
-function renderCapacityForecastChart(data) {
+function renderDemandForecastChart(data) {
     const rows = getMenuForecastRows(data)
         .filter(item => getSold7d(item) > 0 || getPredictedDemand(item) > 0)
         .slice(0, 8);
 
-    const canvas = document.getElementById('capacityForecastChart');
+    const canvas = document.getElementById('demandForecastChart');
 
     if (!canvas || typeof Chart === 'undefined') return;
 
@@ -545,26 +518,26 @@ function renderCapacityForecastChart(data) {
     const sold = rows.map(item => getSold7d(item));
     const predicted = rows.map(item => getPredictedDemand(item));
 
-    if (capacityForecastChart) {
-        capacityForecastChart.destroy();
+    if (demandForecastChart) {
+        demandForecastChart.destroy();
     }
 
-    capacityForecastChart = new Chart(canvas.getContext('2d'), {
+    demandForecastChart = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
             labels: labels.length ? labels : ['No forecast data'],
             datasets: [
                 {
-                    label: 'Sold in Last 7 Days',
+                    label: 'Sold 7 Days',
                     data: sold.length ? sold : [0],
                     backgroundColor: '#60a5fa',
                     borderRadius: 8,
                     maxBarThickness: 24
                 },
                 {
-                    label: 'Forecast Demand',
+                    label: 'Predicted Demand',
                     data: predicted.length ? predicted : [0],
-                    backgroundColor: '#fb923c',
+                    backgroundColor: '#f97316',
                     borderRadius: 8,
                     maxBarThickness: 24
                 }
@@ -601,180 +574,24 @@ function renderCapacityForecastChart(data) {
     });
 }
 
-function renderMenuForecast(data) {
-    const tbody = document.getElementById('menuForecastBody');
-    const mobileList = document.getElementById('menuForecastMobileList');
+function renderMenuDemandForecast(data) {
+    const tbody = document.getElementById('menuDemandForecastBody');
+    const mobileList = document.getElementById('menuDemandForecastMobileList');
 
-    const rows = getMenuForecastRows(data).slice(0, 8);
+    const rows = getMenuForecastRows(data);
 
     if (!rows.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="4" class="px-6 py-8 text-center text-gray-400">
-                    No menu forecast data available.
-                </td>
-            </tr>
-        `;
-
-        mobileList.innerHTML = `
-            <div class="px-4 py-8 text-center text-gray-400">
-                No menu forecast data available.
-            </div>
-        `;
-        return;
-    }
-
-    tbody.innerHTML = rows.map(item => {
-        const name = pick(item, ['menu_item', 'item_name', 'name'], 'Unknown Item');
-        const sold = getSold7d(item);
-        const predicted = getPredictedDemand(item);
-        const unit = pick(item, ['unit'], 'orders');
-        const recommendation = pick(item, ['recommendation', 'suggestion'], 'Monitor demand');
-
-        return `
-            <tr class="border-t hover:bg-gray-50">
-                <td class="px-6 py-4 font-semibold">${safeText(name)}</td>
-                <td class="px-6 py-4">${formatNumber(sold)}</td>
-                <td class="px-6 py-4">${formatNumber(predicted)} ${safeText(unit)}</td>
-                <td class="px-6 py-4">${safeText(recommendation)}</td>
-            </tr>
-        `;
-    }).join('');
-
-    mobileList.innerHTML = rows.map(item => {
-        const name = pick(item, ['menu_item', 'item_name', 'name'], 'Unknown Item');
-        const sold = getSold7d(item);
-        const predicted = getPredictedDemand(item);
-        const unit = pick(item, ['unit'], 'orders');
-        const recommendation = pick(item, ['recommendation', 'suggestion'], 'Monitor demand');
-
-        return `
-            <div class="rounded-2xl border bg-white p-4 shadow-sm">
-                <h4 class="font-bold text-gray-900 leading-snug">${safeText(name)}</h4>
-
-                <div class="mt-3 rounded-xl bg-gray-50 border px-3 py-2 space-y-1">
-                    <p class="text-xs text-gray-600">
-                        <span class="font-semibold">7-Day Sold:</span>
-                        ${formatNumber(sold)}
-                    </p>
-
-                    <p class="text-xs text-gray-600">
-                        <span class="font-semibold">Predicted Demand:</span>
-                        ${formatNumber(predicted)} ${safeText(unit)}
-                    </p>
-
-                    <p class="text-xs text-gray-600">
-                        <span class="font-semibold">Recommendation:</span>
-                        ${safeText(recommendation)}
-                    </p>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-function renderCapacityAlerts(data) {
-    const tbody = document.getElementById('capacityAlertsBody');
-    const mobileList = document.getElementById('capacityAlertsMobileList');
-
-    const alerts = pick(data, ['capacity_alerts', 'low_capacity_alerts', 'low_stock_alerts'], []);
-
-    if (!Array.isArray(alerts) || !alerts.length) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="4" class="px-6 py-8 text-center text-gray-400">
-                    No daily capacity alerts.
-                </td>
-            </tr>
-        `;
-
-        mobileList.innerHTML = `
-            <div class="px-4 py-8 text-center text-gray-400">
-                No daily capacity alerts.
-            </div>
-        `;
-        return;
-    }
-
-    tbody.innerHTML = alerts.map(item => {
-        const name = pick(item, ['menu_item', 'item_name', 'name'], 'Unknown Item');
-        const type = pick(item, ['inventory_type', 'type'], 'per_order');
-        const remaining = pick(item, ['remaining_today', 'remaining', 'stock'], 0);
-        const unit = pick(item, ['unit'], type === 'per_head' ? 'heads' : 'orders');
-        const risk = pick(item, ['risk', 'status'], Number(remaining) <= 0 ? 'High' : 'Low');
-
-        return `
-            <tr class="border-t hover:bg-gray-50">
-                <td class="px-6 py-4 font-semibold">${safeText(name)}</td>
-                <td class="px-6 py-4">${safeText(formatInventoryType(type))}</td>
-                <td class="px-6 py-4">${safeText(remaining)} ${safeText(unit)}</td>
-                <td class="px-6 py-4">${riskBadge(risk)}</td>
-            </tr>
-        `;
-    }).join('');
-
-    mobileList.innerHTML = alerts.map(item => {
-        const name = pick(item, ['menu_item', 'item_name', 'name'], 'Unknown Item');
-        const type = pick(item, ['inventory_type', 'type'], 'per_order');
-        const remaining = pick(item, ['remaining_today', 'remaining', 'stock'], 0);
-        const unit = pick(item, ['unit'], type === 'per_head' ? 'heads' : 'orders');
-        const risk = pick(item, ['risk', 'status'], Number(remaining) <= 0 ? 'High' : 'Low');
-
-        return `
-            <div class="rounded-2xl border bg-white p-4 shadow-sm">
-                <div class="flex items-start justify-between gap-3">
-                    <h4 class="font-bold text-gray-900 leading-snug">${safeText(name)}</h4>
-                    ${riskBadge(risk)}
-                </div>
-
-                <div class="mt-3 rounded-xl bg-gray-50 border px-3 py-2 space-y-1">
-                    <p class="text-xs text-gray-600">
-                        <span class="font-semibold">Type:</span>
-                        ${safeText(formatInventoryType(type))}
-                    </p>
-
-                    <p class="text-xs text-gray-600">
-                        <span class="font-semibold">Remaining:</span>
-                        ${safeText(remaining)} ${safeText(unit)}
-                    </p>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-function riskBadge(risk) {
-    const value = String(risk || '').toLowerCase();
-
-    if (value.includes('high') || value.includes('sold')) {
-        return '<span class="px-3 py-1 rounded-full bg-red-100 text-red-600 text-xs font-semibold">High Risk</span>';
-    }
-
-    if (value.includes('low')) {
-        return '<span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-semibold">Low</span>';
-    }
-
-    return '<span class="px-3 py-1 rounded-full bg-green-100 text-green-600 text-xs font-semibold">Normal</span>';
-}
-
-function renderForecastDetails(data) {
-    const tbody = document.getElementById('forecastDetailsBody');
-    const mobileList = document.getElementById('forecastDetailsMobileList');
-
-    const rows = pick(data, ['forecast_details', 'detailed_forecast', 'menu_demand_forecast'], []);
-
-    if (!Array.isArray(rows) || !rows.length) {
-        tbody.innerHTML = `
-            <tr>
                 <td colspan="6" class="px-6 py-8 text-center text-gray-400">
-                    No detailed forecast data available.
+                    No menu demand forecast data available yet. Forecast will appear after recent order history is available.
                 </td>
             </tr>
         `;
 
         mobileList.innerHTML = `
             <div class="px-4 py-8 text-center text-gray-400">
-                No detailed forecast data available.
+                No menu demand forecast data available yet. Forecast will appear after recent order history is available.
             </div>
         `;
         return;
@@ -787,7 +604,7 @@ function renderForecastDetails(data) {
         const predicted = getPredictedDemand(item);
         const unit = pick(item, ['unit'], 'orders');
         const confidence = pick(item, ['confidence', 'confidence_level'], 'N/A');
-        const recommendation = pick(item, ['recommendation', 'suggestion'], 'Monitor demand');
+        const recommendation = pick(item, ['recommendation', 'suggestion'], 'Monitor demand.');
 
         return `
             <tr class="border-t hover:bg-gray-50">
@@ -795,7 +612,7 @@ function renderForecastDetails(data) {
                 <td class="px-6 py-4">${safeText(category)}</td>
                 <td class="px-6 py-4">${formatNumber(sold)}</td>
                 <td class="px-6 py-4">${formatNumber(predicted)} ${safeText(unit)}</td>
-                <td class="px-6 py-4">${safeText(confidence)}</td>
+                <td class="px-6 py-4">${confidenceBadge(confidence)}</td>
                 <td class="px-6 py-4">${safeText(recommendation)}</td>
             </tr>
         `;
@@ -808,7 +625,7 @@ function renderForecastDetails(data) {
         const predicted = getPredictedDemand(item);
         const unit = pick(item, ['unit'], 'orders');
         const confidence = pick(item, ['confidence', 'confidence_level'], 'N/A');
-        const recommendation = pick(item, ['recommendation', 'suggestion'], 'Monitor demand');
+        const recommendation = pick(item, ['recommendation', 'suggestion'], 'Monitor demand.');
 
         return `
             <div class="rounded-2xl border bg-white p-4 shadow-sm">
@@ -818,14 +635,12 @@ function renderForecastDetails(data) {
                         <p class="text-xs text-gray-500 mt-1">${safeText(category)}</p>
                     </div>
 
-                    <span class="shrink-0 px-3 py-1 rounded-full bg-blue-100 text-blue-600 text-xs font-semibold">
-                        ${safeText(confidence)}
-                    </span>
+                    ${confidenceBadge(confidence)}
                 </div>
 
                 <div class="mt-3 rounded-xl bg-gray-50 border px-3 py-2 space-y-1">
                     <p class="text-xs text-gray-600">
-                        <span class="font-semibold">Sold (7d):</span>
+                        <span class="font-semibold">Sold 7 Days:</span>
                         ${formatNumber(sold)}
                     </p>
 
@@ -864,10 +679,8 @@ async function loadReportsForecast() {
         renderInsight(data);
         renderSalesOrdersTrendChart(data);
         renderRevenueByCategoryChart(data);
-        renderCapacityForecastChart(data);
-        renderMenuForecast(data);
-        renderCapacityAlerts(data);
-        renderForecastDetails(data);
+        renderDemandForecastChart(data);
+        renderMenuDemandForecast(data);
     } catch (error) {
         console.error('Reports Forecast load failed:', error);
     }

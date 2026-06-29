@@ -7,11 +7,13 @@
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div class="min-w-0">
             <h1 class="text-2xl sm:text-3xl font-bold mb-1 text-gray-900">Menu Management</h1>
-            <p class="text-sm sm:text-base text-gray-500">Manage restaurant menu items, categories, images, and menu details.</p>
+            <p class="text-sm sm:text-base text-gray-500">
+                Manage restaurant menu items, categories, images, menu details, and linked ingredients.
+            </p>
         </div>
 
         <button onclick="openMenuModal()"
-            class="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl font-semibold shadow-sm">
+            class="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl font-semibold shadow-sm transition">
             + Add Menu Item
         </button>
     </div>
@@ -22,7 +24,9 @@
             <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
                 <div class="min-w-0">
                     <h2 class="text-lg font-bold">Menu Items</h2>
-                    <p class="text-sm text-gray-500">View, filter, and manage menu items. Daily limits are assigned in the Inventory page.</p>
+                    <p class="text-sm text-gray-500">
+                        View, filter, and manage menu items. Availability is based on linked ingredients and stock levels.
+                    </p>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full xl:w-auto">
@@ -42,7 +46,7 @@
 
         <!-- Desktop / Tablet Table -->
         <div class="hidden md:block overflow-x-auto">
-            <table class="w-full min-w-[820px] text-sm">
+            <table class="w-full min-w-[950px] text-sm">
                 <thead class="bg-gray-50 text-gray-600">
                     <tr>
                         <th class="text-left px-6 py-4 font-semibold">Image</th>
@@ -162,11 +166,19 @@
                     <label class="flex items-center justify-between gap-3 border rounded-2xl px-4 py-3 bg-gray-50">
                         <div class="min-w-0">
                             <p class="text-sm font-semibold">Availability</p>
-                            <p class="text-xs text-gray-500">Turn off if this item should not appear in the customer menu.</p>
+                            <p class="text-xs text-gray-500">
+                                Turning this on still requires enough linked ingredients, except Chef Oppa Special.
+                            </p>
                         </div>
 
                         <input id="itemAvailable" type="checkbox" class="rounded shrink-0" checked>
                     </label>
+
+                    <div class="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3">
+                        <p class="text-xs text-orange-700">
+                            After saving a normal menu item, use the Ingredients button to link required ingredients and quantity usage.
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -200,9 +212,168 @@
     </div>
 </div>
 
+<!-- Ingredients Modal -->
+<div id="ingredientsModal" class="fixed inset-0 bg-black/50 backdrop-blur-[2px] hidden items-center justify-center z-50 p-3 sm:p-4">
+    <div class="bg-white rounded-[26px] shadow-2xl w-full max-w-5xl max-h-[94vh] overflow-hidden flex flex-col border border-gray-100">
+        <!-- Header -->
+        <div class="relative px-5 sm:px-7 py-5 border-b bg-gradient-to-r from-orange-50 via-white to-amber-50 shrink-0">
+            <div class="flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2 mb-2">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-[11px] font-semibold uppercase tracking-wide">
+                            Ingredient Setup
+                        </span>
+
+                        <span id="ingredientsAvailabilityBadge"
+                            class="inline-flex items-center px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-[11px] font-semibold">
+                            Status
+                        </span>
+                    </div>
+
+                    <h3 id="ingredientsModalTitle" class="text-xl sm:text-2xl font-bold text-gray-900 truncate">
+                        Manage Ingredients
+                    </h3>
+
+                    <p class="text-sm text-gray-500 mt-1">
+                        Link ingredients and set required quantity per order.
+                    </p>
+                </div>
+
+                <button type="button" onclick="closeIngredientsModal()"
+                    class="w-10 h-10 rounded-full hover:bg-white/80 border border-transparent hover:border-gray-200 flex items-center justify-center text-gray-500 hover:text-black text-xl shrink-0 transition">
+                    &times;
+                </button>
+            </div>
+
+            <!-- Summary -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5">
+                <div class="rounded-2xl border border-orange-100 bg-white/90 px-4 py-3">
+                    <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Linked Ingredients</p>
+                    <p id="ingredientsSummaryCount" class="mt-1 text-2xl font-bold text-gray-900">0</p>
+                    <p class="text-xs text-gray-500 mt-1">Total ingredients connected to this item</p>
+                </div>
+
+                <div class="rounded-2xl border border-blue-100 bg-white/90 px-4 py-3">
+                    <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Possible Orders</p>
+                    <p id="ingredientsSummaryPossibleOrders" class="mt-1 text-2xl font-bold text-blue-700">0</p>
+                    <p class="text-xs text-gray-500 mt-1">Based on current stock and required usage</p>
+                </div>
+
+                <div class="rounded-2xl border border-emerald-100 bg-white/90 px-4 py-3">
+                    <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Stock Status</p>
+                    <p id="ingredientsStockLabel" class="mt-1 text-sm font-semibold text-emerald-700">
+                        No stock data
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">Live availability summary for this menu item</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-5 bg-gray-50/60">
+            <input type="hidden" id="ingredientsMenuItemId">
+
+            <!-- Add Ingredient Card -->
+            <div class="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                <div class="px-5 py-4 border-b bg-gray-50/80">
+                    <h4 class="font-bold text-gray-900 text-lg">Add Ingredient Usage</h4>
+                    <p class="text-sm text-gray-500 mt-1">
+                        Choose an ingredient and define how much is consumed per one order.
+                    </p>
+                </div>
+
+                <div class="p-5">
+                    <form id="attachIngredientForm" class="grid grid-cols-1 xl:grid-cols-[1.25fr_220px_auto] gap-4 items-end">
+                        <div>
+                            <label class="block text-sm font-semibold mb-2 text-gray-700">Ingredient</label>
+                            <select id="ingredientSelect"
+                                class="w-full border border-gray-300 rounded-2xl px-4 py-3 bg-white focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition"
+                                required>
+                                <option value="">Select Ingredient</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold mb-2 text-gray-700">Quantity Required</label>
+                            <input
+                                id="quantityRequired"
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                placeholder="Example: 0.25"
+                                class="w-full border border-gray-300 rounded-2xl px-4 py-3 focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition"
+                                required
+                            >
+                        </div>
+
+                        <button id="attachIngredientBtn" type="submit"
+                            class="w-full xl:w-auto h-[50px] bg-orange-500 hover:bg-orange-600 text-white px-6 rounded-2xl font-semibold shadow-sm disabled:opacity-70 disabled:cursor-not-allowed transition">
+                            Add Ingredient
+                        </button>
+                    </form>
+
+                    <div class="mt-4 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3">
+                        <p class="text-xs sm:text-sm text-orange-700">
+                            <span class="font-semibold">Example:</span>
+                            If one order uses <span class="font-semibold">0.25 kg beef</span>, enter <span class="font-semibold">0.25</span>.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Linked Ingredients Card -->
+            <div class="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                <div class="px-5 py-4 border-b bg-gray-50/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                        <h4 class="font-bold text-gray-900 text-lg">Linked Ingredients</h4>
+                        <p class="text-sm text-gray-500 mt-1">
+                            Review current stock, quantity required, and how many orders can still be prepared.
+                        </p>
+                    </div>
+
+                    <div class="inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-gray-100 text-gray-600 text-xs font-medium">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                        Live ingredient usage overview
+                    </div>
+                </div>
+
+                <!-- Desktop Table -->
+                <div class="hidden md:block overflow-x-auto">
+                    <table class="w-full min-w-[860px] text-sm">
+                        <thead class="bg-white text-gray-500">
+                            <tr>
+                                <th class="text-left px-5 py-4 font-semibold">Ingredient</th>
+                                <th class="text-left px-5 py-4 font-semibold">Current Stock</th>
+                                <th class="text-left px-5 py-4 font-semibold">Required / Order</th>
+                                <th class="text-left px-5 py-4 font-semibold">Possible Orders</th>
+                                <th class="text-left px-5 py-4 font-semibold">Action</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="linkedIngredientsBody">
+                            <tr>
+                                <td colspan="5" class="px-5 py-10 text-center text-gray-400">
+                                    No ingredients linked.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Mobile Cards -->
+                <div id="linkedIngredientsMobileList" class="md:hidden p-4 space-y-3">
+                    <div class="px-4 py-8 text-center text-gray-400">
+                        No ingredients linked.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 let menuItems = [];
 let filteredMenuItems = [];
+let allIngredients = [];
 
 let categories = [
     'Authentic Ala Carte Meals',
@@ -213,7 +384,10 @@ let categories = [
     'Salad',
     'Maki & Sushi',
     'Jeon Series',
-    'Tteokbokki Series'
+    'Tteokbokki Series',
+    'Drinks',
+    'Unlimited',
+    'Extras',
 ];
 
 let flavorTags = [
@@ -228,6 +402,7 @@ let mealTypes = [
 ];
 
 let editingMenuItemId = null;
+let activeIngredientsMenuItemId = null;
 
 function safeText(value) {
     return String(value ?? '')
@@ -242,27 +417,23 @@ function formatMoney(value) {
     return `₱${Number(value || 0).toFixed(2)}`;
 }
 
+function formatNumber(value) {
+    const number = Number(value || 0);
+
+    if (Number.isInteger(number)) {
+        return number.toLocaleString();
+    }
+
+    return number.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+}
+
 function formatLabel(value) {
     return String(value || '')
         .replaceAll('_', ' ')
         .replace(/\b\w/g, char => char.toUpperCase());
-}
-
-function formatInventoryType(value) {
-    if (!value) {
-        return 'Not Set';
-    }
-
-    switch (value) {
-        case 'per_head':
-            return 'Per Head';
-        case 'custom':
-            return 'Custom';
-        case 'per_order':
-            return 'Per Order';
-        default:
-            return 'Not Set';
-    }
 }
 
 function getImageSrc(item) {
@@ -357,9 +528,56 @@ async function silentReloadMenuItems() {
         populateFlavorTags();
         populateMealTypes();
         applyFilters();
+
+        if (activeIngredientsMenuItemId) {
+            renderLinkedIngredients(activeIngredientsMenuItemId);
+        }
     } catch (error) {
         console.error('Silent menu reload failed:', error);
     }
+}
+
+async function loadIngredientsList() {
+    try {
+        const res = await fetch('/api/admin/ingredients', {
+            headers: {
+                'Accept': 'application/json',
+            }
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        allIngredients = Array.isArray(data) ? data : (data.ingredients ?? data.data ?? []);
+        populateIngredientSelect();
+    } catch (error) {
+        console.error('Load ingredients failed:', error);
+    }
+}
+
+function populateIngredientSelect() {
+    const select = document.getElementById('ingredientSelect');
+    if (!select) return;
+
+    const selected = select.value || '';
+
+    select.innerHTML = '<option value="">Select Ingredient</option>';
+
+    allIngredients
+        .slice()
+        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+        .forEach(ingredient => {
+            const unit = ingredient.unit || 'unit';
+            const stock = ingredient.total_stock ?? ingredient.current_stock ?? 0;
+
+            select.innerHTML += `
+                <option value="${safeText(ingredient.id)}">
+                    ${safeText(ingredient.name)} - ${safeText(formatNumber(stock))} ${safeText(unit)}
+                </option>
+            `;
+        });
+
+    select.value = selected;
 }
 
 function getImageHtml(item) {
@@ -386,6 +604,20 @@ function availabilityBadge(item) {
     }
 
     return '<span class="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-600">Unavailable</span>';
+}
+
+function getIngredientSummary(item) {
+    if (item.category === 'Chef Oppa Special' || item.inventory_type === 'custom') {
+        return 'Custom request item. Staff confirms availability.';
+    }
+
+    const ingredients = Array.isArray(item.ingredients) ? item.ingredients : [];
+
+    if (!ingredients.length) {
+        return 'No ingredients linked';
+    }
+
+    return `${ingredients.length} linked ingredient${ingredients.length === 1 ? '' : 's'}`;
 }
 
 function getFlavorTagsHtml(item) {
@@ -498,6 +730,14 @@ function populateCategoryFilters() {
         itemCategory.innerHTML += `<option value="${safeText(category)}">${safeText(category)}</option>`;
     });
 
+    const extraCategories = [...new Set(menuItems.map(item => item.category).filter(Boolean))]
+        .filter(category => !categories.includes(category));
+
+    extraCategories.forEach(category => {
+        filter.innerHTML += `<option value="${safeText(category)}">${safeText(category)}</option>`;
+        itemCategory.innerHTML += `<option value="${safeText(category)}">${safeText(category)}</option>`;
+    });
+
     filter.value = selectedFilter;
     itemCategory.value = selectedCategory;
 }
@@ -555,12 +795,16 @@ function applyFilters() {
         const description = String(item.description || '').toLowerCase();
         const mealType = String(item.meal_type || '').toLowerCase();
         const tags = Array.isArray(item.flavor_tags) ? item.flavor_tags.join(' ').toLowerCase() : '';
+        const ingredientText = Array.isArray(item.ingredients)
+            ? item.ingredients.map(ingredient => ingredient.name).join(' ').toLowerCase()
+            : '';
 
         const matchesSearch =
             name.includes(search) ||
             description.includes(search) ||
             mealType.includes(search) ||
-            tags.includes(search);
+            tags.includes(search) ||
+            ingredientText.includes(search);
 
         const matchesCategory = category === 'all' ? true : item.category === category;
 
@@ -591,7 +835,7 @@ function renderMenuTable() {
                 ${getImageHtml(item)}
             </td>
 
-            <td class="px-6 py-4 max-w-[340px]">
+            <td class="px-6 py-4 max-w-[360px]">
                 <p class="font-semibold">${safeText(item.name)}</p>
 
                 ${
@@ -602,21 +846,12 @@ function renderMenuTable() {
 
                 <div class="mt-2 space-y-1">
                     <p class="text-xs text-gray-500">
-                        Inventory: <span class="font-medium">${safeText(formatInventoryType(item.inventory_type))}</span>
+                        Ingredients: <span class="font-medium">${safeText(getIngredientSummary(item))}</span>
                     </p>
 
                     <p class="text-xs text-gray-500">
-                        ${safeText(item.daily_inventory_label || item.stock_label || 'No inventory data')}
+                        ${safeText(item.stock_label || 'No stock data')}
                     </p>
-
-                    ${
-                        item.inventory_type && item.inventory_type !== 'custom'
-                            ? `<p class="text-xs text-gray-400">
-                                Sold Today: ${safeText(item.sold_today ?? 0)}
-                                ${item.daily_limit !== null && item.daily_limit !== undefined ? ` / Limit: ${safeText(item.daily_limit)}` : ''}
-                            </p>`
-                            : ''
-                    }
                 </div>
 
                 ${getFlavorTagsHtml(item)}
@@ -646,6 +881,11 @@ function renderMenuTable() {
                     <button onclick="openMenuModal(${item.id})"
                         class="px-3 py-2 rounded-lg border text-gray-700 hover:bg-gray-50 text-xs">
                         Edit
+                    </button>
+
+                    <button onclick="openIngredientsModal(${item.id})"
+                        class="px-3 py-2 rounded-lg border text-gray-700 hover:bg-gray-50 text-xs">
+                        Ingredients
                     </button>
 
                     <button onclick="deleteMenuItem(${item.id}, this)"
@@ -707,30 +947,26 @@ function renderMenuMobileList() {
                         </p>
 
                         <p class="text-xs text-gray-600">
-                            <span class="font-semibold">Inventory:</span>
-                            ${safeText(formatInventoryType(item.inventory_type))}
+                            <span class="font-semibold">Ingredients:</span>
+                            ${safeText(getIngredientSummary(item))}
                         </p>
 
                         <p class="text-xs text-gray-500">
-                            ${safeText(item.daily_inventory_label || item.stock_label || 'No inventory data')}
+                            ${safeText(item.stock_label || 'No stock data')}
                         </p>
-
-                        ${
-                            item.inventory_type && item.inventory_type !== 'custom'
-                                ? `<p class="text-xs text-gray-400">
-                                    Sold Today: ${safeText(item.sold_today ?? 0)}
-                                    ${item.daily_limit !== null && item.daily_limit !== undefined ? ` / Limit: ${safeText(item.daily_limit)}` : ''}
-                                </p>`
-                                : ''
-                        }
                     </div>
 
                     ${getFlavorTagsHtml(item)}
 
-                    <div class="grid grid-cols-2 gap-2 mt-4">
+                    <div class="grid grid-cols-3 gap-2 mt-4">
                         <button onclick="openMenuModal(${item.id})"
                             class="px-3 py-2 rounded-xl border text-gray-700 hover:bg-gray-50 text-xs font-semibold">
                             Edit
+                        </button>
+
+                        <button onclick="openIngredientsModal(${item.id})"
+                            class="px-3 py-2 rounded-xl border text-gray-700 hover:bg-gray-50 text-xs font-semibold">
+                            Ingredients
                         </button>
 
                         <button onclick="deleteMenuItem(${item.id}, this)"
@@ -936,9 +1172,333 @@ async function deleteMenuItem(id, button) {
     }
 }
 
+function setIngredientsAvailabilityBadge(item) {
+    const badge = document.getElementById('ingredientsAvailabilityBadge');
+
+    if (!badge) return;
+
+    badge.className = 'inline-flex items-center px-3 py-1 rounded-full text-[11px] font-semibold';
+
+    if (!item) {
+        badge.textContent = 'Unknown';
+        badge.classList.add('bg-gray-100', 'text-gray-600');
+        return;
+    }
+
+    if (item.is_available) {
+        badge.textContent = 'Available';
+        badge.classList.add('bg-green-100', 'text-green-700');
+        return;
+    }
+
+    badge.textContent = 'Unavailable';
+    badge.classList.add('bg-red-100', 'text-red-600');
+}
+
+function openIngredientsModal(id) {
+    activeIngredientsMenuItemId = id;
+
+    const item = menuItems.find(menuItem => Number(menuItem.id) === Number(id));
+    if (!item) return;
+
+    document.getElementById('ingredientsMenuItemId').value = id;
+    document.getElementById('ingredientsModalTitle').textContent = `Ingredients - ${item.name}`;
+    document.getElementById('attachIngredientForm').reset();
+
+    setIngredientsAvailabilityBadge(item);
+    populateIngredientSelect();
+    renderLinkedIngredients(id);
+
+    const modal = document.getElementById('ingredientsModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeIngredientsModal() {
+    activeIngredientsMenuItemId = null;
+
+    const modal = document.getElementById('ingredientsModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function getIngredientRequiredValue(ingredient) {
+    if (ingredient.quantity_required !== undefined && ingredient.quantity_required !== null) {
+        return Number(ingredient.quantity_required || 0);
+    }
+
+    if (ingredient.pivot && ingredient.pivot.quantity_required !== undefined) {
+        return Number(ingredient.pivot.quantity_required || 0);
+    }
+
+    return 0;
+}
+
+function getIngredientStockValue(ingredient) {
+    if (ingredient.total_stock !== undefined && ingredient.total_stock !== null) {
+        return Number(ingredient.total_stock || 0);
+    }
+
+    return Number(ingredient.current_stock || 0);
+}
+
+function getPossibleOrdersForIngredient(ingredient) {
+    const stock = getIngredientStockValue(ingredient);
+    const required = getIngredientRequiredValue(ingredient);
+
+    if (required <= 0) return 0;
+
+    return Math.floor(stock / required);
+}
+
+function getStockChipHtml(possibleOrders) {
+    if (possibleOrders <= 0) {
+        return `<span class="inline-flex items-center px-2.5 py-1 rounded-full bg-red-100 text-red-600 text-[11px] font-semibold">Insufficient</span>`;
+    }
+
+    if (possibleOrders <= 3) {
+        return `<span class="inline-flex items-center px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-700 text-[11px] font-semibold">Low</span>`;
+    }
+
+    return `<span class="inline-flex items-center px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-[11px] font-semibold">Good</span>`;
+}
+
+function renderLinkedIngredients(id) {
+    const item = menuItems.find(menuItem => Number(menuItem.id) === Number(id));
+    const body = document.getElementById('linkedIngredientsBody');
+    const mobileList = document.getElementById('linkedIngredientsMobileList');
+    const stockLabel = document.getElementById('ingredientsStockLabel');
+    const summaryCount = document.getElementById('ingredientsSummaryCount');
+    const summaryPossibleOrders = document.getElementById('ingredientsSummaryPossibleOrders');
+
+    if (!item) return;
+
+    const linked = Array.isArray(item.ingredients) ? item.ingredients : [];
+
+    stockLabel.textContent = item.stock_label || 'No stock data';
+    summaryCount.textContent = linked.length;
+
+    let overallPossibleOrders = 0;
+
+    if (linked.length > 0) {
+        overallPossibleOrders = Math.min(...linked.map(ingredient => getPossibleOrdersForIngredient(ingredient)));
+
+        if (!Number.isFinite(overallPossibleOrders)) {
+            overallPossibleOrders = 0;
+        }
+    }
+
+    summaryPossibleOrders.textContent = overallPossibleOrders;
+
+    if (!linked.length) {
+        body.innerHTML = `
+            <tr>
+                <td colspan="5" class="px-5 py-10 text-center text-gray-400">
+                    No ingredients linked.
+                </td>
+            </tr>
+        `;
+
+        mobileList.innerHTML = `
+            <div class="rounded-2xl border border-dashed bg-gray-50 px-4 py-10 text-center text-gray-400">
+                No ingredients linked.
+            </div>
+        `;
+
+        return;
+    }
+
+    body.innerHTML = linked.map(ingredient => {
+        const stock = getIngredientStockValue(ingredient);
+        const required = getIngredientRequiredValue(ingredient);
+        const unit = ingredient.unit || 'unit';
+        const possibleOrders = getPossibleOrdersForIngredient(ingredient);
+
+        return `
+            <tr class="border-t hover:bg-orange-50/30 transition">
+                <td class="px-5 py-4">
+                    <p class="font-semibold text-gray-900">${safeText(ingredient.name)}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">Ingredient resource</p>
+                </td>
+
+                <td class="px-5 py-4">
+                    <p class="font-semibold text-gray-900">${safeText(formatNumber(stock))} ${safeText(unit)}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">Current usable stock</p>
+                </td>
+
+                <td class="px-5 py-4">
+                    <p class="font-semibold text-gray-900">${safeText(formatNumber(required))} ${safeText(unit)}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">Consumed per order</p>
+                </td>
+
+                <td class="px-5 py-4">
+                    <div class="space-y-1">
+                        <p class="font-bold text-gray-900">${safeText(possibleOrders)}</p>
+                        ${getStockChipHtml(possibleOrders)}
+                    </div>
+                </td>
+
+                <td class="px-5 py-4">
+                    <button onclick="detachIngredient(${item.id}, ${ingredient.id}, this)"
+                        class="px-4 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold transition">
+                        Remove
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    mobileList.innerHTML = linked.map(ingredient => {
+        const stock = getIngredientStockValue(ingredient);
+        const required = getIngredientRequiredValue(ingredient);
+        const unit = ingredient.unit || 'unit';
+        const possibleOrders = getPossibleOrdersForIngredient(ingredient);
+
+        return `
+            <div class="rounded-2xl border bg-white shadow-sm p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <h4 class="font-bold text-gray-900">${safeText(ingredient.name)}</h4>
+                        <p class="text-xs text-gray-400">Ingredient resource</p>
+                    </div>
+
+                    <button onclick="detachIngredient(${item.id}, ${ingredient.id}, this)"
+                        class="shrink-0 px-3 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold transition">
+                        Remove
+                    </button>
+                </div>
+
+                <div class="mt-4 grid grid-cols-1 gap-2">
+                    <div class="rounded-xl bg-gray-50 border px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Current Stock</p>
+                        <p class="text-sm font-semibold text-gray-900 mt-1">
+                            ${safeText(formatNumber(stock))} ${safeText(unit)}
+                        </p>
+                    </div>
+
+                    <div class="rounded-xl bg-gray-50 border px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Required / Order</p>
+                        <p class="text-sm font-semibold text-gray-900 mt-1">
+                            ${safeText(formatNumber(required))} ${safeText(unit)}
+                        </p>
+                    </div>
+
+                    <div class="rounded-xl bg-gray-50 border px-3 py-2">
+                        <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Possible Orders</p>
+                        <div class="mt-1 flex items-center justify-between gap-2">
+                            <p class="text-sm font-bold text-gray-900">${safeText(possibleOrders)}</p>
+                            ${getStockChipHtml(possibleOrders)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+document.getElementById('attachIngredientForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const saveBtn = document.getElementById('attachIngredientBtn');
+    const menuItemId = document.getElementById('ingredientsMenuItemId').value;
+    const ingredientId = document.getElementById('ingredientSelect').value;
+    const quantityRequired = document.getElementById('quantityRequired').value;
+
+    if (!menuItemId || !ingredientId || !quantityRequired) {
+        alert('Please select an ingredient and enter quantity required.');
+        return;
+    }
+
+    setButtonLoading(saveBtn, true, 'Adding...');
+
+    try {
+        const res = await fetch(`/api/admin/menu-items/${menuItemId}/ingredients`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+                ingredient_id: ingredientId,
+                quantity_required: Number(quantityRequired),
+            }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            if (data.errors) {
+                const firstError = Object.values(data.errors)[0][0];
+                alert(firstError);
+            } else {
+                alert(data.message || 'Failed to attach ingredient.');
+            }
+            return;
+        }
+
+        const updatedItem = findMenuItemFromResponse(data);
+
+        if (updatedItem) {
+            replaceMenuItemInMemory(updatedItem);
+        } else {
+            await silentReloadMenuItems();
+        }
+
+        document.getElementById('attachIngredientForm').reset();
+        await loadIngredientsList();
+        await silentReloadMenuItems();
+        renderLinkedIngredients(menuItemId);
+    } catch (error) {
+        console.error('Attach ingredient failed:', error);
+        alert('Failed to attach ingredient. Please check your connection.');
+    } finally {
+        setButtonLoading(saveBtn, false);
+    }
+});
+
+async function detachIngredient(menuItemId, ingredientId, button) {
+    if (!confirm('Remove this ingredient from the menu item?')) return;
+
+    setButtonLoading(button, true, 'Removing...');
+
+    try {
+        const res = await fetch(`/api/admin/menu-items/${menuItemId}/ingredients/${ingredientId}`, {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json',
+            },
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert(data.message || 'Failed to remove ingredient.');
+            return;
+        }
+
+        const updatedItem = findMenuItemFromResponse(data);
+
+        if (updatedItem) {
+            replaceMenuItemInMemory(updatedItem);
+        } else {
+            await silentReloadMenuItems();
+        }
+
+        await loadIngredientsList();
+        await silentReloadMenuItems();
+        renderLinkedIngredients(menuItemId);
+    } catch (error) {
+        console.error('Detach ingredient failed:', error);
+        alert('Failed to remove ingredient. Please check your connection.');
+    } finally {
+        setButtonLoading(button, false);
+    }
+}
+
 document.getElementById('menuSearch').addEventListener('input', applyFilters);
 document.getElementById('categoryFilter').addEventListener('change', applyFilters);
 
+loadIngredientsList();
 loadMenuItems();
 </script>
 
