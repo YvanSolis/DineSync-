@@ -734,19 +734,19 @@ function populateIngredientSelect() {
     select.value = selected;
 }
 
-function getImageHtml(item) {
+function getMobileImageHtml(item) {
     const imageSrc = getImageSrc(item);
 
     if (imageSrc) {
         return `
             <img src="${safeText(imageSrc)}"
-                class="w-14 h-14 object-cover rounded-xl border"
-                onerror="this.outerHTML='<div class=&quot;w-14 h-14 rounded-xl bg-gray-100 border flex items-center justify-center text-gray-400 text-xs&quot;>No Image</div>'">
+                class="w-20 h-20 object-cover rounded-2xl border"
+                onerror="this.outerHTML='<div class=&quot;w-20 h-20 rounded-2xl bg-gray-100 border flex items-center justify-center text-gray-400 text-xs&quot;>No Image</div>'">
         `;
     }
 
     return `
-        <div class="w-14 h-14 rounded-xl bg-gray-100 border flex items-center justify-center text-gray-400 text-xs">
+        <div class="w-20 h-20 rounded-2xl bg-gray-100 border flex items-center justify-center text-gray-400 text-xs">
             No Image
         </div>
     `;
