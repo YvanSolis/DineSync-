@@ -659,6 +659,8 @@ let mealTypes = [
 
 let editingMenuItemId = null;
 let activeIngredientsMenuItemId = null;
+let ingredientMutationInProgress = false;
+let ingredientMutationToken = 0;
 
 function safeText(value) {
     return String(value ?? '')
@@ -1573,7 +1575,126 @@ function setIngredientsAvailabilityBadge(item) {
     badge.classList.add('bg-red-100', 'text-red-600');
 }
 
+function setIngredientFormDisabled(isDisabled) {
+    const form = document.getElementById('attachIngredientForm');
+    const ingredientSelect = document.getElementById('ingredientSelect');
+    const quantityInput = document.getElementById('quantityRequired');
+    const submitButton = document.getElementById('attachIngredientBtn');
+
+    if (ingredientSelect) ingredientSelect.disabled = isDisabled;
+    if (quantityInput) quantityInput.disabled = isDisabled;
+    if (submitButton) submitButton.disabled = isDisabled;
+
+    if (form) {
+        form.classList.toggle('opacity-70', isDisabled);
+        form.classList.toggle('pointer-events-none', isDisabled);
+    }
+}
+
+function findIngredientFromList(ingredientId) {
+    return allIngredients.find(item => Number(item.id) === Number(ingredientId)) || null;
+}
+
+function cloneMenuItem(item) {
+    if (!item) return null;
+
+    try {
+        return JSON.parse(JSON.stringify(item));
+    } catch (error) {
+        return { ...item };
+    }
+}
+
+function restoreMenuItemSnapshot(snapshot) {
+    if (!snapshot || !snapshot.id) return;
+
+    const index = menuItems.findIndex(item => Number(item.id) === Number(snapshot.id));
+
+    if (index >= 0) {
+        menuItems[index] = snapshot;
+        applyFilters();
+
+        if (Number(activeIngredientsMenuItemId) === Number(snapshot.id)) {
+            setIngredientsAvailabilityBadge(snapshot);
+            renderLinkedIngredients(snapshot.id);
+        }
+    }
+}
+
+function applyOptimisticIngredientLink(menuItemId, ingredientId, quantityRequired) {
+    const item = menuItems.find(menuItem => Number(menuItem.id) === Number(menuItemId));
+    const ingredient = findIngredientFromList(ingredientId);
+
+    if (!item || !ingredient) return null;
+
+    const snapshot = cloneMenuItem(item);
+    const linkedIngredients = Array.isArray(item.ingredients) ? [...item.ingredients] : [];
+    const existingIndex = linkedIngredients.findIndex(linked => Number(linked.id) === Number(ingredientId));
+
+    const optimisticIngredient = {
+        ...ingredient,
+        quantity_required: Number(quantityRequired),
+        pivot: {
+            ...(ingredient.pivot || {}),
+            menu_item_id: Number(menuItemId),
+            ingredient_id: Number(ingredientId),
+            quantity_required: Number(quantityRequired),
+        },
+    };
+
+    if (existingIndex >= 0) {
+        linkedIngredients[existingIndex] = {
+            ...linkedIngredients[existingIndex],
+            quantity_required: Number(quantityRequired),
+            pivot: {
+                ...(linkedIngredients[existingIndex].pivot || {}),
+                quantity_required: Number(quantityRequired),
+            },
+        };
+    } else {
+        linkedIngredients.push(optimisticIngredient);
+    }
+
+    item.ingredients = linkedIngredients;
+    item.stock_label = 'Updating ingredient availability...';
+
+    applyFilters();
+
+    if (Number(activeIngredientsMenuItemId) === Number(menuItemId)) {
+        setIngredientsAvailabilityBadge(item);
+        renderLinkedIngredients(menuItemId);
+    }
+
+    return snapshot;
+}
+
+function applyOptimisticIngredientDetach(menuItemId, ingredientId) {
+    const item = menuItems.find(menuItem => Number(menuItem.id) === Number(menuItemId));
+
+    if (!item) return null;
+
+    const snapshot = cloneMenuItem(item);
+    const linkedIngredients = Array.isArray(item.ingredients) ? item.ingredients : [];
+
+    item.ingredients = linkedIngredients.filter(ingredient => Number(ingredient.id) !== Number(ingredientId));
+    item.stock_label = 'Updating ingredient availability...';
+
+    applyFilters();
+
+    if (Number(activeIngredientsMenuItemId) === Number(menuItemId)) {
+        setIngredientsAvailabilityBadge(item);
+        renderLinkedIngredients(menuItemId);
+    }
+
+    return snapshot;
+}
+
 function openIngredientsModal(id) {
+    if (ingredientMutationInProgress) {
+        alert('Please wait for the current ingredient update to finish.');
+        return;
+    }
+
     activeIngredientsMenuItemId = id;
 
     const item = menuItems.find(menuItem => Number(menuItem.id) === Number(id));
@@ -1777,7 +1898,10 @@ function renderLinkedIngredients(id) {
 document.getElementById('attachIngredientForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
+    if (ingredientMutationInProgress) return;
+
     const saveBtn = document.getElementById('attachIngredientBtn');
+    const form = document.getElementById('attachIngredientForm');
     const menuItemId = document.getElementById('ingredientsMenuItemId').value;
     const ingredientId = document.getElementById('ingredientSelect').value;
     const quantityRequired = document.getElementById('quantityRequired').value;
@@ -1787,7 +1911,12 @@ document.getElementById('attachIngredientForm').addEventListener('submit', async
         return;
     }
 
+    const requestToken = ++ingredientMutationToken;
+    ingredientMutationInProgress = true;
+    const snapshot = applyOptimisticIngredientLink(menuItemId, ingredientId, quantityRequired);
+
     setButtonLoading(saveBtn, true, 'Adding...');
+    setIngredientFormDisabled(true);
 
     try {
         const res = await fetch(`/api/admin/menu-items/${menuItemId}/ingredients`, {
@@ -1805,6 +1934,8 @@ document.getElementById('attachIngredientForm').addEventListener('submit', async
         const data = await res.json();
 
         if (!res.ok) {
+            restoreMenuItemSnapshot(snapshot);
+
             if (data.errors) {
                 const firstError = Object.values(data.errors)[0][0];
                 alert(firstError);
@@ -1818,26 +1949,40 @@ document.getElementById('attachIngredientForm').addEventListener('submit', async
 
         if (updatedItem) {
             replaceMenuItemInMemory(updatedItem);
-        } else {
-            await silentReloadMenuItems();
+
+            if (Number(activeIngredientsMenuItemId) === Number(menuItemId) && requestToken === ingredientMutationToken) {
+                setIngredientsAvailabilityBadge(updatedItem);
+                renderLinkedIngredients(menuItemId);
+            }
+        } else if (Number(activeIngredientsMenuItemId) === Number(menuItemId) && requestToken === ingredientMutationToken) {
+            renderLinkedIngredients(menuItemId);
         }
 
-        document.getElementById('attachIngredientForm').reset();
-        await loadIngredientsList();
-        await silentReloadMenuItems();
-        renderLinkedIngredients(menuItemId);
+        form.reset();
+        populateIngredientSelect();
     } catch (error) {
         console.error('Attach ingredient failed:', error);
+        restoreMenuItemSnapshot(snapshot);
         alert('Failed to attach ingredient. Please check your connection.');
     } finally {
-        setButtonLoading(saveBtn, false);
+        if (requestToken === ingredientMutationToken) {
+            ingredientMutationInProgress = false;
+            setIngredientFormDisabled(false);
+            setButtonLoading(saveBtn, false);
+        }
     }
 });
 
 async function detachIngredient(menuItemId, ingredientId, button) {
+    if (ingredientMutationInProgress) return;
     if (!confirm('Remove this ingredient from the menu item?')) return;
 
+    const requestToken = ++ingredientMutationToken;
+    ingredientMutationInProgress = true;
+    const snapshot = applyOptimisticIngredientDetach(menuItemId, ingredientId);
+
     setButtonLoading(button, true, 'Removing...');
+    setIngredientFormDisabled(true);
 
     try {
         const res = await fetch(`/api/admin/menu-items/${menuItemId}/ingredients/${ingredientId}`, {
@@ -1850,6 +1995,7 @@ async function detachIngredient(menuItemId, ingredientId, button) {
         const data = await res.json();
 
         if (!res.ok) {
+            restoreMenuItemSnapshot(snapshot);
             alert(data.message || 'Failed to remove ingredient.');
             return;
         }
@@ -1858,18 +2004,24 @@ async function detachIngredient(menuItemId, ingredientId, button) {
 
         if (updatedItem) {
             replaceMenuItemInMemory(updatedItem);
-        } else {
-            await silentReloadMenuItems();
-        }
 
-        await loadIngredientsList();
-        await silentReloadMenuItems();
-        renderLinkedIngredients(menuItemId);
+            if (Number(activeIngredientsMenuItemId) === Number(menuItemId) && requestToken === ingredientMutationToken) {
+                setIngredientsAvailabilityBadge(updatedItem);
+                renderLinkedIngredients(menuItemId);
+            }
+        } else if (Number(activeIngredientsMenuItemId) === Number(menuItemId) && requestToken === ingredientMutationToken) {
+            renderLinkedIngredients(menuItemId);
+        }
     } catch (error) {
         console.error('Detach ingredient failed:', error);
+        restoreMenuItemSnapshot(snapshot);
         alert('Failed to remove ingredient. Please check your connection.');
     } finally {
-        setButtonLoading(button, false);
+        if (requestToken === ingredientMutationToken) {
+            ingredientMutationInProgress = false;
+            setIngredientFormDisabled(false);
+            setButtonLoading(button, false);
+        }
     }
 }
 
