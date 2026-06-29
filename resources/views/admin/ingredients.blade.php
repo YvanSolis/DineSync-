@@ -944,6 +944,8 @@ let currentManageStockData = null;
 let editingBatchId = null;
 let manageStockRequestToken = 0;
 let stockSaveInProgress = false;
+let ingredientSaveInProgress = false;
+let ingredientRequestToken = 0;
 
 function safeText(value) {
     return String(value ?? '')
@@ -1514,7 +1516,33 @@ function renderIngredientsMobileList() {
     }).join('');
 }
 
+function lockIngredientForm(isLocked, text = 'Saving...') {
+    const saveBtn = document.getElementById('ingredientSaveBtn');
+    const inputs = document.querySelectorAll('#ingredientForm input, #ingredientForm button');
+
+    inputs.forEach(input => {
+        input.disabled = isLocked;
+        input.classList.toggle('opacity-70', isLocked);
+        input.classList.toggle('cursor-not-allowed', isLocked);
+    });
+
+    if (saveBtn) {
+        if (isLocked) {
+            saveBtn.dataset.originalText = saveBtn.dataset.originalText || saveBtn.textContent;
+            saveBtn.textContent = text;
+        } else {
+            saveBtn.textContent = saveBtn.dataset.originalText || saveBtn.textContent;
+        }
+    }
+}
+
 function openIngredientModal(id = null) {
+    if (ingredientSaveInProgress) {
+        alert('Please wait until the current ingredient update is finished.');
+        return;
+    }
+
+    ingredientRequestToken++;
     editingIngredientId = id;
 
     if (id) {
@@ -1537,6 +1565,11 @@ function openIngredientModal(id = null) {
 }
 
 function closeIngredientModal() {
+    if (ingredientSaveInProgress) {
+        return;
+    }
+
+    ingredientRequestToken++;
     editingIngredientId = null;
 
     const modal = document.getElementById('ingredientModal');
@@ -1547,22 +1580,34 @@ function closeIngredientModal() {
 document.getElementById('ingredientForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
-    const saveBtn = document.getElementById('ingredientSaveBtn');
+    if (ingredientSaveInProgress) {
+        return;
+    }
+
+    const requestToken = ingredientRequestToken;
+    const isEditing = Boolean(editingIngredientId);
+    const editingId = editingIngredientId;
 
     const payload = {
-        name: document.getElementById('ingredientName').value,
+        name: document.getElementById('ingredientName').value.trim(),
         threshold: Number(document.getElementById('ingredientThreshold').value),
     };
+
+    if (!payload.name) {
+        alert('Please enter ingredient name.');
+        return;
+    }
 
     let url = '/api/admin/ingredients';
     let method = 'POST';
 
-    if (editingIngredientId) {
-        url = `/api/admin/ingredients/${editingIngredientId}`;
+    if (isEditing) {
+        url = `/api/admin/ingredients/${editingId}`;
         method = 'PUT';
     }
 
-    setButtonLoading(saveBtn, true, editingIngredientId ? 'Updating...' : 'Saving...');
+    ingredientSaveInProgress = true;
+    lockIngredientForm(true, isEditing ? 'Updating...' : 'Saving...');
 
     try {
         const res = await fetch(url, {
@@ -1586,13 +1631,54 @@ document.getElementById('ingredientForm').addEventListener('submit', async funct
             return;
         }
 
-        closeIngredientModal();
-        await loadIngredients();
+        const updatedIngredient = data?.ingredient || data?.data || data;
+
+        if (updatedIngredient && updatedIngredient.id) {
+            updateIngredientInMemory(updatedIngredient);
+        } else if (!isEditing) {
+            const tempIngredient = {
+                id: `temp-${Date.now()}`,
+                name: payload.name,
+                threshold: payload.threshold,
+                current_stock: 0,
+                total_stock: 0,
+                unit: 'unit',
+                stock_status: 'out_of_stock',
+                batches: [],
+                nearest_expiry_date: null,
+                stock_value: 0,
+            };
+
+            updateIngredientInMemory(tempIngredient);
+            loadIngredients();
+        } else {
+            const existingIndex = ingredients.findIndex(item => Number(item.id) === Number(editingId));
+
+            if (existingIndex >= 0) {
+                ingredients[existingIndex] = {
+                    ...ingredients[existingIndex],
+                    name: payload.name,
+                    threshold: payload.threshold,
+                };
+
+                updateSummaryCards();
+                applyFilters();
+            }
+        }
+
+        if (requestToken === ingredientRequestToken) {
+            const modal = document.getElementById('ingredientModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            editingIngredientId = null;
+            ingredientRequestToken++;
+        }
     } catch (error) {
         console.error('Save ingredient failed:', error);
         alert('Failed to save ingredient. Please check your connection.');
     } finally {
-        setButtonLoading(saveBtn, false);
+        ingredientSaveInProgress = false;
+        lockIngredientForm(false);
     }
 });
 
