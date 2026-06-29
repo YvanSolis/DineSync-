@@ -65,7 +65,7 @@ class MenuItem extends Model
     public function getMaxOrderQuantityAttribute(): int
     {
         if ($this->isCustomRequest()) {
-            return 99;
+            return 1;
         }
 
         $ingredients = $this->relationLoaded('ingredients')
@@ -78,7 +78,7 @@ class MenuItem extends Model
     public function getStockLabelAttribute(): string
     {
         if ($this->isCustomRequest()) {
-            return 'Staff confirms availability';
+            return 'Custom request available';
         }
 
         $ingredients = $this->relationLoaded('ingredients')
@@ -86,29 +86,31 @@ class MenuItem extends Model
             : $this->ingredients()->get();
 
         if ($ingredients->isEmpty()) {
-            return 'No ingredients linked';
+            return $this->is_available
+                ? 'Available'
+                : 'No ingredients linked';
         }
 
         foreach ($ingredients as $ingredient) {
             $required = (float) ($ingredient->pivot->quantity_required ?? 0);
-            $stock = (float) ($ingredient->current_stock ?? 0);
+            $stock = $this->getIngredientUsableStockValue($ingredient);
 
             if ($required <= 0) {
                 return 'Invalid ingredient usage';
             }
 
             if ($stock < $required) {
-                return 'Insufficient ingredients';
+                return 'Unavailable based on ingredient stock.';
             }
         }
 
         $maxOrderQuantity = $this->computeMaxOrderQuantityFromIngredients($ingredients);
 
         if ($maxOrderQuantity <= 0) {
-            return 'Insufficient ingredients';
+            return 'Unavailable based on ingredient stock.';
         }
 
-        return $maxOrderQuantity . ' orders available based on ingredients';
+        return 'Only ' . $maxOrderQuantity . ' order(s) available based on ingredient stock.';
     }
 
     public function computeAvailability(): bool
@@ -121,24 +123,18 @@ class MenuItem extends Model
             ? $this->getRelation('ingredients')
             : $this->ingredients()->get();
 
+        /*
+        |--------------------------------------------------------------------------
+        | No linked ingredients
+        |--------------------------------------------------------------------------
+        | Do not automatically force all no-ingredient items unavailable.
+        | If admin currently enabled it, keep it available.
+        */
         if ($ingredients->isEmpty()) {
-            return false;
+            return (bool) $this->is_available;
         }
 
-        foreach ($ingredients as $ingredient) {
-            $required = (float) ($ingredient->pivot->quantity_required ?? 0);
-            $stock = (float) ($ingredient->current_stock ?? 0);
-
-            if ($required <= 0) {
-                return false;
-            }
-
-            if ($stock < $required) {
-                return false;
-            }
-        }
-
-        return true;
+        return $this->computeMaxOrderQuantityFromIngredients($ingredients) > 0;
     }
 
     public function refreshAvailability(): void
@@ -156,7 +152,7 @@ class MenuItem extends Model
         }
 
         $this->forceFill([
-            'inventory_type' => $this->inventory_type ?: 'per_order',
+            'inventory_type' => 'ingredient',
             'daily_limit' => null,
             'is_available' => $this->computeAvailability(),
         ])->saveQuietly();
@@ -181,7 +177,7 @@ class MenuItem extends Model
 
         foreach ($ingredients as $ingredient) {
             $required = (float) ($ingredient->pivot->quantity_required ?? 0);
-            $stock = (float) ($ingredient->current_stock ?? 0);
+            $stock = $this->getIngredientUsableStockValue($ingredient);
 
             if ($required <= 0) {
                 return 0;
@@ -199,5 +195,26 @@ class MenuItem extends Model
         }
 
         return max(0, (int) ($maxServings ?? 0));
+    }
+
+    private function getIngredientUsableStockValue($ingredient): float
+    {
+        /*
+        |--------------------------------------------------------------------------
+        | Stock source priority
+        |--------------------------------------------------------------------------
+        | 1. total_stock from optimized SQL select/subquery
+        | 2. current_stock synced from usable batches
+        | 3. fallback 0
+        */
+        if (isset($ingredient->total_stock)) {
+            return (float) $ingredient->total_stock;
+        }
+
+        if (isset($ingredient->current_stock)) {
+            return (float) $ingredient->current_stock;
+        }
+
+        return 0;
     }
 }
