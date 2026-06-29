@@ -942,6 +942,8 @@ let editingIngredientId = null;
 let activeManageStockIngredientId = null;
 let currentManageStockData = null;
 let editingBatchId = null;
+let manageStockRequestToken = 0;
+let stockSaveInProgress = false;
 
 function safeText(value) {
     return String(value ?? '')
@@ -1602,6 +1604,90 @@ function setManageStockStatusBadge(status) {
     badge.textContent = meta.label;
 }
 
+
+function updateIngredientInMemory(updatedIngredient) {
+    if (!updatedIngredient || !updatedIngredient.id) return;
+
+    const index = ingredients.findIndex(item => Number(item.id) === Number(updatedIngredient.id));
+
+    if (index >= 0) {
+        ingredients[index] = updatedIngredient;
+    } else {
+        ingredients.push(updatedIngredient);
+    }
+
+    updateSummaryCards();
+    applyFilters();
+}
+
+function updateManageStockModalFromData(data) {
+    if (!data || !data.id) return;
+
+    currentManageStockData = data;
+    activeManageStockIngredientId = data.id;
+    document.getElementById('manageStockIngredientId').value = data.id;
+
+    const stock = getStockValue(data);
+
+    document.getElementById('manageStockModalTitle').textContent = `Manage Stock - ${data.name}`;
+    document.getElementById('manageStockCurrentStock').textContent = `${formatNumber(stock)} ${data.unit || 'unit'}`;
+    document.getElementById('manageStockUnit').textContent = data.unit || 'unit';
+    document.getElementById('manageStockThreshold').textContent = formatNumber(data.threshold || 0);
+    document.getElementById('manageStockBatchCount').textContent = (data.batches || []).length;
+
+    setManageStockStatusBadge(data.stock_status);
+    renderBatches(data.batches || []);
+    setStockUnitValue(data.unit || 'unit');
+}
+
+function lockManageStockActions(isLocked, text = 'Processing...') {
+    const stockSaveBtn = document.getElementById('stockSaveBtn');
+    const clearBtn = document.querySelector('#stockForm button[onclick="resetStockForm()"]');
+    const cancelEditBtn = document.getElementById('cancelEditBatchBtn');
+    const stockInputs = document.querySelectorAll('#stockForm input, #stockForm select, #stockForm button');
+
+    stockInputs.forEach(input => {
+        input.disabled = isLocked;
+        input.classList.toggle('opacity-70', isLocked);
+        input.classList.toggle('cursor-not-allowed', isLocked);
+    });
+
+    if (stockSaveBtn) {
+        if (isLocked) {
+            stockSaveBtn.dataset.originalText = stockSaveBtn.dataset.originalText || stockSaveBtn.textContent;
+            stockSaveBtn.textContent = text;
+        } else {
+            stockSaveBtn.textContent = stockSaveBtn.dataset.originalText || stockSaveBtn.textContent;
+        }
+    }
+
+    if (clearBtn) clearBtn.disabled = isLocked;
+    if (cancelEditBtn) cancelEditBtn.disabled = isLocked;
+}
+
+async function refreshManageStockDetails(ingredientId, requestToken = manageStockRequestToken) {
+    const res = await fetch(`/api/admin/ingredients/${ingredientId}`, {
+        headers: {
+            'Accept': 'application/json',
+        }
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+        throw new Error(data.message || 'Failed to load stock details.');
+    }
+
+    if (requestToken !== manageStockRequestToken || Number(activeManageStockIngredientId) !== Number(ingredientId)) {
+        return null;
+    }
+
+    updateIngredientInMemory(data);
+    updateManageStockModalFromData(data);
+
+    return data;
+}
+
 function resetStockForm() {
     editingBatchId = null;
 
@@ -1623,13 +1709,33 @@ function resetStockForm() {
 }
 
 async function openManageStockModal(id) {
+    if (stockSaveInProgress) {
+        alert('Please wait until the current stock update is finished.');
+        return;
+    }
+
+    const requestToken = ++manageStockRequestToken;
     activeManageStockIngredientId = id;
+    currentManageStockData = null;
+    editingBatchId = null;
 
     const modal = document.getElementById('manageStockModal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 
     document.getElementById('manageStockIngredientId').value = id;
+    document.getElementById('manageStockModalTitle').textContent = 'Manage Stock';
+    document.getElementById('manageStockCurrentStock').textContent = 'Loading...';
+    document.getElementById('manageStockUnit').textContent = 'Loading...';
+    document.getElementById('manageStockThreshold').textContent = 'Loading...';
+    document.getElementById('manageStockBatchCount').textContent = 'Loading...';
+    document.getElementById('stockFormTitle').textContent = 'Add New Stock Batch';
+    document.getElementById('stockFormSubtitle').textContent = 'Record new inventory received for this ingredient.';
+    document.getElementById('stockSaveBtn').textContent = 'Add Stock';
+    document.getElementById('cancelEditBatchBtn').classList.add('hidden');
+    setManageStockStatusBadge(null);
+    lockManageStockActions(true, 'Loading...');
+
     document.getElementById('batchTableBody').innerHTML = `
         <tr>
             <td colspan="8" class="px-5 py-10 text-center text-gray-400">
@@ -1644,51 +1750,25 @@ async function openManageStockModal(id) {
     `;
 
     try {
-        const res = await fetch(`/api/admin/ingredients/${id}`, {
-            headers: {
-                'Accept': 'application/json',
-            }
-        });
+        const data = await refreshManageStockDetails(id, requestToken);
 
-        const data = await res.json();
+        if (!data) return;
 
-        if (!res.ok) {
-            alert(data.message || 'Failed to load stock details.');
-            return;
-        }
-
-        currentManageStockData = data;
-        editingBatchId = null;
-
-        document.getElementById('stockFormTitle').textContent = 'Add New Stock Batch';
-        document.getElementById('stockFormSubtitle').textContent = 'Record new inventory received for this ingredient.';
-        document.getElementById('stockSaveBtn').textContent = 'Add Stock';
-        document.getElementById('cancelEditBatchBtn').classList.add('hidden');
-
-        const stock = getStockValue(data);
-
-        document.getElementById('manageStockModalTitle').textContent = `Manage Stock - ${data.name}`;
-        document.getElementById('manageStockCurrentStock').textContent = `${formatNumber(stock)} ${data.unit || 'unit'}`;
-        document.getElementById('manageStockUnit').textContent = data.unit || 'unit';
-        document.getElementById('manageStockThreshold').textContent = formatNumber(data.threshold || 0);
-        document.getElementById('manageStockBatchCount').textContent = (data.batches || []).length;
-
-        setManageStockStatusBadge(data.stock_status);
-        renderBatches(data.batches || []);
-
-        setStockUnitValue(data.unit || 'unit');
-        document.getElementById('stockReceivedDate').value = new Date().toISOString().split('T')[0];
-        document.getElementById('stockExpiryDate').value = '';
-        document.getElementById('stockQuantityReceived').value = '';
-        document.getElementById('stockUnitCost').value = '';
-        document.getElementById('stockSupplier').value = '';
+        resetStockForm();
+        lockManageStockActions(false);
     } catch (error) {
+        if (requestToken !== manageStockRequestToken) return;
+
         console.error('Load manage stock failed:', error);
-        alert('Failed to load stock details.');
+        alert(error.message || 'Failed to load stock details.');
+        lockManageStockActions(false);
     }
 }
 
 function closeManageStockModal() {
+    manageStockRequestToken++;
+    stockSaveInProgress = false;
+    lockManageStockActions(false);
     activeManageStockIngredientId = null;
     currentManageStockData = null;
     editingBatchId = null;
@@ -1843,11 +1923,19 @@ function cancelEditBatch() {
 document.getElementById('stockForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
+    if (stockSaveInProgress) return;
+
     const saveBtn = document.getElementById('stockSaveBtn');
     const ingredientId = document.getElementById('manageStockIngredientId').value;
+    const requestToken = manageStockRequestToken;
 
     if (!ingredientId) {
         alert('Ingredient not found.');
+        return;
+    }
+
+    if (Number(activeManageStockIngredientId) !== Number(ingredientId)) {
+        alert('Stock panel changed. Please reopen the correct ingredient before saving.');
         return;
     }
 
@@ -1868,7 +1956,8 @@ document.getElementById('stockForm').addEventListener('submit', async function(e
 
     const method = isEditing ? 'PUT' : 'POST';
 
-    setButtonLoading(saveBtn, true, isEditing ? 'Updating...' : 'Adding...');
+    stockSaveInProgress = true;
+    lockManageStockActions(true, isEditing ? 'Updating...' : 'Adding...');
 
     try {
         const res = await fetch(url, {
@@ -1892,19 +1981,34 @@ document.getElementById('stockForm').addEventListener('submit', async function(e
             return;
         }
 
+        if (requestToken !== manageStockRequestToken || Number(activeManageStockIngredientId) !== Number(ingredientId)) {
+            alert('Stock was saved, but the panel changed while saving. Please reopen the correct ingredient.');
+            return;
+        }
+
+        const updatedIngredient = data && data.id ? data : (data.data && data.data.id ? data.data : null);
+
         editingBatchId = null;
         document.getElementById('stockFormTitle').textContent = 'Add New Stock Batch';
         document.getElementById('stockFormSubtitle').textContent = 'Record new inventory received for this ingredient.';
+        document.getElementById('stockSaveBtn').dataset.originalText = 'Add Stock';
         document.getElementById('stockSaveBtn').textContent = 'Add Stock';
         document.getElementById('cancelEditBatchBtn').classList.add('hidden');
 
-        await loadIngredients();
-        await openManageStockModal(ingredientId);
+        if (updatedIngredient) {
+            updateIngredientInMemory(updatedIngredient);
+            updateManageStockModalFromData(updatedIngredient);
+        } else {
+            await refreshManageStockDetails(ingredientId, requestToken);
+        }
+
+        resetStockForm();
     } catch (error) {
         console.error('Save stock failed:', error);
         alert('Failed to save stock. Please check your connection.');
     } finally {
-        setButtonLoading(saveBtn, false);
+        stockSaveInProgress = false;
+        lockManageStockActions(false);
     }
 });
 
@@ -1936,8 +2040,7 @@ async function deleteBatch(batchId, button) {
         }
 
         editingBatchId = null;
-        await loadIngredients();
-        await openManageStockModal(ingredientId);
+        await refreshManageStockDetails(ingredientId, manageStockRequestToken);
     } catch (error) {
         console.error('Delete batch failed:', error);
         alert('Failed to delete stock batch. Please check your connection.');
