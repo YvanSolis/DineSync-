@@ -534,6 +534,8 @@ class ServiceStaffController extends Controller
 
     public function payments(Request $request)
     {
+        $timezone = 'Asia/Manila';
+
         $mode = $request->query('mode');
 
         if (!$mode) {
@@ -541,14 +543,14 @@ class ServiceStaffController extends Controller
         }
 
         if ($mode === 'today') {
-            $selectedDate = now('Asia/Manila')->toDateString();
+            $selectedDate = now($timezone)->toDateString();
         } else {
-            $selectedDate = $request->query('date', now('Asia/Manila')->toDateString());
+            $selectedDate = $request->query('date', now($timezone)->toDateString());
 
             try {
-                $selectedDate = \Carbon\Carbon::parse($selectedDate, 'Asia/Manila')->toDateString();
+                $selectedDate = \Carbon\Carbon::parse($selectedDate, $timezone)->toDateString();
             } catch (\Throwable $e) {
-                $selectedDate = now('Asia/Manila')->toDateString();
+                $selectedDate = now($timezone)->toDateString();
             }
         }
 
@@ -560,7 +562,14 @@ class ServiceStaffController extends Controller
         $pendingDigitalOrders = Order::query()
             ->where(function ($query) {
                 $query->whereNull('payment_status')
-                    ->orWhereNotIn('payment_status', ['paid', 'verified']);
+                    ->orWhereNotIn(DB::raw('LOWER(TRIM(payment_status))'), [
+                        'paid',
+                        'verified',
+                        'completed',
+                        'success',
+                        'successful',
+                        'settled',
+                    ]);
             })
             ->where(function ($query) {
                 $hasCondition = false;
@@ -591,82 +600,98 @@ class ServiceStaffController extends Controller
 
         $this->syncPendingOrderPayments($pendingDigitalOrders);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Service Staff Payment Records
+        |--------------------------------------------------------------------------
+        | Same date logic as admin payment management:
+        | - Pending / Pay Later / Pay at Counter follows order created date.
+        | - Paid / Completed follows paid_at date when available.
+        | - Date range is converted from Manila day to UTC range to avoid
+        |   July 1 records appearing under June 30 on hosting.
+        */
         $query = Order::with(['items.menuItem'])
             ->whereNotNull('payment_method')
             ->whereRaw("TRIM(payment_method) != ''");
 
-        /*
-        |--------------------------------------------------------------------------
-        | Payment Date Filter
-        |--------------------------------------------------------------------------
-        | Payments page only:
-        | - Paid orders are filtered by paid_at date.
-        | - Unpaid/pending orders are filtered by created_at date.
-        | - Uses the stored DB date directly so it matches the displayed service
-        |   payment date and does not accidentally move evening records to tomorrow.
-        */
         if ($mode !== 'all') {
-            $query->where(function ($query) use ($selectedDate) {
-                $query->where(function ($paidQuery) use ($selectedDate) {
-                    $paidQuery->whereNotNull('paid_at')
-                        ->whereDate('paid_at', $selectedDate);
-                })
-                ->orWhere(function ($unpaidQuery) use ($selectedDate) {
-                    $unpaidQuery->whereNull('paid_at')
-                        ->whereDate('created_at', $selectedDate);
-                });
-            });
+            $this->applyServicePaymentDateFilter($query, $selectedDate);
         }
 
         $orders = $query
             ->orderByRaw("
                 CASE
-                    WHEN LOWER(TRIM(status)) = 'awaiting_payment' THEN 1
-                    WHEN LOWER(TRIM(payment_status)) IN ('pending', 'unpaid') THEN 2
-                    WHEN LOWER(TRIM(payment_status)) IN ('paid', 'verified') THEN 3
+                    WHEN LOWER(TRIM(payment_status)) IN ('pending', 'processing', 'unpaid') THEN 1
+                    WHEN LOWER(TRIM(status)) = 'awaiting_payment' THEN 2
+                    WHEN LOWER(TRIM(payment_status)) IN ('paid', 'verified', 'completed', 'success', 'successful', 'settled') THEN 3
                     ELSE 4
                 END
             ")
-            ->latest()
+            ->orderByRaw("COALESCE(paid_at, created_at) DESC")
             ->paginate(12)
             ->withQueryString();
 
-        $baseStatsQuery = Order::query();
+        $orderCollection = $orders->getCollection();
+
+        $orderIds = $orderCollection->pluck('id')->filter()->values();
+
+        $tablesByOrderId = RestaurantTable::whereIn('current_order_id', $orderIds)
+            ->get()
+            ->keyBy('current_order_id');
+
+        $orders->setCollection(
+            $orderCollection->map(function ($order) use ($tablesByOrderId) {
+                $tableNumber = $order->table_number ?? null;
+
+                if (!$tableNumber) {
+                    $tableNumber = optional($tablesByOrderId->get($order->id))->table_number;
+                }
+
+                $order->source_table_number = $tableNumber;
+
+                return $order;
+            })
+        );
+
+        $baseStatsQuery = Order::query()
+            ->whereNotNull('payment_method')
+            ->whereRaw("TRIM(payment_method) != ''");
 
         if ($mode !== 'all') {
-            $baseStatsQuery->where(function ($query) use ($selectedDate) {
-                $query->where(function ($paidQuery) use ($selectedDate) {
-                    $paidQuery->whereNotNull('paid_at')
-                        ->whereDate('paid_at', $selectedDate);
-                })
-                ->orWhere(function ($unpaidQuery) use ($selectedDate) {
-                    $unpaidQuery->whereNull('paid_at')
-                        ->whereDate('created_at', $selectedDate);
-                });
-            });
+            $this->applyServicePaymentDateFilter($baseStatsQuery, $selectedDate);
         }
 
-        $allPaymentOrders = $baseStatsQuery
-            ->whereNotNull('payment_method')
-            ->whereRaw("TRIM(payment_method) != ''")
-            ->get();
+        $allPaymentOrders = $baseStatsQuery->get();
+
+        $completedStatuses = [
+            'paid',
+            'verified',
+            'completed',
+            'success',
+            'successful',
+            'settled',
+        ];
 
         $stats = [
-            'awaiting_counter' => $allPaymentOrders->filter(function ($order) {
-                $method = strtolower(str_replace(['_', '-'], ' ', trim($order->payment_method ?? '')));
-                $status = strtolower(trim($order->status ?? ''));
-
-                return str_contains($method, 'counter') && $status === 'awaiting_payment';
-            })->count(),
-
-            'pay_later_unpaid' => $allPaymentOrders->filter(function ($order) {
+            'awaiting_counter' => $allPaymentOrders->filter(function ($order) use ($completedStatuses) {
                 $method = strtolower(str_replace(['_', '-'], ' ', trim($order->payment_method ?? '')));
                 $paymentStatus = strtolower(trim($order->payment_status ?? 'pending'));
 
-                return str_contains($method, 'later') && !in_array($paymentStatus, ['paid', 'verified'], true);
+                return (
+                    str_contains($method, 'counter') ||
+                    str_contains($method, 'cash')
+                ) && !in_array($paymentStatus, $completedStatuses, true);
             })->count(),
 
-            'digital_pending' => $allPaymentOrders->filter(function ($order) {
+            'pay_later_unpaid' => $allPaymentOrders->filter(function ($order) use ($completedStatuses) {
+                $method = strtolower(str_replace(['_', '-'], ' ', trim($order->payment_method ?? '')));
+                $paymentStatus = strtolower(trim($order->payment_status ?? 'pending'));
+
+                return str_contains($method, 'later')
+                    && !in_array($paymentStatus, $completedStatuses, true);
+            })->count(),
+
+            'digital_pending' => $allPaymentOrders->filter(function ($order) use ($completedStatuses) {
                 $method = strtolower(str_replace(['_', '-'], ' ', trim($order->payment_method ?? '')));
                 $paymentStatus = strtolower(trim($order->payment_status ?? 'pending'));
 
@@ -674,13 +699,13 @@ class ServiceStaffController extends Controller
                     str_contains($method, 'digital') ||
                     str_contains($method, 'qr') ||
                     str_contains($method, 'xendit')
-                ) && !in_array($paymentStatus, ['paid', 'verified'], true);
+                ) && !in_array($paymentStatus, $completedStatuses, true);
             })->count(),
 
-            'paid' => $allPaymentOrders->filter(function ($order) {
+            'paid' => $allPaymentOrders->filter(function ($order) use ($completedStatuses) {
                 $paymentStatus = strtolower(trim($order->payment_status ?? 'pending'));
 
-                return in_array($paymentStatus, ['paid', 'verified'], true);
+                return in_array($paymentStatus, $completedStatuses, true);
             })->count(),
         ];
 
@@ -695,6 +720,62 @@ class ServiceStaffController extends Controller
             'mode',
             'selectedDate'
         ));
+    }
+
+    private function getServiceManilaDayUtcRange(string $selectedDate): array
+    {
+        $start = \Carbon\Carbon::parse($selectedDate, 'Asia/Manila')
+            ->startOfDay()
+            ->timezone('UTC');
+
+        $end = \Carbon\Carbon::parse($selectedDate, 'Asia/Manila')
+            ->endOfDay()
+            ->timezone('UTC');
+
+        return [$start, $end];
+    }
+
+    private function applyServicePaymentDateFilter($query, string $selectedDate): void
+    {
+        [$start, $end] = $this->getServiceManilaDayUtcRange($selectedDate);
+
+        $completedStatuses = [
+            'paid',
+            'verified',
+            'completed',
+            'success',
+            'successful',
+            'settled',
+        ];
+
+        $pendingStatuses = [
+            'pending',
+            'processing',
+            'unpaid',
+        ];
+
+        $query->where(function ($query) use ($start, $end, $completedStatuses, $pendingStatuses) {
+            $query
+                ->where(function ($pendingQuery) use ($start, $end, $pendingStatuses) {
+                    $pendingQuery
+                        ->where(function ($statusQuery) use ($pendingStatuses) {
+                            $statusQuery->whereNull('payment_status')
+                                ->orWhereIn(DB::raw('LOWER(TRIM(payment_status))'), $pendingStatuses);
+                        })
+                        ->whereBetween('created_at', [$start, $end]);
+                })
+                ->orWhere(function ($completedQuery) use ($start, $end, $completedStatuses) {
+                    $completedQuery
+                        ->whereIn(DB::raw('LOWER(TRIM(payment_status))'), $completedStatuses)
+                        ->where(function ($dateQuery) use ($start, $end) {
+                            $dateQuery->whereBetween('paid_at', [$start, $end])
+                                ->orWhere(function ($fallbackQuery) use ($start, $end) {
+                                    $fallbackQuery->whereNull('paid_at')
+                                        ->whereBetween('created_at', [$start, $end]);
+                                });
+                        });
+                });
+        });
     }
 
     public function processOrderPayment(Request $request, Order $order, XenditService $xenditService)
