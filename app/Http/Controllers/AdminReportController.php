@@ -16,7 +16,7 @@ class AdminReportController extends Controller
 {
     public function dashboard()
     {
-        $today = now()->toDateString();
+        $today = now()->setTimezone('Asia/Manila')->format('Y-m-d');
         $paidStatuses = ['paid', 'completed', 'success', 'successful'];
 
         /*
@@ -90,9 +90,8 @@ class AdminReportController extends Controller
         }
 
         if (Schema::hasTable('payments')) {
-            $totalSalesToday = Payment::whereDate('created_at', $today)
-                ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
-                ->sum('amount');
+            $totalSalesToday = Order::whereDate('created_at', $today)
+             ->sum('total_amount');
         }
 
         if ($totalSalesToday <= 0 && Schema::hasTable('orders')) {
