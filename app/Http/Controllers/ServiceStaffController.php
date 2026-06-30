@@ -8,6 +8,8 @@ use App\Models\RestaurantTable;
 use App\Models\TableSession;
 use App\Models\User;
 use App\Services\XenditService;
+use App\Services\InventoryDeductionService;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -152,23 +154,39 @@ class ServiceStaffController extends Controller
         return back()->with('success', 'Order status updated successfully.');
     }
 
-    public function markOrderPaid(Order $order)
+    public function markOrderPaid(Order $order, InventoryDeductionService $inventoryDeductionService)
     {
         $orderStatus = strtolower(trim($order->status ?? 'pending'));
+
+        if (in_array(strtolower(trim($order->payment_status ?? 'pending')), ['paid', 'verified'], true)) {
+            return back()->with('error', 'This order is already paid.');
+        }
 
         $newStatus = $orderStatus === 'awaiting_payment'
             ? 'pending'
             : $orderStatus;
 
-        $order->update([
-            'payment_method' => 'Cash',
-            'payment_status' => 'paid',
-            'paid_at' => now(),
-            'status' => $newStatus,
-            'updated_at' => now(),
-        ]);
+        try {
+            $inventoryDeductionService->deductForOrder($order);
 
-        return back()->with('success', 'Cash payment confirmed. Order is now paid and sent to KDS if it was waiting for payment.');
+            $order->update([
+                'payment_method' => 'Cash',
+                'payment_status' => 'paid',
+                'paid_at' => now(),
+                'status' => $newStatus,
+                'updated_at' => now(),
+            ]);
+
+            return back()->with('success', 'Payment confirmed. Inventory was deducted and the order is now sent to KDS.');
+        } catch (ValidationException $e) {
+            $message = collect($e->errors())->flatten()->first();
+
+            return back()->with('error', $message ?: 'Not enough stock to process this order.');
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->with('error', $e->getMessage() ?: 'Unable to process payment and inventory deduction.');
+        }
     }
 
     public function tableMonitoring()
@@ -574,20 +592,7 @@ class ServiceStaffController extends Controller
 
         $query = Order::with(['items.menuItem'])
             ->whereNotNull('payment_method')
-            ->whereIn('payment_method', [
-                'Pay at Counter',
-                'pay at counter',
-                'Pay Later',
-                'pay later',
-                'Digital Payment',
-                'digital payment',
-                'QR PH',
-                'qr ph',
-                'Xendit',
-                'xendit',
-                'Cash',
-                'cash',
-            ]);
+            ->whereRaw("TRIM(payment_method) != ''");
 
         /*
         |--------------------------------------------------------------------------
@@ -642,6 +647,7 @@ class ServiceStaffController extends Controller
 
         $allPaymentOrders = $baseStatsQuery
             ->whereNotNull('payment_method')
+            ->whereRaw("TRIM(payment_method) != ''")
             ->get();
 
         $stats = [
@@ -708,15 +714,27 @@ class ServiceStaffController extends Controller
                 ? 'pending'
                 : $orderStatus;
 
-            $order->update([
-                'payment_method' => 'Cash',
-                'payment_status' => 'paid',
-                'paid_at' => now(),
-                'status' => $newStatus,
-                'updated_at' => now(),
-            ]);
+            try {
+                app(InventoryDeductionService::class)->deductForOrder($order);
 
-            return back()->with('success', 'Cash payment confirmed. Order is now paid and sent to KDS if it was waiting for payment.');
+                $order->update([
+                    'payment_method' => 'Cash',
+                    'payment_status' => 'paid',
+                    'paid_at' => now(),
+                    'status' => $newStatus,
+                    'updated_at' => now(),
+                ]);
+
+                return back()->with('success', 'Cash payment confirmed. Inventory was deducted and the order is now sent to KDS.');
+            } catch (ValidationException $e) {
+                $message = collect($e->errors())->flatten()->first();
+
+                return back()->with('error', $message ?: 'Not enough stock to process this order.');
+            } catch (\Throwable $e) {
+                report($e);
+
+                return back()->with('error', $e->getMessage() ?: 'Unable to process payment and inventory deduction.');
+            }
         }
 
         try {
@@ -894,6 +912,26 @@ class ServiceStaffController extends Controller
                         $updateData['payment_reference'] = $invoice['id']
                             ?? $invoice['external_id']
                             ?? $order->payment_reference;
+                    }
+
+                    try {
+                        app(InventoryDeductionService::class)->deductForOrder($order);
+                    } catch (ValidationException $e) {
+                        Log::warning('Order Xendit sync paid invoice but inventory deduction failed', [
+                            'order_id' => $order->id,
+                            'order_number' => $order->order_number,
+                            'errors' => $e->errors(),
+                        ]);
+
+                        continue;
+                    } catch (\Throwable $e) {
+                        Log::warning('Order Xendit sync paid invoice but inventory deduction crashed', [
+                            'order_id' => $order->id,
+                            'order_number' => $order->order_number,
+                            'message' => $e->getMessage(),
+                        ]);
+
+                        continue;
                     }
 
                     $order->update($updateData);

@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\Ingredient;
 use App\Models\InventoryBatch;
-use App\Models\InventoryTransaction;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -36,29 +35,40 @@ class InventoryDeductionService
                     continue;
                 }
 
-                /*
-                * NEW DAILY MENU INVENTORY LOGIC
-                * per_order = ala carte, counted by order quantity
-                * per_head = unlimited, counted by heads/persons
-                * custom = Chef Oppa Special, staff confirms
-                *
-                * These new inventory types should NOT deduct old ingredient stock.
-                */
-                if (Schema::hasColumn('menu_items', 'inventory_type')) {
-                    $inventoryType = $menuItem->inventory_type ?? 'per_order';
+                $inventoryType = Schema::hasColumn('menu_items', 'inventory_type')
+                    ? strtolower(trim($menuItem->inventory_type ?? 'ingredient'))
+                    : 'ingredient';
 
-                    if (in_array($inventoryType, ['per_order', 'per_head', 'custom'])) {
-                        continue;
-                    }
+                $category = strtolower(trim($menuItem->category ?? ''));
+
+                /*
+                |--------------------------------------------------------------------------
+                | Chef Oppa Special / Custom
+                |--------------------------------------------------------------------------
+                | Custom requests should not deduct ingredient stock automatically.
+                */
+                if ($inventoryType === 'custom' || $category === strtolower('Chef Oppa Special')) {
+                    continue;
                 }
 
                 /*
-                * OLD INGREDIENT DEDUCTION FALLBACK
-                * This only runs for old menu items without the new inventory_type logic.
+                |--------------------------------------------------------------------------
+                | Ingredient Deduction
+                |--------------------------------------------------------------------------
+                | IMPORTANT:
+                | Do NOT skip per_order or per_head anymore.
+                | Your menu availability is currently computed from linked ingredients,
+                | so paid/confirmed orders must deduct linked ingredient batches.
                 */
-                foreach ($menuItem->ingredients as $ingredient) {
-                    $quantityRequired = (float) $ingredient->pivot->quantity_required;
-                    $orderQuantity = (float) $orderItem->quantity;
+                $ingredients = $menuItem->ingredients ?? collect();
+
+                if ($ingredients->isEmpty()) {
+                    continue;
+                }
+
+                foreach ($ingredients as $ingredient) {
+                    $quantityRequired = (float) ($ingredient->pivot->quantity_required ?? 0);
+                    $orderQuantity = (float) ($orderItem->quantity ?? 0);
 
                     $totalNeeded = $quantityRequired * $orderQuantity;
 
@@ -136,7 +146,7 @@ class InventoryDeductionService
                 ingredient: $ingredient,
                 batchId: $batch->id,
                 quantity: $deductAmount,
-                unitCost: (float) $batch->unit_cost,
+                unitCost: (float) ($batch->unit_cost ?? 0),
                 remarks: "Used for order #{$order->id} - {$menuItemName}"
             );
 
@@ -267,6 +277,15 @@ class InventoryDeductionService
             ->whereDate('expiry_date', '<', now()->toDateString())
             ->update([
                 'status' => 'expired',
+                'updated_at' => now(),
+            ]);
+
+        InventoryBatch::where('ingredient_id', $ingredient->id)
+            ->where('quantity_remaining', '<=', 0)
+            ->where('status', '!=', 'used_up')
+            ->update([
+                'status' => 'used_up',
+                'updated_at' => now(),
             ]);
     }
 

@@ -22,6 +22,10 @@ class KdsController extends Controller
             'status' => 'required|in:pending,preparing,ready,served',
         ]);
 
+        if (!$this->orderCanAppearInKds($order)) {
+            return back()->with('error', 'This order must be paid first before kitchen preparation.');
+        }
+
         $newStatus = strtolower(trim($request->status));
 
         $order->status = $newStatus;
@@ -133,16 +137,95 @@ class KdsController extends Controller
             ->map(function ($order) {
                 $status = strtolower(trim($order->status ?? 'pending'));
 
-                if (in_array($status, ['new', 'placed', 'confirmed'])) {
+                if (in_array($status, ['new', 'placed', 'confirmed'], true)) {
                     $status = 'pending';
                 }
 
                 $order->status = $status;
 
                 return $order;
-            });
+            })
+            ->filter(function ($order) {
+                return $this->orderCanAppearInKds($order);
+            })
+            ->values();
 
         return $this->attachTableNumbers($orders)->groupBy('status');
+    }
+
+    private function orderCanAppearInKds(Order $order): bool
+    {
+        $status = strtolower(trim($order->status ?? 'pending'));
+
+        if ($status === 'served') {
+            return true;
+        }
+
+        $paymentMethod = strtolower(
+            str_replace(
+                ['_', '-'],
+                ' ',
+                trim($order->payment_method ?? '')
+            )
+        );
+
+        $paymentStatus = strtolower(trim($order->payment_status ?? 'pending'));
+
+        $isPaid = in_array($paymentStatus, [
+            'paid',
+            'verified',
+            'settled',
+            'completed',
+        ], true);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Pay Later
+        |--------------------------------------------------------------------------
+        | Pay Later orders are allowed to go to kitchen even if payment is pending.
+        */
+        if (str_contains($paymentMethod, 'later')) {
+            return true;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Pay at Counter / Cash
+        |--------------------------------------------------------------------------
+        | These must be paid first before appearing in KDS.
+        */
+        if (
+            str_contains($paymentMethod, 'counter') ||
+            str_contains($paymentMethod, 'cash')
+        ) {
+            return $isPaid;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | QR PH / Digital / Xendit
+        |--------------------------------------------------------------------------
+        | These must be paid first before appearing in KDS.
+        */
+        if (
+            str_contains($paymentMethod, 'qr') ||
+            str_contains($paymentMethod, 'digital') ||
+            str_contains($paymentMethod, 'xendit')
+        ) {
+            return $isPaid;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Fallback
+        |--------------------------------------------------------------------------
+        | If old orders have no payment method, still allow them so KDS will not break.
+        */
+        if ($paymentMethod === '') {
+            return true;
+        }
+
+        return $isPaid;
     }
 
     private function attachTableNumbers($orders)
