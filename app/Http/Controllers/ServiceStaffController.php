@@ -13,6 +13,7 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class ServiceStaffController extends Controller
@@ -914,27 +915,28 @@ class ServiceStaffController extends Controller
                             ?? $order->payment_reference;
                     }
 
-                    try {
-                        app(InventoryDeductionService::class)->deductForOrder($order);
-                    } catch (ValidationException $e) {
-                        Log::warning('Order Xendit sync paid invoice but inventory deduction failed', [
-                            'order_id' => $order->id,
-                            'order_number' => $order->order_number,
-                            'errors' => $e->errors(),
-                        ]);
-
-                        continue;
-                    } catch (\Throwable $e) {
-                        Log::warning('Order Xendit sync paid invoice but inventory deduction crashed', [
-                            'order_id' => $order->id,
-                            'order_number' => $order->order_number,
-                            'message' => $e->getMessage(),
-                        ]);
-
-                        continue;
-                    }
-
+                    /*
+                    |--------------------------------------------------------------------------
+                    | IMPORTANT: Do not block QR PH paid status with inventory deduction
+                    |--------------------------------------------------------------------------
+                    | Mobile/tablet orders already pass inventory validation and deduct stock
+                    | when the order is created. If we try to deduct again here, the order can
+                    | stay stuck as Pending Payment even after Xendit says PAID.
+                    |
+                    | For Digital Payment / QR PH, Xendit is the source of truth for payment.
+                    | Once invoice status is PAID/SETTLED, mark the order paid and send it to
+                    | KDS by changing awaiting_payment back to pending.
+                    */
                     $order->update($updateData);
+
+                    if (Schema::hasTable('payments')) {
+                        DB::table('payments')
+                            ->where('order_id', $order->id)
+                            ->update([
+                                'status' => 'paid',
+                                'updated_at' => now(),
+                            ]);
+                    }
 
                     Log::info('Order Xendit sync marked order as paid', [
                         'order_id' => $order->id,

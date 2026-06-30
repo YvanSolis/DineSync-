@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Reservation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class XenditWebhookController extends Controller
 {
@@ -101,19 +103,7 @@ class XenditWebhookController extends Controller
             $updateData['payment_status'] = 'paid';
             $updateData['paid_at'] = $order->paid_at ?? now();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Important Payment Flow Rule
-            |--------------------------------------------------------------------------
-            | Pay at Counter / Digital Payment orders are stored as awaiting_payment
-            | so they do NOT appear in KDS before payment.
-            |
-            | Once Xendit confirms QR PH payment, we only move awaiting_payment
-            | orders into pending so KDS can receive them.
-            |
-            | If the order is already preparing/ready/served, we do not reset it.
-            */
-            if ($currentOrderStatus === 'awaiting_payment') {
+            if (in_array($currentOrderStatus, ['awaiting_payment', 'waiting_payment', 'payment_pending'], true)) {
                 $updateData['status'] = 'pending';
             }
         } elseif ($status === 'EXPIRED') {
@@ -135,6 +125,17 @@ class XenditWebhookController extends Controller
         }
 
         $order->update($updateData);
+
+        if (Schema::hasTable('payments')) {
+            DB::table('payments')
+                ->where('order_id', $order->id)
+                ->update([
+                    'payment_method' => $order->payment_method ?? 'Digital Payment',
+                    'status' => $updateData['payment_status'] ?? $order->payment_status,
+                    'reference_number' => $invoiceId ?? $externalId ?? $order->payment_reference,
+                    'updated_at' => now(),
+                ]);
+        }
 
         $freshOrder = $order->fresh();
 
@@ -175,11 +176,6 @@ class XenditWebhookController extends Controller
         }
 
         if ($externalId && str_starts_with($externalId, 'ORDER-')) {
-            /*
-             * Supports both:
-             * ORDER-68
-             * ORDER-68-202606241806
-             */
             if (preg_match('/^ORDER-(\d+)/', $externalId, $matches)) {
                 $orderId = (int) $matches[1];
 
