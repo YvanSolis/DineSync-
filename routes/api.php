@@ -173,10 +173,22 @@ Route::get('/menu', function () {
         ->orderBy('name')
         ->get();
 
+    $bestSellerIds = \Illuminate\Support\Facades\DB::table('order_items')
+    ->select('menu_item_id')
+    ->selectRaw('SUM(quantity) as total_quantity')
+    ->whereNotNull('menu_item_id')
+    ->groupBy('menu_item_id')
+    ->orderByDesc('total_quantity')
+    ->limit(3)
+    ->pluck('menu_item_id')
+    ->map(fn ($id) => (int) $id)
+    ->toArray();
+
     $menuData = $menuItems->map(function ($item) use (
         $usableStockByIngredient,
         $expiredBatchCountByIngredient,
-        $usedUpBatchCountByIngredient
+        $usedUpBatchCountByIngredient,
+        $bestSellerIds
     ) {
         $isCustom = $item->category === 'Chef Oppa Special' || $item->inventory_type === 'custom';
         $ingredients = $item->ingredients ?? collect();
@@ -327,6 +339,9 @@ Route::get('/menu', function () {
             'image_url' => $item->image_url,
 
             'is_available' => (bool) $isAvailable,
+            'is_best_seller' => in_array((int) $item->id, $bestSellerIds, true),
+            'is_popular' => in_array((int) $item->id, $bestSellerIds, true),
+
             'max_order_quantity' => (int) $maxOrderQuantity,
             'remaining_today' => (int) $maxOrderQuantity,
 
