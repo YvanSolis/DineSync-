@@ -29,16 +29,26 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
+        $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:' . User::class],
+            'contact_number' => [
+                'required',
+                'string',
+                'max:20',
+                'regex:/^(09|\+639)\d{9}$/',
+            ],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        ], [
+            'contact_number.required' => 'Please enter your contact number.',
+            'contact_number.regex' => 'Please enter a valid Philippine mobile number, e.g. 09171234567 or +639171234567.',
         ]);
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'contact_number' => $validated['contact_number'],
+            'password' => Hash::make($validated['password']),
             'role' => 'customer',
         ]);
 

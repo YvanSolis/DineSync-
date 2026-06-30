@@ -517,7 +517,7 @@
                             <input
                                 type="text"
                                 name="customer_phone"
-                                value="{{ old('customer_phone') }}"
+                                value="{{ old('customer_phone', $user->contact_number ?? auth()->user()->contact_number ?? '') }}"
                                 class="form-input-clean"
                                 placeholder="Example: 0912 345 6789"
                                 required

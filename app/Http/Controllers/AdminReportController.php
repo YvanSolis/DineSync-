@@ -3,345 +3,238 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ingredient;
-use App\Models\InventoryBatch;
 use App\Models\MenuItem;
 use App\Models\Order;
-use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Services\OpenAIForecastService;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use Carbon\Carbon;
 
 class AdminReportController extends Controller
 {
+    private string $timezone = 'Asia/Manila';
+
+    private array $paidStatuses = [
+        'paid',
+        'completed',
+        'success',
+        'successful',
+        'verified',
+        'settled',
+    ];
+
+    private array $activeStatuses = [
+        'awaiting_payment',
+        'pending',
+        'preparing',
+        'ready',
+        'ongoing',
+        'active',
+        'processing',
+    ];
+
     public function dashboard()
     {
-        // Use Philippine time for the admin dashboard so today's sales/orders match the restaurant day.
-        $timezone = 'Asia/Manila';
-        $today = now($timezone)->toDateString();
-        $startOfToday = now($timezone)->startOfDay()->timezone('UTC');
-        $endOfToday = now($timezone)->endOfDay()->timezone('UTC');
-
-        $paidStatuses = ['paid', 'completed', 'success', 'successful', 'verified', 'settled'];
+        [$startOfToday, $endOfToday] = $this->manilaDayUtcRange(now($this->timezone)->toDateString());
 
         /*
         |--------------------------------------------------------------------------
-        | Sync Ingredient-Based Inventory
+        | IMPORTANT
         |--------------------------------------------------------------------------
+        | Dashboard should only READ data.
+        | Do not update inventory_batches, ingredients, or menu availability here.
+        | Those writes make the dashboard slow on every refresh.
         */
 
-        if (Schema::hasTable('inventory_batches')) {
-            InventoryBatch::where('quantity_remaining', '>', 0)
-                ->whereDate('expiry_date', '<', $today)
-                ->update([
-                    'status' => 'expired',
-                ]);
+        $ordersTodayQuery = Order::query()
+            ->whereBetween('created_at', [$startOfToday, $endOfToday]);
 
-            InventoryBatch::where('quantity_remaining', '<=', 0)
-                ->update([
-                    'status' => 'used_up',
-                ]);
-        }
+        $totalOrdersToday = (clone $ordersTodayQuery)->count();
 
-        if (Schema::hasTable('ingredients')) {
-            Ingredient::query()->chunk(100, function ($ingredients) use ($today) {
-                foreach ($ingredients as $ingredient) {
-                    if (! Schema::hasTable('inventory_batches')) {
-                        continue;
-                    }
+        $activeOrders = (clone $ordersTodayQuery)
+            ->whereIn(DB::raw('LOWER(TRIM(status))'), $this->activeStatuses)
+            ->count();
 
-                    $totalUsableStock = InventoryBatch::where('ingredient_id', $ingredient->id)
-                        ->where('status', 'active')
-                        ->where('quantity_remaining', '>', 0)
-                        ->whereDate('expiry_date', '>=', $today)
-                        ->sum('quantity_remaining');
+        $totalSalesToday = Order::query()
+            ->whereIn(DB::raw('LOWER(TRIM(payment_status))'), $this->paidStatuses)
+            ->where(function ($query) use ($startOfToday, $endOfToday) {
+                $query->whereBetween('paid_at', [$startOfToday, $endOfToday])
+                    ->orWhere(function ($fallbackQuery) use ($startOfToday, $endOfToday) {
+                        $fallbackQuery->whereNull('paid_at')
+                            ->whereBetween('created_at', [$startOfToday, $endOfToday]);
+                    });
+            })
+            ->sum('total_amount');
 
-                    $ingredient->forceFill([
-                        'current_stock' => $totalUsableStock,
-                    ])->saveQuietly();
-                }
-            });
-        }
-
-        if (Schema::hasTable('menu_items')) {
-            MenuItem::refreshAllAvailability();
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Daily Orders / Sales
-        |--------------------------------------------------------------------------
-        */
-
-        $totalOrdersToday = 0;
-        $activeOrders = 0;
-        $totalSalesToday = 0;
-
-        if (Schema::hasTable('orders')) {
-            $totalOrdersToday = Order::whereBetween('created_at', [$startOfToday, $endOfToday])->count();
-
-            if (Schema::hasColumn('orders', 'status')) {
-                $activeOrders = Order::whereBetween('created_at', [$startOfToday, $endOfToday])
-                    ->whereIn(DB::raw('LOWER(status)'), [
-                        'pending',
-                        'preparing',
-                        'ready',
-                        'ongoing',
-                        'active',
-                        'processing',
-                    ])
-                    ->count();
-            }
-        }
-
-        if (Schema::hasTable('orders')) {
-            $totalSalesToday = Order::query()
-                ->whereIn(DB::raw('LOWER(payment_status)'), $paidStatuses)
-                ->where(function ($query) use ($startOfToday, $endOfToday) {
-                    if (Schema::hasColumn('orders', 'paid_at')) {
-                        $query->whereBetween('paid_at', [$startOfToday, $endOfToday])
-                            ->orWhere(function ($fallbackQuery) use ($startOfToday, $endOfToday) {
-                                $fallbackQuery->whereNull('paid_at')
-                                    ->whereBetween('created_at', [$startOfToday, $endOfToday]);
-                            });
-                    } else {
-                        $query->whereBetween('created_at', [$startOfToday, $endOfToday]);
-                    }
-                })
-                ->sum('total_amount');
-        }
-
-        if ($totalSalesToday <= 0 && Schema::hasTable('payments')) {
-            $totalSalesToday = Payment::whereBetween('created_at', [$startOfToday, $endOfToday])
-                ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
+        if ((float) $totalSalesToday <= 0) {
+            $totalSalesToday = Payment::query()
+                ->whereBetween('created_at', [$startOfToday, $endOfToday])
+                ->whereIn(DB::raw('LOWER(TRIM(status))'), $this->paidStatuses)
                 ->sum('amount');
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Top Selling Items Today
-        |--------------------------------------------------------------------------
-        */
+        $topSellingItems = DB::table('order_items')
+            ->join('orders', 'order_items.order_id', '=', 'orders.id')
+            ->leftJoin('menu_items', 'order_items.menu_item_id', '=', 'menu_items.id')
+            ->select(
+                'order_items.menu_item_id',
+                DB::raw("COALESCE(menu_items.name, 'Unknown Item') as name"),
+                DB::raw('SUM(order_items.quantity) as total_sold')
+            )
+            ->whereBetween('orders.created_at', [$startOfToday, $endOfToday])
+            ->groupBy('order_items.menu_item_id', 'menu_items.name')
+            ->orderByDesc('total_sold')
+            ->limit(5)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->menu_item_id,
+                    'name' => $item->name,
+                    'item_name' => $item->name,
+                    'menu_item' => $item->name,
+                    'quantity' => (int) $item->total_sold,
+                    'total_sold' => (int) $item->total_sold,
+                ];
+            });
 
-        $topSellingItems = collect();
+        $recentOrdersToday = Order::query()
+            ->select([
+                'id',
+                'order_number',
+                'status',
+                'payment_status',
+                'payment_method',
+                'table_number',
+                'total_amount',
+                'created_at',
+            ])
+            ->with(['items.menuItem'])
+            ->whereBetween('created_at', [$startOfToday, $endOfToday])
+            ->whereIn(DB::raw('LOWER(TRIM(status))'), [
+                'awaiting_payment',
+                'pending',
+                'preparing',
+                'ready',
+            ])
+            ->orderByRaw("
+                CASE
+                    WHEN LOWER(TRIM(status)) = 'awaiting_payment' THEN 1
+                    WHEN LOWER(TRIM(status)) = 'pending' THEN 2
+                    WHEN LOWER(TRIM(status)) = 'preparing' THEN 3
+                    WHEN LOWER(TRIM(status)) = 'ready' THEN 4
+                    ELSE 5
+                END
+            ")
+            ->latest()
+            ->limit(8)
+            ->get()
+            ->map(function ($order) {
+                $itemsSummary = $order->items
+                    ->map(function ($item) {
+                        $name = $item->menuItem->name
+                            ?? $item->name
+                            ?? 'Menu Item';
 
-        if (Schema::hasTable('order_items') && Schema::hasTable('orders')) {
-            $topSellingItems = DB::table('order_items')
-                ->join('orders', 'order_items.order_id', '=', 'orders.id')
-                ->leftJoin('menu_items', 'order_items.menu_item_id', '=', 'menu_items.id')
-                ->select(
-                    'order_items.menu_item_id',
-                    DB::raw('COALESCE(menu_items.name, "Unknown Item") as name'),
-                    DB::raw('SUM(order_items.quantity) as total_sold')
-                )
-                ->whereBetween('orders.created_at', [$startOfToday, $endOfToday])
-                ->groupBy('order_items.menu_item_id', 'menu_items.name')
-                ->orderByDesc('total_sold')
-                ->limit(5)
-                ->get()
-                ->map(function ($item) {
-                    return [
-                        'id' => $item->menu_item_id,
-                        'name' => $item->name,
-                        'item_name' => $item->name,
-                        'menu_item' => $item->name,
-                        'quantity' => (int) $item->total_sold,
-                        'total_sold' => (int) $item->total_sold,
-                    ];
-                });
-        }
+                        return ((int) ($item->quantity ?? 1)) . 'x ' . $name;
+                    })
+                    ->filter()
+                    ->values()
+                    ->join(', ');
 
-        /*
-        |--------------------------------------------------------------------------
-        | Recent Orders Today
-        |--------------------------------------------------------------------------
-        */
+                return [
+                    'id' => $order->id,
+                    'order_number' => $order->order_number ?? ('Order #' . $order->id),
+                    'status' => $order->status ?? 'pending',
+                    'payment_status' => $order->payment_status ?? null,
+                    'payment_method' => $order->payment_method ?? null,
+                    'table_number' => $order->table_number ?? '—',
+                    'total_amount' => (float) ($order->total_amount ?? 0),
+                    'items_summary' => $itemsSummary ?: 'No items listed',
+                    'time' => optional($order->created_at)->timezone($this->timezone)->format('h:i A'),
+                    'created_time' => optional($order->created_at)->timezone($this->timezone)->format('h:i A'),
+                ];
+            });
 
-        $recentOrdersToday = collect();
+        $inventoryAlerts = Ingredient::query()
+            ->orderBy('name')
+            ->limit(200)
+            ->get()
+            ->filter(function ($ingredient) {
+                return in_array($ingredient->stock_status, [
+                    'out_of_stock',
+                    'low_stock',
+                    'reorder_soon',
+                    'near_expiry',
+                ], true);
+            })
+            ->map(function ($ingredient) {
+                return [
+                    'id' => $ingredient->id,
+                    'name' => $ingredient->name,
+                    'ingredient_name' => $ingredient->name,
+                    'current_stock' => (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0),
+                    'total_stock' => (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0),
+                    'stock' => (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0),
+                    'unit' => $ingredient->unit ?? 'unit',
+                    'threshold' => (float) ($ingredient->threshold ?? 0),
+                    'nearest_expiry_date' => $ingredient->nearest_expiry_date,
+                    'stock_status' => $ingredient->stock_status,
+                    'status' => $ingredient->stock_status,
+                ];
+            })
+            ->values();
 
-        if (Schema::hasTable('orders')) {
-            $recentOrdersToday = Order::query()
-                ->whereBetween('created_at', [$startOfToday, $endOfToday])
-                ->latest()
-                ->limit(8)
-                ->get()
-                ->map(function ($order) {
-                    return [
-                        'id' => $order->id,
-                        'order_number' => $order->order_number ?? ('Order #' . $order->id),
-                        'status' => $order->status ?? 'pending',
-                        'payment_status' => $order->payment_status ?? null,
-                        'payment_method' => $order->payment_method ?? null,
-                        'table_number' => $order->table_number ?? '—',
-                        'total_amount' => (float) ($order->total_amount ?? 0),
-                        'time' => optional($order->created_at)->format('h:i A'),
-                        'created_time' => optional($order->created_at)->format('h:i A'),
-                    ];
-                });
-        }
+        $unavailableMenuItems = MenuItem::query()
+            ->select(['id', 'name', 'category', 'inventory_type', 'is_available'])
+            ->where(function ($query) {
+                $query->where('is_available', false)
+                    ->orWhere('is_available', 0);
+            })
+            ->where(function ($query) {
+                $query->whereNull('inventory_type')
+                    ->orWhere('inventory_type', '!=', 'custom');
+            })
+            ->where('category', '!=', 'Chef Oppa Special')
+            ->orderBy('category')
+            ->orderBy('name')
+            ->limit(8)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'name' => $item->name,
+                    'item_name' => $item->name,
+                    'menu_item' => $item->name,
+                    'category' => $item->category ?: 'Uncategorized',
+                    'stock_label' => 'Insufficient linked ingredients.',
+                    'reason' => 'Insufficient linked ingredients.',
+                ];
+            });
 
-        /*
-        |--------------------------------------------------------------------------
-        | Ingredient Inventory Alerts
-        |--------------------------------------------------------------------------
-        */
-
-        $inventoryAlerts = collect();
-
-        if (Schema::hasTable('ingredients')) {
-            $inventoryAlerts = Ingredient::query()
-                ->orderBy('name')
-                ->get()
-                ->filter(function ($ingredient) {
-                    return in_array($ingredient->stock_status, [
-                        'out_of_stock',
-                        'low_stock',
-                        'reorder_soon',
-                        'near_expiry',
-                    ]);
-                })
-                ->map(function ($ingredient) {
-                    return [
-                        'id' => $ingredient->id,
-                        'name' => $ingredient->name,
-                        'ingredient_name' => $ingredient->name,
-                        'current_stock' => (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0),
-                        'total_stock' => (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0),
-                        'stock' => (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0),
-                        'unit' => $ingredient->unit ?? 'unit',
-                        'threshold' => (float) ($ingredient->threshold ?? 0),
-                        'nearest_expiry_date' => $ingredient->nearest_expiry_date,
-                        'stock_status' => $ingredient->stock_status,
-                        'status' => $ingredient->stock_status,
-                    ];
-                })
-                ->values();
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Unavailable Menu Items Based on Ingredients
-        |--------------------------------------------------------------------------
-        */
-
-        $unavailableMenuItems = collect();
-
-        if (Schema::hasTable('menu_items')) {
-            $unavailableMenuItems = MenuItem::with('ingredients')
-                ->where(function ($query) {
-                    $query->where('is_available', false)
-                        ->orWhere('is_available', 0);
-                })
-                ->orderBy('category')
-                ->orderBy('name')
-                ->get()
-                ->filter(function ($item) {
-                    return $item->category !== 'Chef Oppa Special'
-                        && $item->inventory_type !== 'custom';
-                })
-                ->map(function ($item) {
-                    $missingIngredients = [];
-
-                    foreach ($item->ingredients as $ingredient) {
-                        $required = (float) ($ingredient->pivot->quantity_required ?? 0);
-                        $stock = (float) ($ingredient->total_stock ?? $ingredient->current_stock ?? 0);
-
-                        if ($required <= 0) {
-                            $missingIngredients[] = $ingredient->name . ' has invalid usage.';
-                            continue;
-                        }
-
-                        if ($stock < $required) {
-                            $missingIngredients[] = $ingredient->name . " is insufficient.";
-                        }
-                    }
-
-                    $reason = count($missingIngredients)
-                        ? implode(' ', $missingIngredients)
-                        : ($item->stock_label ?? 'Insufficient linked ingredients.');
-
-                    return [
-                        'id' => $item->id,
-                        'name' => $item->name,
-                        'item_name' => $item->name,
-                        'menu_item' => $item->name,
-                        'category' => $item->category ?: 'Uncategorized',
-                        'stock_label' => $item->stock_label,
-                        'reason' => $reason,
-                    ];
-                })
-                ->values();
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Ingredient Usage Today
-        |--------------------------------------------------------------------------
-        */
-
-        $ingredientUsageToday = collect();
-
-        if (Schema::hasTable('ingredient_usages') && Schema::hasTable('ingredients')) {
-            $quantityColumn = Schema::hasColumn('ingredient_usages', 'quantity_used')
-                ? 'ingredient_usages.quantity_used'
-                : 'ingredient_usages.quantity';
-
-            $ingredientUsageToday = DB::table('ingredient_usages')
-                ->join('ingredients', 'ingredient_usages.ingredient_id', '=', 'ingredients.id')
-                ->select(
-                    'ingredients.id',
-                    'ingredients.name',
-                    'ingredients.unit',
-                    DB::raw("SUM({$quantityColumn}) as quantity_used")
-                )
-                ->whereBetween('ingredient_usages.created_at', [$startOfToday, $endOfToday])
-                ->groupBy('ingredients.id', 'ingredients.name', 'ingredients.unit')
-                ->orderByDesc('quantity_used')
-                ->limit(10)
-                ->get()
-                ->map(function ($item) {
-                    return [
-                        'id' => $item->id,
-                        'name' => $item->name,
-                        'ingredient_name' => $item->name,
-                        'unit' => $item->unit ?? 'unit',
-                        'quantity_used' => (float) $item->quantity_used,
-                        'used' => (float) $item->quantity_used,
-                        'quantity' => (float) $item->quantity_used,
-                    ];
-                });
-        } elseif (Schema::hasTable('inventory_transactions') && Schema::hasTable('ingredients')) {
-            $ingredientUsageToday = DB::table('inventory_transactions')
-                ->join('ingredients', 'inventory_transactions.ingredient_id', '=', 'ingredients.id')
-                ->select(
-                    'ingredients.id',
-                    'ingredients.name',
-                    'ingredients.unit',
-                    DB::raw('SUM(inventory_transactions.quantity) as quantity_used')
-                )
-                ->whereBetween('inventory_transactions.created_at', [$startOfToday, $endOfToday])
-                ->whereIn(DB::raw('LOWER(inventory_transactions.type)'), [
-                    'stock_out',
-                    'out',
-                    'deduct',
-                    'deduction',
-                ])
-                ->groupBy('ingredients.id', 'ingredients.name', 'ingredients.unit')
-                ->orderByDesc('quantity_used')
-                ->limit(10)
-                ->get()
-                ->map(function ($item) {
-                    return [
-                        'id' => $item->id,
-                        'name' => $item->name,
-                        'ingredient_name' => $item->name,
-                        'unit' => $item->unit ?? 'unit',
-                        'quantity_used' => (float) $item->quantity_used,
-                        'used' => (float) $item->quantity_used,
-                        'quantity' => (float) $item->quantity_used,
-                    ];
-                });
-        }
+        $ingredientUsageToday = DB::table('ingredient_usages')
+            ->join('ingredients', 'ingredient_usages.ingredient_id', '=', 'ingredients.id')
+            ->select(
+                'ingredients.id',
+                'ingredients.name',
+                'ingredients.unit',
+                DB::raw('SUM(ingredient_usages.quantity_used) as quantity_used')
+            )
+            ->whereBetween('ingredient_usages.created_at', [$startOfToday, $endOfToday])
+            ->groupBy('ingredients.id', 'ingredients.name', 'ingredients.unit')
+            ->orderByDesc('quantity_used')
+            ->limit(10)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'name' => $item->name,
+                    'ingredient_name' => $item->name,
+                    'unit' => $item->unit ?? 'unit',
+                    'quantity_used' => (float) $item->quantity_used,
+                    'used' => (float) $item->quantity_used,
+                    'quantity' => (float) $item->quantity_used,
+                ];
+            });
 
         return response()->json([
             'scope' => 'today',
@@ -382,48 +275,45 @@ class AdminReportController extends Controller
 
     public function reportsForecast(OpenAIForecastService $openAIForecastService)
     {
-        $timezone = 'Asia/Manila';
-        $startDate = now($timezone)->subDays(6)->startOfDay()->timezone('UTC');
-        $endDate = now($timezone)->endOfDay()->timezone('UTC');
-        $paidStatuses = ['paid', 'completed', 'success', 'successful', 'verified', 'settled'];
+        $endManila = now($this->timezone)->endOfDay();
+        $startManila = now($this->timezone)->subDays(6)->startOfDay();
+        $startDate = $startManila->copy()->timezone('UTC');
+        $endDate = $endManila->copy()->timezone('UTC');
 
-        $totalRevenue7d = 0;
+        $paidOrderDateFilter = function ($query) use ($startDate, $endDate) {
+            $query->whereBetween('orders.paid_at', [$startDate, $endDate])
+                ->orWhere(function ($fallbackQuery) use ($startDate, $endDate) {
+                    $fallbackQuery->whereNull('orders.paid_at')
+                        ->whereBetween('orders.created_at', [$startDate, $endDate]);
+                });
+        };
 
-        if (Schema::hasTable('orders')) {
-            $totalRevenue7d = Order::query()
-                ->whereIn(DB::raw('LOWER(payment_status)'), $paidStatuses)
-                ->where(function ($query) use ($startDate, $endDate) {
-                    if (Schema::hasColumn('orders', 'paid_at')) {
-                        $query->whereBetween('paid_at', [$startDate, $endDate])
-                            ->orWhere(function ($fallbackQuery) use ($startDate, $endDate) {
-                                $fallbackQuery->whereNull('paid_at')
-                                    ->whereBetween('created_at', [$startDate, $endDate]);
-                            });
-                    } else {
-                        $query->whereBetween('created_at', [$startDate, $endDate]);
-                    }
-                })
-                ->sum('total_amount');
-        }
+        $orderDateFilter = function ($query) use ($startDate, $endDate) {
+            $query->whereBetween('orders.created_at', [$startDate, $endDate]);
+        };
 
-        if ($totalRevenue7d <= 0 && Schema::hasTable('payments')) {
-            $totalRevenue7d = Payment::whereBetween('created_at', [$startDate, $endDate])
-                ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
+        $totalRevenue7d = Order::query()
+            ->whereIn(DB::raw('LOWER(TRIM(payment_status))'), $this->paidStatuses)
+            ->where(function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('paid_at', [$startDate, $endDate])
+                    ->orWhere(function ($fallbackQuery) use ($startDate, $endDate) {
+                        $fallbackQuery->whereNull('paid_at')
+                            ->whereBetween('created_at', [$startDate, $endDate]);
+                    });
+            })
+            ->sum('total_amount');
+
+        if ((float) $totalRevenue7d <= 0) {
+            $totalRevenue7d = Payment::query()
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->whereIn(DB::raw('LOWER(TRIM(status))'), $this->paidStatuses)
                 ->sum('amount');
         }
 
-        $totalOrders7d = 0;
-
-        if (Schema::hasTable('orders')) {
-            $totalOrders7d = Order::whereBetween('created_at', [$startDate, $endDate])
-                ->count();
-        }
-
-        if ($totalOrders7d <= 0 && Schema::hasTable('payments')) {
-            $totalOrders7d = Payment::whereBetween('created_at', [$startDate, $endDate])
-                ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
-                ->count();
-        }
+        $totalOrders7d = Order::query()
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->whereNotIn(DB::raw('LOWER(TRIM(status))'), ['cancelled', 'canceled', 'voided'])
+            ->count();
 
         $avgOrderValue = $totalOrders7d > 0
             ? round($totalRevenue7d / $totalOrders7d, 2)
@@ -435,153 +325,167 @@ class AdminReportController extends Controller
         $salesOrderTrends = [];
 
         for ($i = 6; $i >= 0; $i--) {
-            $date = now($timezone)->subDays($i);
-            $dateString = $date->toDateString();
-
-            $sales = 0;
-            $ordersCount = 0;
-
+            $date = now($this->timezone)->subDays($i);
             $dayStart = $date->copy()->startOfDay()->timezone('UTC');
             $dayEnd = $date->copy()->endOfDay()->timezone('UTC');
 
-            if (Schema::hasTable('orders')) {
-                $sales = Order::query()
-                    ->whereIn(DB::raw('LOWER(payment_status)'), $paidStatuses)
-                    ->where(function ($query) use ($dayStart, $dayEnd) {
-                        if (Schema::hasColumn('orders', 'paid_at')) {
-                            $query->whereBetween('paid_at', [$dayStart, $dayEnd])
-                                ->orWhere(function ($fallbackQuery) use ($dayStart, $dayEnd) {
-                                    $fallbackQuery->whereNull('paid_at')
-                                        ->whereBetween('created_at', [$dayStart, $dayEnd]);
-                                });
-                        } else {
-                            $query->whereBetween('created_at', [$dayStart, $dayEnd]);
-                        }
-                    })
-                    ->sum('total_amount');
-            }
+            $sales = Order::query()
+                ->whereIn(DB::raw('LOWER(TRIM(payment_status))'), $this->paidStatuses)
+                ->where(function ($query) use ($dayStart, $dayEnd) {
+                    $query->whereBetween('paid_at', [$dayStart, $dayEnd])
+                        ->orWhere(function ($fallbackQuery) use ($dayStart, $dayEnd) {
+                            $fallbackQuery->whereNull('paid_at')
+                                ->whereBetween('created_at', [$dayStart, $dayEnd]);
+                        });
+                })
+                ->sum('total_amount');
 
-            if ($sales <= 0 && Schema::hasTable('payments')) {
-                $sales = Payment::whereBetween('created_at', [$dayStart, $dayEnd])
-                    ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
-                    ->sum('amount');
-            }
-
-            if (Schema::hasTable('orders')) {
-                $ordersCount = Order::whereBetween('created_at', [$dayStart, $dayEnd])
-                    ->count();
-            }
-
-            if ($ordersCount <= 0 && Schema::hasTable('payments')) {
-                $ordersCount = Payment::whereBetween('created_at', [$dayStart, $dayEnd])
-                    ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
-                    ->count();
-            }
+            $ordersCount = Order::query()
+                ->whereBetween('created_at', [$dayStart, $dayEnd])
+                ->whereNotIn(DB::raw('LOWER(TRIM(status))'), ['cancelled', 'canceled', 'voided'])
+                ->count();
 
             $salesOrderTrends[] = [
                 'label' => $date->format('M d'),
-                'date' => $dateString,
+                'date' => $date->toDateString(),
                 'sales' => (float) $sales,
                 'orders' => (int) $ordersCount,
             ];
         }
 
-        $revenueByCategory = collect();
+        /*
+        |--------------------------------------------------------------------------
+        | Revenue by Category
+        |--------------------------------------------------------------------------
+        | Important fix:
+        | Use the parent orders table for the 7-day date filter. Some production
+        | order_items rows do not reliably carry the same created_at timing, which
+        | caused the category chart to show no data even when orders/revenue existed.
+        */
+        $revenueByCategory = DB::table('order_items')
+            ->join('orders', 'order_items.order_id', '=', 'orders.id')
+            ->leftJoin('menu_items', 'order_items.menu_item_id', '=', 'menu_items.id')
+            ->select(
+                DB::raw("COALESCE(menu_items.category, 'Uncategorized') as category"),
+                DB::raw('SUM(order_items.quantity * COALESCE(order_items.price, menu_items.price, 0)) as revenue')
+            )
+            ->whereIn(DB::raw('LOWER(TRIM(orders.payment_status))'), $this->paidStatuses)
+            ->where(function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('orders.paid_at', [$startDate, $endDate])
+                    ->orWhere(function ($fallbackQuery) use ($startDate, $endDate) {
+                        $fallbackQuery->whereNull('orders.paid_at')
+                            ->whereBetween('orders.created_at', [$startDate, $endDate]);
+                    });
+            })
+            ->groupBy(DB::raw("COALESCE(menu_items.category, 'Uncategorized')"))
+            ->orderByDesc('revenue')
+            ->limit(8)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'category' => $item->category ?: 'Uncategorized',
+                    'revenue' => (float) $item->revenue,
+                ];
+            });
 
-        if (Schema::hasTable('order_items') && Schema::hasTable('menu_items')) {
-            $revenueByCategory = DB::table('order_items')
-                ->join('menu_items', 'order_items.menu_item_id', '=', 'menu_items.id')
-                ->select(
-                    'menu_items.category',
-                    DB::raw('SUM(order_items.quantity * order_items.price) as revenue')
-                )
-                ->whereBetween('order_items.created_at', [$startDate, $endDate])
-                ->groupBy('menu_items.category')
-                ->orderByDesc('revenue')
-                ->limit(8)
-                ->get()
-                ->map(function ($item) {
-                    return [
-                        'category' => $item->category ?: 'Uncategorized',
-                        'revenue' => (float) $item->revenue,
-                    ];
-                });
-        }
+        /*
+        |--------------------------------------------------------------------------
+        | Menu Demand Forecast
+        |--------------------------------------------------------------------------
+        | Uses last 7 days of actual order_items joined to orders, then produces
+        | simple rule-based AI-style recommendations. This keeps your existing
+        | Reports & Forecast page and OpenAI integration untouched while ensuring
+        | the forecast chart/table always has usable data when order history exists.
+        */
+        $forecastDetails = DB::table('order_items')
+            ->join('orders', 'order_items.order_id', '=', 'orders.id')
+            ->leftJoin('menu_items', 'order_items.menu_item_id', '=', 'menu_items.id')
+            ->select(
+                'menu_items.id',
+                DB::raw("COALESCE(menu_items.name, 'Unknown Item') as name"),
+                DB::raw("COALESCE(menu_items.category, 'Uncategorized') as category"),
+                DB::raw('SUM(order_items.quantity) as total_sold_7d'),
+                DB::raw('COUNT(DISTINCT DATE(orders.created_at)) as active_sales_days')
+            )
+            ->whereBetween('orders.created_at', [$startDate, $endDate])
+            ->whereNotIn(DB::raw('LOWER(TRIM(orders.status))'), ['cancelled', 'canceled', 'voided'])
+            ->groupBy(
+                'menu_items.id',
+                DB::raw("COALESCE(menu_items.name, 'Unknown Item')"),
+                DB::raw("COALESCE(menu_items.category, 'Uncategorized')")
+            )
+            ->orderByDesc('total_sold_7d')
+            ->limit(12)
+            ->get()
+            ->map(function ($item) {
+                $sold7d = (int) $item->total_sold_7d;
+                $activeDays = max(1, (int) $item->active_sales_days);
+                $avgDaily = $sold7d / 7;
 
-        $forecastDetails = collect();
+                // Simple demand forecast: average daily demand + 15% buffer.
+                $predictedDemand = (int) max(1, ceil($avgDaily * 1.15));
 
-        if (Schema::hasTable('order_items') && Schema::hasTable('menu_items')) {
-            $forecastDetails = DB::table('order_items')
-                ->join('menu_items', 'order_items.menu_item_id', '=', 'menu_items.id')
-                ->select(
-                    'menu_items.id',
-                    'menu_items.name',
-                    'menu_items.category',
-                    DB::raw('SUM(order_items.quantity) as total_sold_7d'),
-                    DB::raw('COUNT(DISTINCT DATE(order_items.created_at)) as active_sales_days')
-                )
-                ->whereBetween('order_items.created_at', [$startDate, $endDate])
-                ->groupBy(
-                    'menu_items.id',
-                    'menu_items.name',
-                    'menu_items.category'
-                )
-                ->orderByDesc('total_sold_7d')
-                ->limit(12)
-                ->get()
-                ->map(function ($item) {
-                    $sold7d = (int) $item->total_sold_7d;
-                    $activeDays = max(1, (int) $item->active_sales_days);
+                if ($sold7d >= 20 && $activeDays >= 3) {
+                    $confidence = 'High';
+                    $recommendation = "High demand item. Prepare around {$predictedDemand} order(s) for the next operating day.";
+                } elseif ($sold7d >= 8 && $activeDays >= 2) {
+                    $confidence = 'Medium';
+                    $recommendation = "Moderate demand. Prepare around {$predictedDemand} order(s) and monitor stock.";
+                } else {
+                    $confidence = 'Low';
+                    $recommendation = "Low recent demand. Prepare only around {$predictedDemand} order(s) to avoid overstocking.";
+                }
 
-                    $avgDaily = $sold7d / 7;
-                    $predictedDemand = (int) max(1, ceil($avgDaily * 1.15));
-
-                    if ($sold7d >= 20 && $activeDays >= 3) {
-                        $confidence = 'High';
-                    } elseif ($sold7d >= 8 && $activeDays >= 2) {
-                        $confidence = 'Medium';
-                    } else {
-                        $confidence = 'Low';
-                    }
-
-                    return [
-                        'id' => $item->id,
-                        'name' => $item->name,
-                        'menu_item' => $item->name,
-                        'category' => $item->category ?: 'Uncategorized',
-                        'unit' => 'orders',
-                        'recent_sold_7d' => $sold7d,
-                        'sold_7d' => $sold7d,
-                        'total_sold' => $sold7d,
-                        'active_sales_days' => $activeDays,
-                        'predicted_demand' => $predictedDemand,
-                        'forecast_quantity' => $predictedDemand,
-                        'confidence' => $confidence,
-                        'recommendation' => "Prepare for approximately {$predictedDemand} order(s) next operating day.",
-                    ];
-                });
-        }
+                return [
+                    'id' => $item->id,
+                    'name' => $item->name,
+                    'menu_item' => $item->name,
+                    'category' => $item->category ?: 'Uncategorized',
+                    'unit' => 'orders',
+                    'recent_sold_7d' => $sold7d,
+                    'sold_7d' => $sold7d,
+                    'total_sold' => $sold7d,
+                    'total_sold_7d' => $sold7d,
+                    'active_sales_days' => $activeDays,
+                    'predicted_demand' => $predictedDemand,
+                    'forecast_quantity' => $predictedDemand,
+                    'confidence' => $confidence,
+                    'recommendation' => $recommendation,
+                ];
+            });
 
         $forecastConfidence = $totalOrders7d >= 20
             ? 'High'
             : ($totalOrders7d >= 8 ? 'Medium' : 'Low');
 
-        $summary = "This report summarizes the last 7 days of sales and order activity. Total revenue for the period is ₱"
+        $topForecastItem = $forecastDetails->first();
+        $topCategory = $revenueByCategory->first();
+
+        $summary = 'This report summarizes the last 7 days of sales and order activity. Total revenue for the period is ₱'
             . number_format((float) $totalRevenue7d, 2)
             . " from {$totalOrders7d} order(s). Forecasted next-day revenue is ₱"
             . number_format((float) $forecastedRevenue, 2)
-            . " based on recent 7-day performance.";
+            . ' based on recent 7-day performance.';
 
         $recommendations = [
             'Use this Reports & Forecast page for 7-day sales, revenue, and demand review.',
             'Use the Dashboard for today’s daily monitoring only.',
-            'Review top-selling menu items from the last 7 days before preparing tomorrow’s operations.',
         ];
+
+        if ($topForecastItem) {
+            $recommendations[] = "Top demand item: {$topForecastItem['name']} with {$topForecastItem['sold_7d']} order(s) sold in the last 7 days. Recommended prep: {$topForecastItem['predicted_demand']} order(s).";
+        } else {
+            $recommendations[] = 'No menu demand forecast yet. Forecast will appear after order item history is available.';
+        }
+
+        if ($topCategory) {
+            $recommendations[] = "Highest revenue category: {$topCategory['category']} with ₱" . number_format((float) $topCategory['revenue'], 2) . ' revenue.';
+        }
 
         return response()->json([
             'period_label' => 'Last 7 Days',
-            'period_start' => $startDate->toDateString(),
-            'period_end' => $endDate->toDateString(),
+            'period_start' => $startManila->toDateString(),
+            'period_end' => $endManila->toDateString(),
 
             'total_revenue_7d' => round((float) $totalRevenue7d, 2),
             'avg_order_value' => round((float) $avgOrderValue, 2),
@@ -603,5 +507,18 @@ class AdminReportController extends Controller
 
             'forecast_mode' => '7-day system forecast based on sales, orders, and menu demand',
         ]);
+    }
+
+    private function manilaDayUtcRange(string $date): array
+    {
+        $start = Carbon::parse($date, $this->timezone)
+            ->startOfDay()
+            ->timezone('UTC');
+
+        $end = Carbon::parse($date, $this->timezone)
+            ->endOfDay()
+            ->timezone('UTC');
+
+        return [$start, $end];
     }
 }

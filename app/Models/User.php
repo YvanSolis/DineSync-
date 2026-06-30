@@ -20,6 +20,7 @@ class User extends Authenticatable
         'table_number',
         'is_online',
         'last_seen_at',
+        'contact_number',
     ];
 
     protected $hidden = [

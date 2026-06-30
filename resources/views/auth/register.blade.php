@@ -101,6 +101,31 @@
                     <x-input-error :messages="$errors->get('email')" class="mt-2" />
                 </div>
 
+
+                <!-- CONTACT NUMBER -->
+                <div>
+                    <x-input-label for="contact_number" :value="__('Contact Number')" />
+
+                    <x-text-input
+                        id="contact_number"
+                        class="block mt-2 w-full rounded-xl border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-sm sm:text-base"
+                        type="tel"
+                        name="contact_number"
+                        :value="old('contact_number')"
+                        required
+                        autocomplete="tel"
+                        inputmode="tel"
+                        maxlength="13"
+                        placeholder="09171234567 or +639171234567"
+                    />
+
+                    <p class="text-xs text-gray-400 mt-1.5">
+                        Use a valid Philippine mobile number.
+                    </p>
+
+                    <x-input-error :messages="$errors->get('contact_number')" class="mt-2" />
+                </div>
+
                 <!-- PASSWORD -->
                 <div>
                     <x-input-label for="password" :value="__('Password')" />

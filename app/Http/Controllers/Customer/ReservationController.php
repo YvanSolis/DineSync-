@@ -38,10 +38,12 @@ class ReservationController extends Controller
     {
         $settings = RestaurantSetting::current();
         $reservationFee = $settings->reservation_fee;
+        $user = auth()->user();
 
         return view('customer.reservations.create', compact(
             'settings',
-            'reservationFee'
+            'reservationFee',
+            'user'
         ));
     }
 

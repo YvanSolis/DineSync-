@@ -6,6 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\RestaurantTable;
 use Illuminate\Http\Request;
+use App\Models\Ingredient;
+use App\Models\InventoryBatch;
+use App\Models\InventoryTransaction;
+use App\Models\OrderItem;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class KdsController extends Controller
 {
@@ -27,10 +33,17 @@ class KdsController extends Controller
         }
 
         $newStatus = strtolower(trim($request->status));
+        $oldStatus = strtolower(trim($order->status ?? 'pending'));
 
-        $order->status = $newStatus;
-        $order->updated_at = now();
-        $order->save();
+        DB::transaction(function () use ($order, $newStatus, $oldStatus) {
+            if ($newStatus === 'preparing' && $oldStatus !== 'preparing') {
+                $this->deductIngredientsForOrderIfNeeded($order);
+            }
+
+            $order->status = $newStatus;
+            $order->updated_at = now();
+            $order->save();
+        });
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -256,5 +269,194 @@ class KdsController extends Controller
 
             return $order;
         });
+    }
+
+    private function deductIngredientsForOrderIfNeeded(Order $order): void
+    {
+        if (
+            Schema::hasTable('ingredient_usages') &&
+            DB::table('ingredient_usages')
+                ->where('order_id', $order->id)
+                ->exists()
+        ) {
+            return;
+        }
+
+        $order->load(['items.menuItem.ingredients']);
+
+        foreach ($order->items as $orderItem) {
+            $menuItem = $orderItem->menuItem;
+
+            if (!$menuItem) {
+                continue;
+            }
+
+            if ($menuItem->category === 'Chef Oppa Special' || $menuItem->inventory_type === 'custom') {
+                continue;
+            }
+
+            foreach ($menuItem->ingredients as $ingredient) {
+                $requiredPerItem = (float) ($ingredient->pivot->quantity_required ?? 0);
+                $orderQuantity = (int) $orderItem->quantity;
+                $totalRequired = $requiredPerItem * $orderQuantity;
+
+                if ($totalRequired <= 0) {
+                    continue;
+                }
+
+                $this->deductIngredientStock($order, $orderItem, $ingredient, $totalRequired);
+            }
+        }
+    }
+
+    private function deductIngredientStock(Order $order, OrderItem $orderItem, Ingredient $ingredient, float $requiredQuantity): void
+    {
+        $remainingToDeduct = $requiredQuantity;
+
+        $batches = InventoryBatch::where('ingredient_id', $ingredient->id)
+            ->where('status', 'active')
+            ->where('quantity_remaining', '>', 0)
+            ->whereDate('expiry_date', '>=', now()->toDateString())
+            ->orderBy('expiry_date', 'asc')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($batches as $batch) {
+            if ($remainingToDeduct <= 0) {
+                break;
+            }
+
+            $availableInBatch = (float) $batch->quantity_remaining;
+            $deductedFromBatch = min($availableInBatch, $remainingToDeduct);
+
+            $batch->quantity_remaining = $availableInBatch - $deductedFromBatch;
+
+            if ($batch->quantity_remaining <= 0) {
+                $batch->quantity_remaining = 0;
+                $batch->status = 'used_up';
+            }
+
+            $batch->save();
+
+            $this->recordInventoryTransaction(
+                $ingredient,
+                $batch->id,
+                'stock_out',
+                $deductedFromBatch,
+                (float) ($batch->unit_cost ?? 0),
+                "Used for Order #{$order->order_number}"
+            );
+
+            $this->recordIngredientUsage(
+                $order,
+                $orderItem,
+                $ingredient,
+                $deductedFromBatch,
+                $batch->id
+            );
+
+            $remainingToDeduct -= $deductedFromBatch;
+        }
+
+        $this->syncIngredientStock($ingredient);
+    }
+
+    private function syncIngredientStock(Ingredient $ingredient): void
+    {
+        $today = now()->toDateString();
+
+        InventoryBatch::where('ingredient_id', $ingredient->id)
+            ->where('quantity_remaining', '<=', 0)
+            ->update([
+                'status' => 'used_up',
+            ]);
+
+        $totalUsableStock = InventoryBatch::where('ingredient_id', $ingredient->id)
+            ->where('status', 'active')
+            ->where('quantity_remaining', '>', 0)
+            ->whereDate('expiry_date', '>=', $today)
+            ->sum('quantity_remaining');
+
+        $ingredient->forceFill([
+            'current_stock' => $totalUsableStock,
+        ])->saveQuietly();
+    }
+
+    private function recordInventoryTransaction(
+        Ingredient $ingredient,
+        ?int $batchId,
+        string $type,
+        float $quantity,
+        float $unitCost,
+        string $remarks
+    ): void {
+        if (!Schema::hasTable('inventory_transactions')) {
+            return;
+        }
+
+        InventoryTransaction::create([
+            'ingredient_id' => $ingredient->id,
+            'inventory_batch_id' => $batchId,
+            'type' => $type,
+            'quantity' => $quantity,
+            'unit_cost' => $unitCost,
+            'total_cost' => $quantity * $unitCost,
+            'remarks' => $remarks,
+        ]);
+    }
+
+    private function recordIngredientUsage(
+    Order $order,
+    OrderItem $orderItem,
+    Ingredient $ingredient,
+    float $quantityUsed,
+    ?int $batchId
+): void {
+    if (!Schema::hasTable('ingredient_usages')) {
+        return;
+    }
+
+    $data = [
+        'created_at' => now(),
+        'updated_at' => now(),
+    ];
+
+    if (Schema::hasColumn('ingredient_usages', 'order_id')) {
+        $data['order_id'] = $order->id;
+    }
+
+    if (Schema::hasColumn('ingredient_usages', 'order_item_id')) {
+        $data['order_item_id'] = $orderItem->id;
+    }
+
+    if (Schema::hasColumn('ingredient_usages', 'menu_item_id')) {
+        $data['menu_item_id'] = $orderItem->menu_item_id;
+    }
+
+    if (Schema::hasColumn('ingredient_usages', 'ingredient_id')) {
+        $data['ingredient_id'] = $ingredient->id;
+    }
+
+    if (Schema::hasColumn('ingredient_usages', 'inventory_batch_id')) {
+        $data['inventory_batch_id'] = $batchId;
+    }
+
+    if (Schema::hasColumn('ingredient_usages', 'quantity_used')) {
+        $data['quantity_used'] = $quantityUsed;
+    }
+
+    if (Schema::hasColumn('ingredient_usages', 'quantity')) {
+        $data['quantity'] = $quantityUsed;
+    }
+
+    if (Schema::hasColumn('ingredient_usages', 'unit')) {
+        $data['unit'] = $ingredient->unit;
+    }
+
+    if (Schema::hasColumn('ingredient_usages', 'remarks')) {
+        $data['remarks'] = "Used for Order #{$order->order_number}";
+    }
+
+    DB::table('ingredient_usages')->insert($data);
     }
 }

@@ -439,7 +439,7 @@ function renderRevenueByCategoryChart(data) {
     revenueByCategoryChart = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
-            labels: labels.map(label => shortLabel(label, 18)),
+            labels: labels.map(label => shortLabel(label, 28)),
             datasets: [{
                 label: 'Revenue',
                 data: values,
@@ -463,6 +463,17 @@ function renderRevenueByCategoryChart(data) {
                 }
             },
             scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 0,
+                        minRotation: 0,
+                        autoSkip: false,
+                        callback: function(value) {
+                            const label = this.getLabelForValue(value);
+                            return label.length > 14 ? label.match(/.{1,14}/g) : label;
+                        }
+                    }
+                },
                 y: {
                     beginAtZero: true,
                     ticks: {

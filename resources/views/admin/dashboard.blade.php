@@ -2,7 +2,7 @@
 
 @section('content')
 
-<div class="space-y-5 sm:space-y-6">
+<div class="dashboard-print-area space-y-5 sm:space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div class="min-w-0">
@@ -12,9 +12,19 @@
             </p>
         </div>
 
-        <div class="bg-white border border-orange-100 rounded-2xl px-4 py-3 shadow-sm w-full sm:w-auto">
-            <p class="text-xs text-gray-500">Dashboard Scope</p>
-            <p class="text-sm font-bold text-orange-500">Today / Daily Monitoring</p>
+        <div class="no-print flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            <button
+                type="button"
+                onclick="printDashboard()"
+                class="inline-flex items-center justify-center rounded-2xl bg-orange-500 hover:bg-orange-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition"
+            >
+                Print / Save as PDF
+            </button>
+
+            <div class="bg-white border border-orange-100 rounded-2xl px-4 py-3 shadow-sm w-full sm:w-auto">
+                <p class="text-xs text-gray-500">Dashboard Scope</p>
+                <p class="text-sm font-bold text-orange-500">Today / Daily Monitoring</p>
+            </div>
         </div>
     </div>
 
@@ -87,7 +97,7 @@
                 </p>
             </div>
 
-            <div class="h-72 sm:h-80">
+            <div class="h-56 sm:h-64 lg:h-72">
                 <canvas id="topItemsChart"></canvas>
             </div>
         </div>
@@ -101,7 +111,7 @@
             </div>
 
             <div id="recentOrdersList" class="space-y-3">
-                <p class="text-sm text-gray-400">No recent orders today.</p>
+                <p class="text-sm text-gray-400">No active or pending orders right now.</p>
             </div>
         </div>
     </div>
@@ -151,6 +161,79 @@
         </div>
     </div>
 </div>
+
+
+<style>
+    @media print {
+        @page {
+            size: A4 portrait;
+            margin: 12mm;
+        }
+
+        html,
+        body {
+            background: #ffffff !important;
+            color: #111827 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .no-print,
+        aside,
+        nav,
+        header,
+        footer,
+        [class*="sidebar"],
+        [class*="Sidebar"],
+        button {
+            display: none !important;
+        }
+
+        main,
+        .content,
+        .dashboard-print-area {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        .space-y-5,
+        .space-y-6 {
+            gap: 12px !important;
+        }
+
+        .grid {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .rounded-2xl,
+        .rounded-xl {
+            border-radius: 10px !important;
+        }
+
+        .shadow-sm,
+        .shadow,
+        .shadow-lg,
+        .shadow-xl,
+        .shadow-2xl {
+            box-shadow: none !important;
+        }
+
+        .bg-white {
+            background: #ffffff !important;
+        }
+
+        canvas {
+            max-width: 100% !important;
+        }
+
+        a[href]::after {
+            content: "" !important;
+        }
+    }
+</style>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -214,6 +297,7 @@ function statusBadge(status) {
         reorder_soon: 'bg-orange-100 text-orange-700',
         near_expiry: 'bg-blue-100 text-blue-700',
         active: 'bg-green-100 text-green-700',
+        awaiting_payment: 'bg-blue-100 text-blue-700',
     };
 
     const labelMap = {
@@ -222,6 +306,7 @@ function statusBadge(status) {
         reorder_soon: 'Reorder Soon',
         near_expiry: 'Near Expiry',
         active: 'Healthy',
+        awaiting_payment: 'Awaiting Payment',
     };
 
     return `
@@ -287,13 +372,24 @@ function renderTopItemsChart(data) {
                 data: values,
                 backgroundColor: '#f97316',
                 borderRadius: 8,
-                maxBarThickness: 36
+                barPercentage: 0.72,
+                categoryPercentage: 0.72,
+                maxBarThickness: 28
             }]
         },
         options: {
             indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
+            resizeDelay: 150,
+            layout: {
+                padding: {
+                    top: 4,
+                    right: 8,
+                    bottom: 4,
+                    left: 0
+                }
+            },
             plugins: {
                 legend: {
                     display: false
@@ -308,13 +404,30 @@ function renderTopItemsChart(data) {
             scales: {
                 x: {
                     beginAtZero: true,
+                    grid: {
+                        drawBorder: false
+                    },
                     ticks: {
-                        precision: 0
+                        precision: 0,
+                        stepSize: 5,
+                        font: {
+                            size: window.innerWidth < 640 ? 10 : 11
+                        }
                     }
                 },
                 y: {
+                    grid: {
+                        display: false
+                    },
                     ticks: {
-                        autoSkip: false
+                        autoSkip: false,
+                        font: {
+                            size: window.innerWidth < 640 ? 10 : 11
+                        },
+                        callback: function(value) {
+                            const label = this.getLabelForValue(value);
+                            return window.innerWidth < 640 ? shortLabel(label, 16) : shortLabel(label, 24);
+                        }
                     }
                 }
             }
@@ -327,7 +440,7 @@ function renderRecentOrders(data) {
     const orders = pick(data, ['recent_orders_today', 'recent_orders'], []);
 
     if (!Array.isArray(orders) || orders.length === 0) {
-        container.innerHTML = '<p class="text-sm text-gray-400">No recent orders today.</p>';
+        container.innerHTML = '<p class="text-sm text-gray-400">No active or pending orders right now.</p>';
         return;
     }
 
@@ -338,16 +451,32 @@ function renderRecentOrders(data) {
         const total = pick(order, ['total_amount', 'amount'], 0);
         const time = pick(order, ['time', 'created_time'], '');
 
+        const paymentStatus = pick(order, ['payment_status'], null);
+        const method = pick(order, ['payment_method'], null);
+        const itemsSummary = pick(order, ['items_summary', 'items_text'], 'No items listed');
+        const shownStatus = String(status || '').toLowerCase() === 'awaiting_payment'
+            ? 'awaiting_payment'
+            : status;
+
         return `
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-xl border bg-gray-50">
-                <div class="min-w-0">
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 p-3 rounded-xl border bg-gray-50 hover:bg-orange-50/40 transition">
+                <div class="min-w-0 flex-1">
                     <p class="font-semibold truncate">${safeText(orderNumber)}</p>
-                    <p class="text-xs text-gray-500">Table ${safeText(tableNumber)} ${time ? '• ' + safeText(time) : ''}</p>
+                    <p class="text-xs text-gray-500 truncate">
+                        Table ${safeText(tableNumber)} ${time ? '• ' + safeText(time) : ''}
+                        ${method ? '• ' + safeText(method) : ''}
+                    </p>
+                    <p class="text-xs sm:text-sm text-gray-700 mt-1 line-clamp-2">
+                        ${safeText(itemsSummary)}
+                    </p>
                 </div>
 
-                <div class="sm:text-right shrink-0">
-                    <p class="text-sm font-bold text-gray-900">${formatMoney(total)}</p>
-                    <div class="mt-1">${statusBadge(status)}</div>
+                <div class="sm:text-right shrink-0 flex sm:block items-center justify-between gap-3">
+                    <div>
+                        <p class="text-sm font-bold text-gray-900">${formatMoney(total)}</p>
+                        ${paymentStatus ? `<p class="text-[11px] text-gray-400">${safeText(paymentStatus)}</p>` : ''}
+                    </div>
+                    <div class="mt-0 sm:mt-1">${statusBadge(shownStatus)}</div>
                 </div>
             </div>
         `;
@@ -458,6 +587,13 @@ function renderIngredientUsage(data) {
     }).join('');
 }
 
+
+function printDashboard() {
+    setTimeout(() => {
+        window.print();
+    }, 100);
+}
+
 async function loadDashboard() {
     try {
         const res = await fetch('/api/admin/dashboard', {
@@ -486,7 +622,33 @@ async function loadDashboard() {
     }
 }
 
-loadDashboard();
+function startDashboardLoading() {
+    loadDashboard();
+
+    setTimeout(() => {
+        loadDashboard();
+    }, 700);
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startDashboardLoading);
+} else {
+    startDashboardLoading();
+}
+
+window.addEventListener('load', () => {
+    loadDashboard();
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        loadDashboard();
+    }
+});
+
+window.addEventListener('focus', () => {
+    loadDashboard();
+});
 
 setInterval(() => {
     loadDashboard();

@@ -627,7 +627,7 @@ class ServiceStaffController extends Controller
                     ELSE 4
                 END
             ")
-            ->orderByRaw("COALESCE(paid_at, created_at) DESC")
+            ->orderBy('created_at', 'asc')
             ->paginate(12)
             ->withQueryString();
 
