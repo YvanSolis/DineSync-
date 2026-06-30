@@ -1005,107 +1005,23 @@ function getStockValue(ingredient) {
 function getBatchCount(ingredient) {
     if (!ingredient) return 0;
 
+    if (ingredient.batches_count !== undefined && ingredient.batches_count !== null) {
+        return Number(ingredient.batches_count || 0);
+    }
+
+    if (ingredient.stock_batches_count !== undefined && ingredient.stock_batches_count !== null) {
+        return Number(ingredient.stock_batches_count || 0);
+    }
+
+    if (ingredient.batch_count !== undefined && ingredient.batch_count !== null) {
+        return Number(ingredient.batch_count || 0);
+    }
+
     if (Array.isArray(ingredient.batches)) {
         return ingredient.batches.length;
     }
 
-    const possibleCountFields = [
-        'batch_count',
-        'batches_count',
-        'stock_batches_count',
-        'stock_batch_count',
-        'stock_batches',
-    ];
-
-    for (const field of possibleCountFields) {
-        if (
-            ingredient[field] !== undefined &&
-            ingredient[field] !== null &&
-            !Array.isArray(ingredient[field]) &&
-            !Number.isNaN(Number(ingredient[field]))
-        ) {
-            return Number(ingredient[field]);
-        }
-    }
-
     return 0;
-}
-
-async function fetchIngredientDetailsForBatchCount(ingredient) {
-    if (!ingredient || !ingredient.id) {
-        return ingredient;
-    }
-
-    if (
-        Array.isArray(ingredient.batches) ||
-        ingredient.batch_count !== undefined ||
-        ingredient.batches_count !== undefined ||
-        ingredient.stock_batches_count !== undefined ||
-        ingredient.stock_batch_count !== undefined
-    ) {
-        return {
-            ...ingredient,
-            batch_count: getBatchCount(ingredient),
-        };
-    }
-
-    try {
-        const res = await fetch(`/api/admin/ingredients/${ingredient.id}`, {
-            headers: {
-                'Accept': 'application/json',
-            }
-        });
-
-        if (!res.ok) {
-            return {
-                ...ingredient,
-                batch_count: 0,
-            };
-        }
-
-        const data = await res.json();
-
-        return {
-            ...ingredient,
-            ...data,
-            batch_count: getBatchCount(data),
-        };
-    } catch (error) {
-        console.warn(`Failed to load batch count for ingredient ${ingredient.id}:`, error);
-
-        return {
-            ...ingredient,
-            batch_count: 0,
-        };
-    }
-}
-
-async function enrichIngredientsWithBatchCounts(items) {
-    if (!Array.isArray(items) || !items.length) {
-        return [];
-    }
-
-    const enriched = [];
-
-    for (let index = 0; index < items.length; index += 8) {
-        const chunk = items.slice(index, index + 8);
-        const results = await Promise.allSettled(
-            chunk.map(item => fetchIngredientDetailsForBatchCount(item))
-        );
-
-        results.forEach((result, resultIndex) => {
-            if (result.status === 'fulfilled') {
-                enriched.push(result.value);
-            } else {
-                enriched.push({
-                    ...chunk[resultIndex],
-                    batch_count: getBatchCount(chunk[resultIndex]),
-                });
-            }
-        });
-    }
-
-    return enriched;
 }
 
 function getStatusMeta(status) {
@@ -1420,9 +1336,7 @@ async function loadIngredients() {
             return;
         }
 
-        const rawIngredients = await res.json();
-
-        ingredients = await enrichIngredientsWithBatchCounts(rawIngredients);
+        ingredients = await res.json();
         updateSummaryCards();
         applyFilters();
     } catch (error) {
@@ -1495,7 +1409,7 @@ function renderIngredientsTable() {
             <tr class="border-t hover:bg-gray-50 transition">
                 <td class="px-6 py-4">
                     <p class="font-semibold text-gray-900">${safeText(item.name)}</p>
-                    <p class="text-xs text-gray-400 mt-0.5">${safeText(formatNumber(getBatchCount(item)))} stock batch(es)</p>
+                    <p class="text-xs text-gray-400 mt-0.5">${safeText(getBatchCount(item))} stock batch(es)</p>
                 </td>
 
                 <td class="px-6 py-4 font-semibold text-gray-900">
@@ -1565,7 +1479,7 @@ function renderIngredientsMobileList() {
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                         <h3 class="font-bold text-gray-900">${safeText(item.name)}</h3>
-                        <p class="text-xs text-gray-400 mt-1">${safeText(formatNumber(getBatchCount(item)))} stock batch(es)</p>
+                        <p class="text-xs text-gray-400 mt-1">${safeText(getBatchCount(item))} stock batch(es)</p>
                     </div>
 
                     <div class="shrink-0">
@@ -1802,21 +1716,12 @@ function setManageStockStatusBadge(status) {
 function updateIngredientInMemory(updatedIngredient) {
     if (!updatedIngredient || !updatedIngredient.id) return;
 
-    const normalizedIngredient = {
-        ...updatedIngredient,
-        batch_count: getBatchCount(updatedIngredient),
-    };
-
     const index = ingredients.findIndex(item => Number(item.id) === Number(updatedIngredient.id));
 
     if (index >= 0) {
-        ingredients[index] = {
-            ...ingredients[index],
-            ...normalizedIngredient,
-            batch_count: getBatchCount(normalizedIngredient),
-        };
+        ingredients[index] = updatedIngredient;
     } else {
-        ingredients.push(normalizedIngredient);
+        ingredients.push(updatedIngredient);
     }
 
     updateSummaryCards();
@@ -1836,7 +1741,7 @@ function updateManageStockModalFromData(data) {
     document.getElementById('manageStockCurrentStock').textContent = `${formatNumber(stock)} ${data.unit || 'unit'}`;
     document.getElementById('manageStockUnit').textContent = data.unit || 'unit';
     document.getElementById('manageStockThreshold').textContent = formatNumber(data.threshold || 0);
-    document.getElementById('manageStockBatchCount').textContent = formatNumber(getBatchCount(data));
+    document.getElementById('manageStockBatchCount').textContent = Array.isArray(data.batches) ? data.batches.length : getBatchCount(data);
 
     setManageStockStatusBadge(data.stock_status);
     renderBatches(data.batches || []);
