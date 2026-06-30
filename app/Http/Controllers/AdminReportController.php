@@ -19,10 +19,10 @@ class AdminReportController extends Controller
         // Use Philippine time for the admin dashboard so today's sales/orders match the restaurant day.
         $timezone = 'Asia/Manila';
         $today = now($timezone)->toDateString();
-        $startOfToday = now($timezone)->startOfDay()->setTimezone(config('app.timezone', 'UTC'));
-        $endOfToday = now($timezone)->endOfDay()->setTimezone(config('app.timezone', 'UTC'));
+        $startOfToday = now($timezone)->startOfDay()->timezone('UTC');
+        $endOfToday = now($timezone)->endOfDay()->timezone('UTC');
 
-        $paidStatuses = ['paid', 'completed', 'success', 'successful'];
+        $paidStatuses = ['paid', 'completed', 'success', 'successful', 'verified', 'settled'];
 
         /*
         |--------------------------------------------------------------------------
@@ -94,32 +94,27 @@ class AdminReportController extends Controller
             }
         }
 
-        if (Schema::hasTable('payments')) {
-            $totalSalesToday = Payment::whereBetween('created_at', [$startOfToday, $endOfToday])
-                ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
-                ->sum('amount');
-        }
-
-        if ($totalSalesToday <= 0 && Schema::hasTable('orders')) {
-            $totalSalesToday = Order::whereBetween('created_at', [$startOfToday, $endOfToday])
-                ->where(function ($query) {
-                    if (Schema::hasColumn('orders', 'payment_status')) {
-                        $query->whereIn(DB::raw('LOWER(payment_status)'), [
-                            'paid',
-                            'completed',
-                            'success',
-                            'successful',
-                        ]);
-                    }
-
-                    if (Schema::hasColumn('orders', 'status')) {
-                        $query->orWhereIn(DB::raw('LOWER(status)'), [
-                            'served',
-                            'completed',
-                        ]);
+        if (Schema::hasTable('orders')) {
+            $totalSalesToday = Order::query()
+                ->whereIn(DB::raw('LOWER(payment_status)'), $paidStatuses)
+                ->where(function ($query) use ($startOfToday, $endOfToday) {
+                    if (Schema::hasColumn('orders', 'paid_at')) {
+                        $query->whereBetween('paid_at', [$startOfToday, $endOfToday])
+                            ->orWhere(function ($fallbackQuery) use ($startOfToday, $endOfToday) {
+                                $fallbackQuery->whereNull('paid_at')
+                                    ->whereBetween('created_at', [$startOfToday, $endOfToday]);
+                            });
+                    } else {
+                        $query->whereBetween('created_at', [$startOfToday, $endOfToday]);
                     }
                 })
                 ->sum('total_amount');
+        }
+
+        if ($totalSalesToday <= 0 && Schema::hasTable('payments')) {
+            $totalSalesToday = Payment::whereBetween('created_at', [$startOfToday, $endOfToday])
+                ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
+                ->sum('amount');
         }
 
         /*
@@ -388,21 +383,33 @@ class AdminReportController extends Controller
     public function reportsForecast(OpenAIForecastService $openAIForecastService)
     {
         $timezone = 'Asia/Manila';
-        $startDate = now($timezone)->subDays(6)->startOfDay()->setTimezone(config('app.timezone', 'UTC'));
-        $endDate = now($timezone)->endOfDay()->setTimezone(config('app.timezone', 'UTC'));
-        $paidStatuses = ['paid', 'completed', 'success', 'successful'];
+        $startDate = now($timezone)->subDays(6)->startOfDay()->timezone('UTC');
+        $endDate = now($timezone)->endOfDay()->timezone('UTC');
+        $paidStatuses = ['paid', 'completed', 'success', 'successful', 'verified', 'settled'];
 
         $totalRevenue7d = 0;
 
-        if (Schema::hasTable('payments')) {
+        if (Schema::hasTable('orders')) {
+            $totalRevenue7d = Order::query()
+                ->whereIn(DB::raw('LOWER(payment_status)'), $paidStatuses)
+                ->where(function ($query) use ($startDate, $endDate) {
+                    if (Schema::hasColumn('orders', 'paid_at')) {
+                        $query->whereBetween('paid_at', [$startDate, $endDate])
+                            ->orWhere(function ($fallbackQuery) use ($startDate, $endDate) {
+                                $fallbackQuery->whereNull('paid_at')
+                                    ->whereBetween('created_at', [$startDate, $endDate]);
+                            });
+                    } else {
+                        $query->whereBetween('created_at', [$startDate, $endDate]);
+                    }
+                })
+                ->sum('total_amount');
+        }
+
+        if ($totalRevenue7d <= 0 && Schema::hasTable('payments')) {
             $totalRevenue7d = Payment::whereBetween('created_at', [$startDate, $endDate])
                 ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
                 ->sum('amount');
-        }
-
-        if ($totalRevenue7d <= 0 && Schema::hasTable('orders')) {
-            $totalRevenue7d = Order::whereBetween('created_at', [$startDate, $endDate])
-                ->sum('total_amount');
         }
 
         $totalOrders7d = 0;
@@ -434,24 +441,39 @@ class AdminReportController extends Controller
             $sales = 0;
             $ordersCount = 0;
 
-            if (Schema::hasTable('payments')) {
-                $sales = Payment::whereDate('created_at', $dateString)
+            $dayStart = $date->copy()->startOfDay()->timezone('UTC');
+            $dayEnd = $date->copy()->endOfDay()->timezone('UTC');
+
+            if (Schema::hasTable('orders')) {
+                $sales = Order::query()
+                    ->whereIn(DB::raw('LOWER(payment_status)'), $paidStatuses)
+                    ->where(function ($query) use ($dayStart, $dayEnd) {
+                        if (Schema::hasColumn('orders', 'paid_at')) {
+                            $query->whereBetween('paid_at', [$dayStart, $dayEnd])
+                                ->orWhere(function ($fallbackQuery) use ($dayStart, $dayEnd) {
+                                    $fallbackQuery->whereNull('paid_at')
+                                        ->whereBetween('created_at', [$dayStart, $dayEnd]);
+                                });
+                        } else {
+                            $query->whereBetween('created_at', [$dayStart, $dayEnd]);
+                        }
+                    })
+                    ->sum('total_amount');
+            }
+
+            if ($sales <= 0 && Schema::hasTable('payments')) {
+                $sales = Payment::whereBetween('created_at', [$dayStart, $dayEnd])
                     ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
                     ->sum('amount');
             }
 
-            if ($sales <= 0 && Schema::hasTable('orders')) {
-                $sales = Order::whereDate('created_at', $dateString)
-                    ->sum('total_amount');
-            }
-
             if (Schema::hasTable('orders')) {
-                $ordersCount = Order::whereDate('created_at', $dateString)
+                $ordersCount = Order::whereBetween('created_at', [$dayStart, $dayEnd])
                     ->count();
             }
 
             if ($ordersCount <= 0 && Schema::hasTable('payments')) {
-                $ordersCount = Payment::whereDate('created_at', $dateString)
+                $ordersCount = Payment::whereBetween('created_at', [$dayStart, $dayEnd])
                     ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
                     ->count();
             }
