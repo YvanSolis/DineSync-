@@ -998,16 +998,27 @@ class ServiceStaffController extends Controller
 
                     /*
                     |--------------------------------------------------------------------------
-                    | IMPORTANT: Do not block QR PH paid status with inventory deduction
+                    | Inventory Deduction for Digital / QR PH Payments
                     |--------------------------------------------------------------------------
-                    | Mobile/tablet orders already pass inventory validation and deduct stock
-                    | when the order is created. If we try to deduct again here, the order can
-                    | stay stuck as Pending Payment even after Xendit says PAID.
-                    |
-                    | For Digital Payment / QR PH, Xendit is the source of truth for payment.
-                    | Once invoice status is PAID/SETTLED, mark the order paid and send it to
-                    | KDS by changing awaiting_payment back to pending.
+                    | When Xendit confirms the invoice as PAID/SETTLED, deduct the linked
+                    | ingredients before marking the order as paid. The deduction service is
+                    | already protected from double deductions through inventory_deducted_at
+                    | or existing ingredient usage records.
                     */
+                    try {
+                        app(InventoryDeductionService::class)->deductForOrder($order);
+                    } catch (ValidationException $e) {
+                        $message = collect($e->errors())->flatten()->first();
+
+                        Log::error('Inventory deduction failed after Xendit paid', [
+                            'order_id' => $order->id,
+                            'order_number' => $order->order_number,
+                            'message' => $message ?: 'Not enough stock to process this order.',
+                        ]);
+
+                        throw $e;
+                    }
+
                     $order->update($updateData);
 
                     if (Schema::hasTable('payments')) {
