@@ -16,7 +16,12 @@ class AdminReportController extends Controller
 {
     public function dashboard()
     {
-        $today = now()->toDateString();
+        // Use Philippine time for the admin dashboard so today's sales/orders match the restaurant day.
+        $timezone = 'Asia/Manila';
+        $today = now($timezone)->toDateString();
+        $startOfToday = now($timezone)->startOfDay()->setTimezone(config('app.timezone', 'UTC'));
+        $endOfToday = now($timezone)->endOfDay()->setTimezone(config('app.timezone', 'UTC'));
+
         $paidStatuses = ['paid', 'completed', 'success', 'successful'];
 
         /*
@@ -73,10 +78,10 @@ class AdminReportController extends Controller
         $totalSalesToday = 0;
 
         if (Schema::hasTable('orders')) {
-            $totalOrdersToday = Order::whereDate('created_at', $today)->count();
+            $totalOrdersToday = Order::whereBetween('created_at', [$startOfToday, $endOfToday])->count();
 
             if (Schema::hasColumn('orders', 'status')) {
-                $activeOrders = Order::whereDate('created_at', $today)
+                $activeOrders = Order::whereBetween('created_at', [$startOfToday, $endOfToday])
                     ->whereIn(DB::raw('LOWER(status)'), [
                         'pending',
                         'preparing',
@@ -90,13 +95,13 @@ class AdminReportController extends Controller
         }
 
         if (Schema::hasTable('payments')) {
-            $totalSalesToday = Payment::whereDate('created_at', $today)
+            $totalSalesToday = Payment::whereBetween('created_at', [$startOfToday, $endOfToday])
                 ->whereIn(DB::raw('LOWER(status)'), $paidStatuses)
                 ->sum('amount');
         }
 
         if ($totalSalesToday <= 0 && Schema::hasTable('orders')) {
-            $totalSalesToday = Order::whereDate('created_at', $today)
+            $totalSalesToday = Order::whereBetween('created_at', [$startOfToday, $endOfToday])
                 ->where(function ($query) {
                     if (Schema::hasColumn('orders', 'payment_status')) {
                         $query->whereIn(DB::raw('LOWER(payment_status)'), [
@@ -134,7 +139,7 @@ class AdminReportController extends Controller
                     DB::raw('COALESCE(menu_items.name, "Unknown Item") as name'),
                     DB::raw('SUM(order_items.quantity) as total_sold')
                 )
-                ->whereDate('orders.created_at', $today)
+                ->whereBetween('orders.created_at', [$startOfToday, $endOfToday])
                 ->groupBy('order_items.menu_item_id', 'menu_items.name')
                 ->orderByDesc('total_sold')
                 ->limit(5)
@@ -161,7 +166,7 @@ class AdminReportController extends Controller
 
         if (Schema::hasTable('orders')) {
             $recentOrdersToday = Order::query()
-                ->whereDate('created_at', $today)
+                ->whereBetween('created_at', [$startOfToday, $endOfToday])
                 ->latest()
                 ->limit(8)
                 ->get()
@@ -294,7 +299,7 @@ class AdminReportController extends Controller
                     'ingredients.unit',
                     DB::raw("SUM({$quantityColumn}) as quantity_used")
                 )
-                ->whereDate('ingredient_usages.created_at', $today)
+                ->whereBetween('ingredient_usages.created_at', [$startOfToday, $endOfToday])
                 ->groupBy('ingredients.id', 'ingredients.name', 'ingredients.unit')
                 ->orderByDesc('quantity_used')
                 ->limit(10)
@@ -319,7 +324,7 @@ class AdminReportController extends Controller
                     'ingredients.unit',
                     DB::raw('SUM(inventory_transactions.quantity) as quantity_used')
                 )
-                ->whereDate('inventory_transactions.created_at', $today)
+                ->whereBetween('inventory_transactions.created_at', [$startOfToday, $endOfToday])
                 ->whereIn(DB::raw('LOWER(inventory_transactions.type)'), [
                     'stock_out',
                     'out',
@@ -382,8 +387,9 @@ class AdminReportController extends Controller
 
     public function reportsForecast(OpenAIForecastService $openAIForecastService)
     {
-        $startDate = now()->subDays(6)->startOfDay();
-        $endDate = now()->endOfDay();
+        $timezone = 'Asia/Manila';
+        $startDate = now($timezone)->subDays(6)->startOfDay()->setTimezone(config('app.timezone', 'UTC'));
+        $endDate = now($timezone)->endOfDay()->setTimezone(config('app.timezone', 'UTC'));
         $paidStatuses = ['paid', 'completed', 'success', 'successful'];
 
         $totalRevenue7d = 0;
@@ -422,7 +428,7 @@ class AdminReportController extends Controller
         $salesOrderTrends = [];
 
         for ($i = 6; $i >= 0; $i--) {
-            $date = now()->subDays($i);
+            $date = now($timezone)->subDays($i);
             $dateString = $date->toDateString();
 
             $sales = 0;

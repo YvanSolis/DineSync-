@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\MenuItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class MenuItemController extends Controller
@@ -67,6 +68,7 @@ class MenuItemController extends Controller
     {
         $selectedCategory = $request->query('category');
         $search = $request->query('search');
+        $bestSellerIds = $this->getBestSellerIds();
 
         $query = MenuItem::query()
             ->select([
@@ -113,7 +115,7 @@ class MenuItemController extends Controller
             'meal_type_options' => $this->mealTypes,
             'selected_category' => $selectedCategory,
             'menu_items' => $menuItems
-                ->map(fn ($item) => $this->formatMenuItemResponse($item))
+                ->map(fn ($item) => $this->formatMenuItemResponse($item, $bestSellerIds))
                 ->values(),
         ]);
     }
@@ -445,14 +447,32 @@ class MenuItemController extends Controller
         return $maxOrderQuantity . ' orders available based on ingredients';
     }
 
-    private function formatMenuItemResponse(MenuItem $item): array
+    private function getBestSellerIds(): array
+    {
+        return DB::table('order_items')
+            ->select('menu_item_id')
+            ->selectRaw('SUM(quantity) as total_quantity')
+            ->whereNotNull('menu_item_id')
+            ->groupBy('menu_item_id')
+            ->orderByDesc('total_quantity')
+            ->limit(3)
+            ->pluck('menu_item_id')
+            ->map(fn ($id) => (int) $id)
+            ->toArray();
+    }
+
+    private function formatMenuItemResponse(MenuItem $item, ?array $bestSellerIds = null): array
     {
         $ingredients = $item->relationLoaded('ingredients')
             ? $item->ingredients
             : collect();
 
+        $bestSellerIds = $bestSellerIds ?? $this->getBestSellerIds();
+
         $maxOrderQuantity = $this->calculateMaxOrderQuantity($item);
         $stockLabel = $this->getStockLabel($item, $maxOrderQuantity);
+
+        $isBestSeller = in_array((int) $item->id, $bestSellerIds, true);
 
         return [
             'id' => $item->id,
@@ -463,6 +483,9 @@ class MenuItemController extends Controller
             'image' => $item->image,
             'image_url' => $item->image_url,
             'is_available' => (bool) $item->is_available,
+
+            'is_best_seller' => $isBestSeller,
+            'is_popular' => $isBestSeller,
 
             'flavor_tags' => $item->flavor_tags ?? [],
             'meal_type' => $item->meal_type,

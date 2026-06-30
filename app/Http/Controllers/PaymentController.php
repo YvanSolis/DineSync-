@@ -8,10 +8,26 @@ use App\Models\Reservation;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class PaymentController extends Controller
 {
     private string $timezone = 'Asia/Manila';
+
+    private array $completedStatuses = [
+        'completed',
+        'paid',
+        'success',
+        'successful',
+        'verified',
+        'settled',
+    ];
+
+    private array $pendingStatuses = [
+        'pending',
+        'processing',
+        'unpaid',
+    ];
 
     public function index(Request $request)
     {
@@ -33,34 +49,20 @@ class PaymentController extends Controller
             ->merge($reservationPayments)
             ->merge($legacyPayments)
             ->sortByDesc(function ($payment) {
-                return $payment['paid_at']
+                return $payment['transaction_date']
+                    ?? $payment['paid_at']
                     ?? $payment['created_at']
                     ?? $payment['updated_at']
                     ?? null;
             })
             ->values();
 
-        $completedStatuses = [
-            'completed',
-            'paid',
-            'success',
-            'successful',
-            'verified',
-            'settled',
-        ];
-
-        $pendingStatuses = [
-            'pending',
-            'processing',
-            'unpaid',
-        ];
-
-        $completed = $payments->filter(function ($payment) use ($completedStatuses) {
-            return in_array(strtolower($payment['status'] ?? ''), $completedStatuses, true);
+        $completed = $payments->filter(function ($payment) {
+            return in_array(strtolower($payment['status'] ?? ''), $this->completedStatuses, true);
         });
 
-        $pending = $payments->filter(function ($payment) use ($pendingStatuses) {
-            return in_array(strtolower($payment['status'] ?? ''), $pendingStatuses, true);
+        $pending = $payments->filter(function ($payment) {
+            return in_array(strtolower($payment['status'] ?? ''), $this->pendingStatuses, true);
         });
 
         return response()->json([
@@ -79,24 +81,60 @@ class PaymentController extends Controller
         ]);
     }
 
+    private function getManilaDayUtcRange(string $selectedDate): array
+    {
+        $start = Carbon::parse($selectedDate, $this->timezone)
+            ->startOfDay()
+            ->timezone('UTC');
+
+        $end = Carbon::parse($selectedDate, $this->timezone)
+            ->endOfDay()
+            ->timezone('UTC');
+
+        return [$start, $end];
+    }
+
+    private function applyPaymentDateFilter($query, string $table, string $selectedDate): void
+    {
+        [$start, $end] = $this->getManilaDayUtcRange($selectedDate);
+
+        $query->where(function ($query) use ($table, $start, $end) {
+            // Pending / Pay Later / Pay at Counter should follow ORDER CREATED DATE.
+            // This makes unpaid July 1 orders show on July 1 even before settlement.
+            $query->where(function ($pendingQuery) use ($table, $start, $end) {
+                $pendingQuery->whereIn(DB::raw("LOWER({$table}.payment_status)"), $this->pendingStatuses)
+                    ->whereBetween("{$table}.created_at", [$start, $end]);
+            })
+            // Completed payments should follow PAID DATE when available.
+            ->orWhere(function ($completedQuery) use ($table, $start, $end) {
+                $completedQuery->whereIn(DB::raw("LOWER({$table}.payment_status)"), $this->completedStatuses)
+                    ->where(function ($dateQuery) use ($table, $start, $end) {
+                        $dateQuery->whereBetween("{$table}.paid_at", [$start, $end])
+                            ->orWhere(function ($fallbackQuery) use ($table, $start, $end) {
+                                $fallbackQuery->whereNull("{$table}.paid_at")
+                                    ->whereBetween("{$table}.created_at", [$start, $end]);
+                            });
+                    });
+            })
+            // Fallback for old records without payment_status.
+            ->orWhere(function ($fallbackQuery) use ($table, $start, $end) {
+                $fallbackQuery->whereNull("{$table}.payment_status")
+                    ->whereBetween("{$table}.created_at", [$start, $end]);
+            });
+        });
+    }
+
     private function getLegacyPaymentRecords(string $mode, string $selectedDate): Collection
     {
+        [$start, $end] = $this->getManilaDayUtcRange($selectedDate);
+
         $query = Payment::with(['order.items.menuItem']);
 
         if ($mode !== 'all') {
-            $query->where(function ($query) use ($selectedDate) {
-                $query->whereRaw(
-                    "DATE(payments.created_at AT TIME ZONE ?) = ?",
-                    [$this->timezone, $selectedDate]
-                )
-                    ->orWhere(function ($subQuery) use ($selectedDate) {
-                        $subQuery->whereNull('payments.created_at')
-                            ->whereHas('order', function ($orderQuery) use ($selectedDate) {
-                                $orderQuery->whereRaw(
-                                    "DATE(orders.created_at AT TIME ZONE ?) = ?",
-                                    [$this->timezone, $selectedDate]
-                                );
-                            });
+            $query->where(function ($query) use ($start, $end) {
+                $query->whereBetween('payments.created_at', [$start, $end])
+                    ->orWhereHas('order', function ($orderQuery) use ($start, $end) {
+                        $orderQuery->whereBetween('orders.created_at', [$start, $end]);
                     });
             });
         }
@@ -106,6 +144,10 @@ class PaymentController extends Controller
             ->get()
             ->map(function ($payment) {
                 $order = $payment->order;
+                $status = $this->normalizePaymentStatus($payment->status ?? $order?->payment_status);
+                $transactionDate = in_array($status, $this->completedStatuses, true)
+                    ? ($order?->paid_at ?? $payment->created_at)
+                    : ($order?->created_at ?? $payment->created_at);
 
                 return [
                     'id' => 2000000 + (int) $payment->id,
@@ -118,10 +160,11 @@ class PaymentController extends Controller
                     'order_number' => $order?->order_number ?? ('Order #' . $payment->order_id),
                     'payment_method' => $payment->payment_method ?? $order?->payment_method ?? 'N/A',
                     'amount' => (float) ($payment->amount ?? 0),
-                    'status' => $this->normalizePaymentStatus($payment->status ?? $order?->payment_status),
+                    'status' => $status,
                     'created_at' => $this->safeDateIso($payment->created_at),
                     'updated_at' => $this->safeDateIso($payment->updated_at),
                     'paid_at' => $this->safeDateIso($order?->paid_at),
+                    'transaction_date' => $this->safeDateIso($transactionDate),
                     'order' => $order ? $this->formatOrderForReceipt($order) : null,
                 ];
             });
@@ -147,20 +190,7 @@ class PaymentController extends Controller
             ]);
 
         if ($mode !== 'all') {
-            $query->where(function ($query) use ($selectedDate) {
-                $query->whereRaw(
-                    "DATE(orders.created_at AT TIME ZONE ?) = ?",
-                    [$this->timezone, $selectedDate]
-                )
-                    ->orWhereRaw(
-                        "DATE(orders.paid_at AT TIME ZONE ?) = ?",
-                        [$this->timezone, $selectedDate]
-                    )
-                    ->orWhereRaw(
-                        "DATE(orders.updated_at AT TIME ZONE ?) = ?",
-                        [$this->timezone, $selectedDate]
-                    );
-            });
+            $this->applyPaymentDateFilter($query, 'orders', $selectedDate);
         }
 
         return $query
@@ -172,6 +202,11 @@ class PaymentController extends Controller
                     ?? $order->payment_reference
                     ?? $order->order_number
                     ?? ('ORDER-' . $order->id);
+
+                $status = $this->normalizePaymentStatus($order->payment_status ?? 'pending');
+                $transactionDate = in_array($status, $this->completedStatuses, true)
+                    ? ($order->paid_at ?? $order->created_at)
+                    : $order->created_at;
 
                 return [
                     'id' => 3000000 + (int) $order->id,
@@ -186,10 +221,11 @@ class PaymentController extends Controller
                     'order_number' => $order->order_number ?? ('Order #' . $order->id),
                     'payment_method' => $this->normalizePaymentMethod($order->payment_method),
                     'amount' => (float) ($order->total_amount ?? 0),
-                    'status' => $this->normalizePaymentStatus($order->payment_status ?? 'pending'),
+                    'status' => $status,
                     'created_at' => $this->safeDateIso($order->created_at),
                     'updated_at' => $this->safeDateIso($order->updated_at),
                     'paid_at' => $this->safeDateIso($order->paid_at),
+                    'transaction_date' => $this->safeDateIso($transactionDate),
                     'order' => $this->formatOrderForReceipt($order),
                 ];
             });
@@ -201,20 +237,7 @@ class PaymentController extends Controller
             ->whereNotNull('payment_method');
 
         if ($mode !== 'all') {
-            $query->where(function ($query) use ($selectedDate) {
-                $query->whereRaw(
-                    "DATE(reservations.created_at AT TIME ZONE ?) = ?",
-                    [$this->timezone, $selectedDate]
-                )
-                    ->orWhereRaw(
-                        "DATE(reservations.paid_at AT TIME ZONE ?) = ?",
-                        [$this->timezone, $selectedDate]
-                    )
-                    ->orWhereRaw(
-                        "DATE(reservations.updated_at AT TIME ZONE ?) = ?",
-                        [$this->timezone, $selectedDate]
-                    );
-            });
+            $this->applyPaymentDateFilter($query, 'reservations', $selectedDate);
         }
 
         return $query
@@ -227,6 +250,10 @@ class PaymentController extends Controller
                     ?? ('RESERVATION-' . $reservation->id);
 
                 $reservationNumber = '#RES-' . str_pad((string) $reservation->id, 4, '0', STR_PAD_LEFT);
+                $status = $this->normalizePaymentStatus($reservation->payment_status ?? 'pending');
+                $transactionDate = in_array($status, $this->completedStatuses, true)
+                    ? ($reservation->paid_at ?? $reservation->created_at)
+                    : $reservation->created_at;
 
                 return [
                     'id' => 4000000 + (int) $reservation->id,
@@ -241,15 +268,16 @@ class PaymentController extends Controller
                     'order_number' => $reservationNumber,
                     'payment_method' => $this->normalizePaymentMethod($reservation->payment_method ?? 'Xendit'),
                     'amount' => (float) ($reservation->reservation_fee_amount ?? 0),
-                    'status' => $this->normalizePaymentStatus($reservation->payment_status ?? 'pending'),
+                    'status' => $status,
                     'created_at' => $this->safeDateIso($reservation->created_at),
                     'updated_at' => $this->safeDateIso($reservation->updated_at),
                     'paid_at' => $this->safeDateIso($reservation->paid_at),
+                    'transaction_date' => $this->safeDateIso($transactionDate),
                     'order' => [
                         'id' => null,
                         'order_number' => $reservationNumber,
                         'payment_method' => $this->normalizePaymentMethod($reservation->payment_method ?? 'Xendit'),
-                        'payment_status' => $this->normalizePaymentStatus($reservation->payment_status ?? 'pending'),
+                        'payment_status' => $status,
                         'total_amount' => (float) ($reservation->reservation_fee_amount ?? 0),
                         'items' => [
                             [
