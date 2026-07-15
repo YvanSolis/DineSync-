@@ -2,6 +2,93 @@
 
 @section('content')
 
+
+<style>
+    .user-premium-card {
+        position: relative;
+        overflow: hidden;
+        transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+    }
+
+    .user-premium-card::after {
+        content: "";
+        position: absolute;
+        width: 96px;
+        height: 96px;
+        right: -36px;
+        top: -42px;
+        border-radius: 999px;
+        background: rgba(249, 115, 22, .06);
+        pointer-events: none;
+    }
+
+    .user-premium-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 18px 38px rgba(15, 23, 42, .08);
+        border-color: rgba(249, 115, 22, .22);
+    }
+
+    .user-modal-panel,
+    .user-confirm-panel {
+        animation: userModalIn .2s ease-out;
+    }
+
+    .user-toast {
+        animation: userToastIn .24s ease-out;
+    }
+
+    .user-skeleton {
+        position: relative;
+        overflow: hidden;
+        background: #f3f4f6;
+    }
+
+    .user-skeleton::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        transform: translateX(-100%);
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,.72), transparent);
+        animation: userShimmer 1.2s infinite;
+    }
+
+    @keyframes userModalIn {
+        from { opacity: 0; transform: translateY(12px) scale(.97); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes userToastIn {
+        from { opacity: 0; transform: translateY(-10px) translateX(16px); }
+        to { opacity: 1; transform: translateY(0) translateX(0); }
+    }
+
+    @keyframes userShimmer {
+        100% { transform: translateX(100%); }
+    }
+
+    @media (max-width: 640px) {
+        #userModal {
+            align-items: stretch !important;
+            justify-content: stretch !important;
+            padding: 0 !important;
+        }
+
+        #userModal > div {
+            width: 100% !important;
+            max-width: 100% !important;
+            height: 100dvh !important;
+            max-height: 100dvh !important;
+            border-radius: 0 !important;
+        }
+
+        #userForm input,
+        #userForm select {
+            font-size: 16px !important;
+        }
+    }
+</style>
+
+
 <div class="space-y-5 sm:space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -20,25 +107,25 @@
 
     <!-- Summary Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
+        <div class="user-premium-card bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
             <p class="text-sm text-gray-500 mb-2">Total Users</p>
             <h2 id="cardTotalUsers" class="text-2xl sm:text-3xl font-bold">0</h2>
             <p class="text-xs text-gray-400 mt-2">All saved accounts</p>
         </div>
 
-        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
+        <div class="user-premium-card bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
             <p class="text-sm text-gray-500 mb-2">Staff Accounts</p>
             <h2 id="cardStaffAccounts" class="text-2xl sm:text-3xl font-bold text-orange-500">0</h2>
             <p class="text-xs text-gray-400 mt-2">Admin, service, kitchen</p>
         </div>
 
-        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
+        <div class="user-premium-card bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
             <p class="text-sm text-gray-500 mb-2">Customers</p>
             <h2 id="cardCustomerAccounts" class="text-2xl sm:text-3xl font-bold text-green-500">0</h2>
             <p class="text-xs text-gray-400 mt-2">Registered customers</p>
         </div>
 
-        <div class="bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
+        <div class="user-premium-card bg-white rounded-2xl border shadow-sm p-4 sm:p-5">
             <p class="text-sm text-gray-500 mb-2">Table Accounts</p>
             <h2 id="cardTableAccounts" class="text-2xl sm:text-3xl font-bold text-blue-500">0</h2>
             <p class="text-xs text-gray-400 mt-2">Tablet ordering accounts</p>
@@ -72,7 +159,7 @@
     </div>
 
     <!-- Staff Accounts -->
-    <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+    <div class="user-premium-card bg-white rounded-2xl border shadow-sm overflow-hidden">
         <div class="p-4 sm:p-5 border-b bg-orange-50/40">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div class="min-w-0">
@@ -118,7 +205,7 @@
     </div>
 
     <!-- Customer Accounts -->
-    <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+    <div class="user-premium-card bg-white rounded-2xl border shadow-sm overflow-hidden">
         <div class="p-4 sm:p-5 border-b bg-green-50/40">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div class="min-w-0">
@@ -164,7 +251,7 @@
     </div>
 
     <!-- Table / Tablet Accounts -->
-    <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+    <div class="user-premium-card bg-white rounded-2xl border shadow-sm overflow-hidden">
         <div class="p-4 sm:p-5 border-b bg-blue-50/40">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div class="min-w-0">
@@ -212,8 +299,9 @@
 
 <!-- Add/Edit User Modal -->
 <div id="userModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-3 sm:p-4">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[92vh] overflow-hidden flex flex-col">
-        <div class="flex items-center justify-between gap-3 p-4 sm:p-5 border-b shrink-0">
+    <div class="user-modal-panel bg-white rounded-[28px] shadow-2xl w-full max-w-lg max-h-[92vh] overflow-hidden flex flex-col border border-orange-100">
+        <div class="relative flex items-center justify-between gap-3 p-5 sm:p-6 border-b shrink-0 bg-gradient-to-r from-orange-50 via-white to-amber-50 overflow-hidden">
+            <div class="absolute -right-10 -top-12 w-32 h-32 rounded-full bg-orange-100/60"></div>
             <div class="min-w-0">
                 <h3 id="userModalTitle" class="text-lg font-bold">Add User</h3>
                 <p class="text-xs text-gray-500">Create or update admin and staff accounts.</p>
@@ -270,10 +358,53 @@
     </div>
 </div>
 
+
+<!-- Premium Toast Container -->
+<div id="userToastContainer"
+    class="fixed top-4 right-4 z-[90] w-[calc(100%-2rem)] max-w-sm space-y-3 pointer-events-none">
+</div>
+
+<!-- Premium Confirmation Modal -->
+<div id="userConfirmModal"
+    class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div class="user-confirm-panel w-full max-w-md overflow-hidden rounded-[28px] border border-red-100 bg-white shadow-2xl">
+        <div class="bg-gradient-to-br from-red-50 via-white to-orange-50 px-6 py-6 text-center">
+            <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-red-200 bg-red-100 text-2xl font-black text-red-600">
+                !
+            </div>
+
+            <h3 id="userConfirmTitle" class="mt-4 text-2xl font-extrabold text-gray-900">
+                Confirm Action
+            </h3>
+
+            <p id="userConfirmMessage" class="mt-3 text-sm leading-6 text-gray-600">
+                Are you sure you want to continue?
+            </p>
+        </div>
+
+        <div class="border-t border-gray-100 px-6 py-5">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <button id="userConfirmCancelBtn" type="button"
+                    class="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 font-bold text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+
+                <button id="userConfirmProceedBtn" type="button"
+                    class="w-full rounded-2xl bg-red-600 px-4 py-3 font-bold text-white shadow-sm hover:bg-red-700">
+                    Delete User
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 let users = [];
 let filteredUsers = [];
 let editingUserId = null;
+let userMutationInProgress = false;
+let pendingDeleteUserId = null;
+let pendingDeleteButton = null;
 
 function safeText(value) {
     return String(value ?? '')
@@ -282,6 +413,112 @@ function safeText(value) {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
+}
+
+
+function showUserToast(message, type = 'success', duration = 3200) {
+    const container = document.getElementById('userToastContainer');
+    if (!container) return;
+
+    const styles = {
+        success: {
+            wrap: 'border-green-200 bg-white',
+            icon: 'bg-green-100 text-green-700',
+            title: 'Success',
+            symbol: '✓'
+        },
+        error: {
+            wrap: 'border-red-200 bg-white',
+            icon: 'bg-red-100 text-red-700',
+            title: 'Something went wrong',
+            symbol: '!'
+        },
+        warning: {
+            wrap: 'border-yellow-200 bg-white',
+            icon: 'bg-yellow-100 text-yellow-700',
+            title: 'Notice',
+            symbol: '!'
+        },
+        info: {
+            wrap: 'border-blue-200 bg-white',
+            icon: 'bg-blue-100 text-blue-700',
+            title: 'Information',
+            symbol: 'i'
+        }
+    };
+
+    const style = styles[type] || styles.success;
+    const toast = document.createElement('div');
+
+    toast.className = `user-toast pointer-events-auto rounded-2xl border ${style.wrap} p-4 shadow-2xl`;
+    toast.innerHTML = `
+        <div class="flex items-start gap-3">
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${style.icon} font-black">
+                ${style.symbol}
+            </div>
+
+            <div class="min-w-0 flex-1">
+                <p class="text-sm font-extrabold text-gray-900">${style.title}</p>
+                <p class="mt-1 text-sm leading-5 text-gray-600">${safeText(message)}</p>
+            </div>
+
+            <button type="button" class="text-lg text-gray-400 hover:text-gray-700">&times;</button>
+        </div>
+    `;
+
+    const removeToast = () => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(18px)';
+        toast.style.transition = '.18s ease';
+        setTimeout(() => toast.remove(), 180);
+    };
+
+    toast.querySelector('button').addEventListener('click', removeToast);
+    container.appendChild(toast);
+    setTimeout(removeToast, duration);
+}
+
+function animateUserCounter(elementId, target) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+
+    const end = Number(target || 0);
+    const startTime = performance.now();
+    const duration = 480;
+
+    function frame(now) {
+        const progress = Math.min((now - startTime) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        element.textContent = Math.round(end * eased).toLocaleString();
+
+        if (progress < 1) requestAnimationFrame(frame);
+    }
+
+    requestAnimationFrame(frame);
+}
+
+function openUserConfirmModal(user, button) {
+    pendingDeleteUserId = Number(user.id);
+    pendingDeleteButton = button || null;
+
+    document.getElementById('userConfirmTitle').textContent = 'Delete User Account';
+    document.getElementById('userConfirmMessage').textContent =
+        `Delete ${user.name}? This account will no longer be able to access the system.`;
+
+    const modal = document.getElementById('userConfirmModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.classList.add('overflow-hidden');
+}
+
+function closeUserConfirmModal() {
+    const modal = document.getElementById('userConfirmModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.classList.remove('overflow-hidden');
+
+    pendingDeleteUserId = null;
+    pendingDeleteButton = null;
 }
 
 function formatDate(value) {
@@ -411,10 +648,10 @@ function updateSummaryCards() {
     const customer = users.filter(user => getAccountGroup(user) === 'customer').length;
     const table = users.filter(user => getAccountGroup(user) === 'table').length;
 
-    document.getElementById('cardTotalUsers').textContent = users.length.toLocaleString();
-    document.getElementById('cardStaffAccounts').textContent = staff.toLocaleString();
-    document.getElementById('cardCustomerAccounts').textContent = customer.toLocaleString();
-    document.getElementById('cardTableAccounts').textContent = table.toLocaleString();
+    animateUserCounter('cardTotalUsers', users.length);
+    animateUserCounter('cardStaffAccounts', staff);
+    animateUserCounter('cardCustomerAccounts', customer);
+    animateUserCounter('cardTableAccounts', table);
 
     document.getElementById('staffCountBadge').textContent = `${staff} account${staff === 1 ? '' : 's'}`;
     document.getElementById('customerCountBadge').textContent = `${customer} account${customer === 1 ? '' : 's'}`;
@@ -449,20 +686,32 @@ async function loadUsers() {
 
 function setLoadingState() {
     const loadingRow5 = `
-        <tr>
-            <td colspan="5" class="px-6 py-8 text-center text-gray-400">
-                Loading accounts...
-            </td>
-        </tr>
+        ${Array.from({ length: 4 }).map(() => `
+            <tr class="border-t">
+                <td class="px-6 py-4"><div class="user-skeleton h-4 w-36 rounded-lg"></div></td>
+                <td class="px-6 py-4"><div class="user-skeleton h-7 w-24 rounded-full"></div></td>
+                <td class="px-6 py-4"><div class="user-skeleton h-4 w-48 rounded-lg"></div></td>
+                <td class="px-6 py-4"><div class="user-skeleton h-4 w-24 rounded-lg"></div></td>
+                <td class="px-6 py-4"><div class="user-skeleton ml-auto h-9 w-28 rounded-xl"></div></td>
+            </tr>
+        `).join('')}
     `;
 
     document.getElementById('staffUsersTableBody').innerHTML = loadingRow5;
     document.getElementById('customerUsersTableBody').innerHTML = loadingRow5;
     document.getElementById('tableUsersTableBody').innerHTML = loadingRow5;
 
-    document.getElementById('staffUsersMobileList').innerHTML = '<div class="px-4 py-8 text-center text-gray-400">Loading staff accounts...</div>';
-    document.getElementById('customerUsersMobileList').innerHTML = '<div class="px-4 py-8 text-center text-gray-400">Loading customer accounts...</div>';
-    document.getElementById('tableUsersMobileList').innerHTML = '<div class="px-4 py-8 text-center text-gray-400">Loading table accounts...</div>';
+    const mobileSkeleton = Array.from({ length: 3 }).map(() => `
+        <div class="rounded-2xl border bg-white p-4 shadow-sm">
+            <div class="user-skeleton h-5 w-40 rounded-lg"></div>
+            <div class="user-skeleton mt-3 h-4 w-56 max-w-full rounded-lg"></div>
+            <div class="user-skeleton mt-4 h-12 w-full rounded-xl"></div>
+        </div>
+    `).join('');
+
+    document.getElementById('staffUsersMobileList').innerHTML = mobileSkeleton;
+    document.getElementById('customerUsersMobileList').innerHTML = mobileSkeleton;
+    document.getElementById('tableUsersMobileList').innerHTML = mobileSkeleton;
 }
 
 function setErrorState(message) {
@@ -524,8 +773,12 @@ function renderUserTable(tbodyId, list, group) {
     if (!list.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="px-6 py-8 text-center text-gray-400">
-                    No ${group} accounts found.
+                <td colspan="5" class="px-6 py-12 text-center">
+                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-xl font-black text-orange-500">
+                        👤
+                    </div>
+                    <p class="mt-4 font-bold text-gray-900">No ${group} accounts found</p>
+                    <p class="mt-1 text-sm text-gray-500">Try changing the search or account filter.</p>
                 </td>
             </tr>
         `;
@@ -586,8 +839,10 @@ function renderUserCards(containerId, list, group) {
 
     if (!list.length) {
         container.innerHTML = `
-            <div class="px-4 py-8 text-center text-gray-400">
-                No ${group} accounts found.
+            <div class="rounded-2xl border border-dashed bg-gray-50 px-4 py-10 text-center">
+                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-lg shadow-sm">👤</div>
+                <p class="mt-3 font-bold text-gray-900">No ${group} accounts found</p>
+                <p class="mt-1 text-xs text-gray-500">Try changing the search or account filter.</p>
             </div>
         `;
         return;
@@ -660,7 +915,7 @@ function openUserModal(id = null) {
         if (!user) return;
 
         if (getAccountGroup(user) === 'customer') {
-            alert('Customer accounts are view-only for privacy and security.');
+            showUserToast('Customer accounts are view-only for privacy and security.', 'info');
             return;
         }
 
@@ -693,18 +948,24 @@ function openUserModal(id = null) {
     const modal = document.getElementById('userModal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+    document.body.classList.add('overflow-hidden');
 }
 
 function closeUserModal() {
+    if (userMutationInProgress) return;
+
     editingUserId = null;
 
     const modal = document.getElementById('userModal');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
+    document.body.classList.remove('overflow-hidden');
 }
 
 document.getElementById('userForm').addEventListener('submit', async function(e) {
     e.preventDefault();
+
+    if (userMutationInProgress) return;
 
     const saveBtn = document.getElementById('userSaveBtn');
 
@@ -728,7 +989,9 @@ document.getElementById('userForm').addEventListener('submit', async function(e)
         method = 'PUT';
     }
 
-    setButtonLoading(saveBtn, true, editingUserId ? 'Updating...' : 'Saving...');
+    const wasEditing = Boolean(editingUserId);
+    userMutationInProgress = true;
+    setButtonLoading(saveBtn, true, wasEditing ? 'Updating...' : 'Saving...');
 
     try {
         const res = await fetch(url, {
@@ -745,22 +1008,22 @@ document.getElementById('userForm').addEventListener('submit', async function(e)
         if (!res.ok) {
             if (data.errors) {
                 const firstError = Object.values(data.errors)[0][0];
-                alert(firstError);
+                showUserToast(firstError, 'error');
             } else {
-                alert(data.message || 'Failed to save user.');
+                showUserToast(data.message || 'Failed to save user.', 'error');
             }
 
             return;
         }
 
-        saveBtn.textContent = editingUserId ? 'Updated!' : 'Saved!';
-
         closeUserModal();
         await loadUsers();
+        showUserToast(wasEditing ? 'User account updated successfully.' : 'User account created successfully.', 'success');
     } catch (error) {
         console.error('Save user failed:', error);
-        alert('Failed to save user. Please check your connection.');
+        showUserToast('Failed to save user. Please check your connection.', 'error');
     } finally {
+        userMutationInProgress = false;
         setButtonLoading(saveBtn, false);
     }
 });
@@ -771,12 +1034,17 @@ async function deleteUser(id, button) {
     if (!user) return;
 
     if (getAccountGroup(user) === 'customer') {
-        alert('Customer accounts are view-only for privacy and security.');
+        showUserToast('Customer accounts are view-only for privacy and security.', 'info');
         return;
     }
 
-    if (!confirm(`Delete ${user.name}?`)) return;
+    openUserConfirmModal(user, button);
+}
 
+async function executeUserDelete(id, button) {
+    if (userMutationInProgress) return;
+
+    userMutationInProgress = true;
     setButtonLoading(button, true, 'Deleting...');
 
     try {
@@ -789,7 +1057,7 @@ async function deleteUser(id, button) {
 
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
-            alert(data.message || 'Failed to delete user.');
+            showUserToast(data.message || 'Failed to delete user.', 'error');
             return;
         }
 
@@ -797,16 +1065,56 @@ async function deleteUser(id, button) {
 
         updateSummaryCards();
         applyFilters();
+        showUserToast('User account deleted successfully.', 'success');
     } catch (error) {
         console.error('Delete user failed:', error);
-        alert('Failed to delete user. Please check your connection.');
+        showUserToast('Failed to delete user. Please check your connection.', 'error');
     } finally {
+        userMutationInProgress = false;
         setButtonLoading(button, false);
     }
 }
 
+document.getElementById('userConfirmCancelBtn').addEventListener('click', closeUserConfirmModal);
+
+document.getElementById('userConfirmProceedBtn').addEventListener('click', async function() {
+    const id = pendingDeleteUserId;
+    const button = pendingDeleteButton;
+
+    closeUserConfirmModal();
+
+    if (id) {
+        await executeUserDelete(id, button);
+    }
+});
+
+document.getElementById('userConfirmModal').addEventListener('click', function(event) {
+    if (event.target === this) {
+        closeUserConfirmModal();
+    }
+});
+
 document.getElementById('userSearch').addEventListener('input', applyFilters);
 document.getElementById('roleFilter').addEventListener('change', applyFilters);
+
+document.getElementById('userModal').addEventListener('click', function(event) {
+    if (event.target === this && !userMutationInProgress) {
+        closeUserModal();
+    }
+});
+
+document.addEventListener('keydown', function(event) {
+    if (event.key !== 'Escape') return;
+
+    if (!document.getElementById('userConfirmModal').classList.contains('hidden')) {
+        closeUserConfirmModal();
+        return;
+    }
+
+    if (!document.getElementById('userModal').classList.contains('hidden')) {
+        closeUserModal();
+    }
+});
 
 loadUsers();
 </script>

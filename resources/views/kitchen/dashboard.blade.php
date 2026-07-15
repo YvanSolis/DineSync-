@@ -104,6 +104,39 @@
             background: rgba(249, 115, 22, 0.55);
         }
 
+        .kds-view-switch {
+            display: inline-flex;
+            gap: 6px;
+            padding: 5px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.10);
+            background: rgba(255,255,255,0.06);
+        }
+
+        .kds-view-button {
+            padding: 8px 14px;
+            border-radius: 12px;
+            color: rgb(203, 213, 225);
+            font-size: 12px;
+            font-weight: 800;
+            transition: 0.2s ease;
+        }
+
+        .kds-view-button:hover {
+            color: white;
+            background: rgba(255,255,255,0.08);
+        }
+
+        .kds-view-button.active {
+            color: white;
+            background: rgb(249, 115, 22);
+            box-shadow: 0 8px 18px rgba(249,115,22,0.22);
+        }
+
+        .kds-board-view.hidden {
+            display: none;
+        }
+
         .kds-empty-state {
             height: 100%;
             min-height: 120px;
@@ -187,6 +220,16 @@
     $totalPreparing = $preparingOrders->count();
     $totalReady = $readyOrders->count();
     $totalServed = $servedOrders->count();
+
+    $requestedRefills = $refills['requested'] ?? collect();
+    $preparingRefills = $refills['preparing'] ?? collect();
+    $readyRefills = $refills['ready'] ?? collect();
+    $servedRefills = $refills['served'] ?? collect();
+
+    $totalRequestedRefills = $requestedRefills->count();
+    $totalPreparingRefills = $preparingRefills->count();
+    $totalReadyRefills = $readyRefills->count();
+    $totalServedRefills = $servedRefills->count();
 @endphp
 
 <div class="kds-page">
@@ -225,6 +268,29 @@
             </div>
 
             <div class="flex items-center gap-2 shrink-0">
+                <div class="kds-view-switch">
+                    <button
+                        type="button"
+                        id="ordersViewButton"
+                        class="kds-view-button active"
+                        onclick="switchKdsView('orders')"
+                    >
+                        Orders
+                    </button>
+
+                    <button
+                        type="button"
+                        id="refillsViewButton"
+                        class="kds-view-button"
+                        onclick="switchKdsView('refills')"
+                    >
+                        Refills
+                        <span id="refill-total-badge" class="ml-1 rounded-full bg-white/15 px-2 py-0.5 text-[10px]">
+                            {{ $totalRequestedRefills + $totalPreparingRefills + $totalReadyRefills }}
+                        </span>
+                    </button>
+                </div>
+
                 <div class="hidden sm:inline-flex items-center gap-2 bg-green-500/10 text-green-300 border border-green-400/20 px-3 py-2 rounded-2xl text-xs lg:text-sm font-bold shadow-sm">
                     <span class="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse"></span>
                     Online
@@ -246,8 +312,8 @@
         </div>
     </div>
 
-    {{-- KDS BOARD --}}
-    <div class="kds-board-grid">
+    {{-- ORDERS BOARD --}}
+    <div id="ordersBoard" class="kds-board-grid kds-board-view">
 
         {{-- NEW --}}
         <div class="kds-column-card border border-orange-400/20 rounded-3xl">
@@ -362,10 +428,138 @@
         </div>
 
     </div>
+
+    {{-- REFILLS BOARD --}}
+    <div id="refillsBoard" class="kds-board-grid kds-board-view hidden">
+
+        {{-- REQUESTED REFILLS --}}
+        <div class="kds-column-card border border-blue-400/20 rounded-3xl">
+            <div class="kds-column-header border-t-4 border-blue-500 bg-blue-500/10 flex justify-between items-center">
+                <div>
+                    <h2 class="text-sm lg:text-base font-extrabold tracking-wide text-blue-300 uppercase">Refill Requests</h2>
+                    <p class="text-[11px] text-slate-300">Waiting to start</p>
+                </div>
+
+                <span id="requested-refill-header-count" class="bg-blue-500/15 text-blue-300 border border-blue-400/25 px-3 py-1 rounded-full text-xs lg:text-sm font-bold">
+                    {{ $totalRequestedRefills }}
+                </span>
+            </div>
+
+            <div id="requested-refill-column" class="kds-column-body space-y-2">
+                @forelse ($requestedRefills as $refill)
+                    @include('kitchen.partials.refill-card', [
+                        'refill' => $refill,
+                        'buttonText' => 'Start Preparing',
+                        'nextStatus' => 'preparing',
+                        'buttonClass' => 'bg-blue-600 hover:bg-blue-700'
+                    ])
+                @empty
+                    <div class="kds-empty-state">No refill requests</div>
+                @endforelse
+            </div>
+        </div>
+
+        {{-- PREPARING REFILLS --}}
+        <div class="kds-column-card border border-yellow-400/20 rounded-3xl">
+            <div class="kds-column-header border-t-4 border-yellow-500 bg-yellow-500/10 flex justify-between items-center">
+                <div>
+                    <h2 class="text-sm lg:text-base font-extrabold tracking-wide text-yellow-300 uppercase">Preparing Refills</h2>
+                    <p class="text-[11px] text-slate-300">Currently in kitchen</p>
+                </div>
+
+                <span id="preparing-refill-header-count" class="bg-yellow-500/15 text-yellow-300 border border-yellow-400/25 px-3 py-1 rounded-full text-xs lg:text-sm font-bold">
+                    {{ $totalPreparingRefills }}
+                </span>
+            </div>
+
+            <div id="preparing-refill-column" class="kds-column-body space-y-2">
+                @forelse ($preparingRefills as $refill)
+                    @include('kitchen.partials.refill-card', [
+                        'refill' => $refill,
+                        'buttonText' => 'Mark Ready',
+                        'nextStatus' => 'ready',
+                        'buttonClass' => 'bg-green-600 hover:bg-green-700'
+                    ])
+                @empty
+                    <div class="kds-empty-state">No refills preparing</div>
+                @endforelse
+            </div>
+        </div>
+
+        {{-- READY REFILLS --}}
+        <div class="kds-column-card border border-green-400/20 rounded-3xl">
+            <div class="kds-column-header border-t-4 border-green-500 bg-green-500/10 flex justify-between items-center">
+                <div>
+                    <h2 class="text-sm lg:text-base font-extrabold tracking-wide text-green-300 uppercase">Ready Refills</h2>
+                    <p class="text-[11px] text-slate-300">Waiting for service</p>
+                </div>
+
+                <span id="ready-refill-header-count" class="bg-green-500/15 text-green-300 border border-green-400/25 px-3 py-1 rounded-full text-xs lg:text-sm font-bold">
+                    {{ $totalReadyRefills }}
+                </span>
+            </div>
+
+            <div id="ready-refill-column" class="kds-column-body space-y-2">
+                @forelse ($readyRefills as $refill)
+                    @include('kitchen.partials.refill-card', [
+                        'refill' => $refill,
+                        'buttonText' => 'Mark Served',
+                        'nextStatus' => 'served',
+                        'buttonClass' => 'bg-gray-800 hover:bg-black'
+                    ])
+                @empty
+                    <div class="kds-empty-state">No refills ready</div>
+                @endforelse
+            </div>
+        </div>
+
+        {{-- SERVED REFILLS --}}
+        <div class="kds-column-card border border-white/10 rounded-3xl">
+            <div class="kds-column-header border-t-4 border-slate-400 bg-white/5 flex justify-between items-center">
+                <div>
+                    <h2 class="text-sm lg:text-base font-extrabold tracking-wide text-slate-200 uppercase">Served Refills</h2>
+                    <p class="text-[11px] text-slate-300">Completed today</p>
+                </div>
+
+                <span id="served-refill-header-count" class="bg-white/10 text-slate-200 border border-white/15 px-3 py-1 rounded-full text-xs lg:text-sm font-bold">
+                    {{ $totalServedRefills }}
+                </span>
+            </div>
+
+            <div id="served-refill-column" class="kds-column-body space-y-2">
+                @forelse ($servedRefills as $refill)
+                    @include('kitchen.partials.refill-card', [
+                        'refill' => $refill,
+                        'buttonText' => null,
+                        'nextStatus' => null,
+                        'buttonClass' => ''
+                    ])
+                @empty
+                    <div class="kds-empty-state">No served refills today</div>
+                @endforelse
+            </div>
+        </div>
+
+    </div>
 </div>
 
 <script>
     let isUpdatingOrder = false;
+    let isUpdatingRefill = false;
+    let activeKdsView = localStorage.getItem('kdsActiveView') || 'orders';
+
+    function switchKdsView(view) {
+        activeKdsView = view === 'refills' ? 'refills' : 'orders';
+        localStorage.setItem('kdsActiveView', activeKdsView);
+
+        document.getElementById('ordersBoard').classList.toggle('hidden', activeKdsView !== 'orders');
+        document.getElementById('refillsBoard').classList.toggle('hidden', activeKdsView !== 'refills');
+
+        document.getElementById('ordersViewButton').classList.toggle('active', activeKdsView === 'orders');
+        document.getElementById('refillsViewButton').classList.toggle('active', activeKdsView === 'refills');
+    }
+
+    switchKdsView(activeKdsView);
 
     function updateClock() {
         const now = new Date();
@@ -383,24 +577,33 @@
     setInterval(updateClock, 1000);
 
     document.addEventListener('submit', async function (event) {
-        const form = event.target.closest('.kds-status-form');
+        const orderForm = event.target.closest('.kds-status-form');
+        const refillForm = event.target.closest('.kds-refill-status-form');
 
-        if (!form) {
+        if (!orderForm && !refillForm) {
             return;
         }
 
         event.preventDefault();
-        isUpdatingOrder = true;
 
+        const form = orderForm || refillForm;
+        const isRefill = Boolean(refillForm);
         const button = form.querySelector('button');
-        const card = form.closest('.order-card');
         const nextStatus = form.dataset.nextStatus;
         const formData = new FormData(form);
-        const originalText = button.textContent;
+        const originalText = button?.textContent || '';
 
-        button.disabled = true;
-        button.textContent = 'Updating...';
-        button.classList.add('opacity-70', 'cursor-not-allowed');
+        if (isRefill) {
+            isUpdatingRefill = true;
+        } else {
+            isUpdatingOrder = true;
+        }
+
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Updating...';
+            button.classList.add('opacity-70', 'cursor-not-allowed');
+        }
 
         try {
             const response = await fetch(form.action, {
@@ -412,88 +615,44 @@
                 body: formData
             });
 
-            if (!response.ok) {
-                throw new Error('Update failed');
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || 'Update failed.');
             }
 
-            moveOrderCard(card, nextStatus);
-
-            isUpdatingOrder = false;
-            silentRefreshBoard();
-
+            if (isRefill) {
+                await silentRefreshRefills(true);
+            } else {
+                await silentRefreshOrders(true);
+            }
         } catch (error) {
-            alert('Failed to update order status.');
+            alert(error.message || 'Failed to update status.');
 
-            isUpdatingOrder = false;
-            button.disabled = false;
-            button.textContent = originalText;
-            button.classList.remove('opacity-70', 'cursor-not-allowed');
+            if (button) {
+                button.disabled = false;
+                button.textContent = originalText;
+                button.classList.remove('opacity-70', 'cursor-not-allowed');
+            }
+        } finally {
+            if (isRefill) {
+                isUpdatingRefill = false;
+            } else {
+                isUpdatingOrder = false;
+            }
         }
     });
-
-    function moveOrderCard(card, status) {
-        const targetColumn = document.getElementById(status + '-column');
-
-        if (!targetColumn) {
-            return;
-        }
-
-        const emptyMessage = targetColumn.querySelector('.kds-empty-state, .h-full, .h-40');
-
-        if (emptyMessage) {
-            emptyMessage.remove();
-        }
-
-        targetColumn.prepend(card);
-        updateCardButton(card, status);
-    }
-
-    function updateCardButton(card, status) {
-        const form = card.querySelector('.kds-status-form');
-
-        if (!form) {
-            return;
-        }
-
-        const input = form.querySelector('input[name="status"]');
-        const button = form.querySelector('button');
-
-        button.disabled = false;
-        button.classList.remove('opacity-70', 'cursor-not-allowed');
-
-        if (status === 'preparing') {
-            form.dataset.nextStatus = 'ready';
-            input.value = 'ready';
-            button.textContent = 'Mark Ready';
-            button.className = 'w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-xl font-extrabold text-[11px] uppercase tracking-wide transition active:scale-[0.98] shadow-sm';
-        }
-
-        if (status === 'ready') {
-            form.dataset.nextStatus = 'served';
-            input.value = 'served';
-            button.textContent = 'Complete';
-            button.className = 'w-full bg-gray-700 hover:bg-gray-800 text-white py-2 rounded-xl font-extrabold text-[11px] uppercase tracking-wide transition active:scale-[0.98] shadow-sm';
-        }
-
-        if (status === 'served') {
-            form.outerHTML = `
-                <div class="w-full rounded-xl border border-gray-200 bg-gray-100 py-2 text-center text-[11px] font-extrabold text-gray-500 uppercase">
-                    Completed
-                </div>
-            `;
-        }
-    }
 
     function setTextIfExists(id, value) {
         const element = document.getElementById(id);
 
         if (element) {
-            element.textContent = value;
+            element.textContent = value ?? 0;
         }
     }
 
-    async function silentRefreshBoard() {
-        if (isUpdatingOrder || document.hidden) {
+    async function silentRefreshOrders(force = false) {
+        if ((!force && isUpdatingOrder) || document.hidden) {
             return;
         }
 
@@ -516,20 +675,67 @@
             document.getElementById('ready-column').innerHTML = data.html.ready;
             document.getElementById('served-column').innerHTML = data.html.served;
 
-            setTextIfExists('pending-count', data.counts.pending);
-            setTextIfExists('preparing-count', data.counts.preparing);
-            setTextIfExists('ready-count', data.counts.ready);
-            setTextIfExists('served-count', data.counts.served);
-
             setTextIfExists('pending-header-count', data.counts.pending);
             setTextIfExists('preparing-header-count', data.counts.preparing);
             setTextIfExists('ready-header-count', data.counts.ready);
             setTextIfExists('served-header-count', data.counts.served);
-
         } catch (error) {
-            console.log('Silent refresh failed.');
+            console.log('Order refresh failed.');
         }
     }
+
+    async function silentRefreshRefills(force = false) {
+        if ((!force && isUpdatingRefill) || document.hidden) {
+            return;
+        }
+
+        try {
+            const response = await fetch("{{ route('kitchen.refills.fetch') }}", {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+
+            document.getElementById('requested-refill-column').innerHTML = data.html.requested;
+            document.getElementById('preparing-refill-column').innerHTML = data.html.preparing;
+            document.getElementById('ready-refill-column').innerHTML = data.html.ready;
+            document.getElementById('served-refill-column').innerHTML = data.html.served;
+
+            setTextIfExists('requested-refill-header-count', data.counts.requested);
+            setTextIfExists('preparing-refill-header-count', data.counts.preparing);
+            setTextIfExists('ready-refill-header-count', data.counts.ready);
+            setTextIfExists('served-refill-header-count', data.counts.served);
+
+            const activeRefillCount =
+                Number(data.counts.requested || 0)
+                + Number(data.counts.preparing || 0)
+                + Number(data.counts.ready || 0);
+
+            setTextIfExists('refill-total-badge', activeRefillCount);
+        } catch (error) {
+            console.log('Refill refresh failed.');
+        }
+    }
+
+    async function silentRefreshBoard() {
+        await Promise.all([
+            silentRefreshOrders(),
+            silentRefreshRefills(),
+        ]);
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+            silentRefreshBoard();
+        }
+    });
 
     setInterval(silentRefreshBoard, 5000);
 </script>

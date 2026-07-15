@@ -96,6 +96,12 @@
             'active' => request()->is('admin/reports*'),
         ],
         [
+            'label' => 'Audit Trail',
+            'url' => url('/admin/audit-trail'),
+            'icon' => '📝',
+            'active' => request()->is('admin/audit-trail*'),
+        ],
+        [
             'label' => 'User Management',
             'url' => url('/admin/users'),
             'icon' => '♙',

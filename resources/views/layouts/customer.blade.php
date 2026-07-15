@@ -482,10 +482,185 @@
                 display: none;
             }
         }
+
+    
+        /* ================================
+           CHEF OPPA BRAND MATCH
+           Orange + charcoal + warm brown
+        ================================= */
+        :root {
+            --chef-orange: #f97316;
+            --chef-orange-dark: #ea580c;
+            --chef-charcoal: #111318;
+            --chef-ink: #17191f;
+            --chef-soft: #f8fafc;
+            --chef-line: #e5e7eb;
+        }
+
+        html,
+        body {
+            min-height: 100%;
+            background-color: var(--chef-charcoal);
+        }
+
+        body {
+            color: var(--chef-ink);
+            font-family: Figtree, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .customer-navbar {
+            background: rgba(255, 255, 255, 0.985);
+            border-bottom: 1px solid rgba(229, 231, 235, 0.95);
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+        }
+
+        .customer-nav-inner {
+            max-width: 1320px;
+            padding: 0.72rem 1.5rem;
+        }
+
+        .customer-brand-logo {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            box-shadow: 0 8px 18px rgba(249, 115, 22, 0.16);
+        }
+
+        .customer-brand-title {
+            color: #111827;
+            font-family: inherit;
+            font-size: 1rem !important;
+            font-weight: 900 !important;
+            letter-spacing: -0.02em;
+        }
+
+        .customer-brand-subtitle {
+            color: #9ca3af !important;
+            font-size: 0.67rem !important;
+            font-weight: 600;
+        }
+
+        .customer-desktop-links {
+            gap: 2rem !important;
+            font-size: 0.82rem !important;
+            font-weight: 800 !important;
+        }
+
+        .customer-desktop-links a {
+            position: relative;
+            color: #4b5563;
+            padding: 0.65rem 0;
+        }
+
+        .customer-desktop-links a::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 2px;
+            border-radius: 999px;
+            background: var(--chef-orange);
+            transform: scaleX(0);
+            transition: transform 180ms ease;
+        }
+
+        .customer-desktop-links a:hover,
+        .customer-desktop-links a.text-orange-500 {
+            color: var(--chef-orange) !important;
+        }
+
+        .customer-desktop-links a:hover::after,
+        .customer-desktop-links a.text-orange-500::after {
+            transform: scaleX(1);
+        }
+
+        .customer-desktop-auth button,
+        .customer-desktop-auth > a:last-child {
+            border-radius: 12px !important;
+            background: var(--chef-orange) !important;
+            border-color: var(--chef-orange) !important;
+            padding: 0.65rem 1rem !important;
+            box-shadow: none !important;
+        }
+
+        .customer-desktop-auth button:hover,
+        .customer-desktop-auth > a:last-child:hover {
+            background: var(--chef-orange-dark) !important;
+        }
+
+        .customer-menu-button,
+        .customer-mobile-logout {
+            border-radius: 12px;
+        }
+
+        .customer-mobile-panel {
+            background: #ffffff;
+            border-top-color: var(--chef-line);
+            box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
+        }
+
+        main {
+            position: relative;
+            background:
+                linear-gradient(135deg, rgba(12, 15, 22, 0.88), rgba(52, 27, 16, 0.80)),
+                url('{{ asset('images/customer-menu/kds-background.png') }}');
+            background-size: cover;
+            background-position: center;
+            background-attachment: scroll;
+        }
+
+        .customer-footer {
+            background:
+                linear-gradient(135deg, rgba(17, 24, 39, 0.99), rgba(3, 7, 18, 0.99));
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .customer-footer-inner {
+            max-width: 1320px;
+        }
+
+        #customer-chatbot-button {
+            width: 56px !important;
+            height: 56px !important;
+            border-radius: 18px !important;
+            background: var(--chef-orange) !important;
+            box-shadow: 0 14px 30px rgba(249, 115, 22, 0.28) !important;
+        }
+
+        #customer-chatbot-button:hover {
+            background: var(--chef-orange-dark) !important;
+        }
+
+        #customer-chatbot-window {
+            border-radius: 22px !important;
+            border-color: var(--chef-line) !important;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.24) !important;
+        }
+
+        #customer-chatbot-window > div:first-child {
+            background: #111827 !important;
+        }
+
+        @media (max-width: 640px) {
+            .customer-nav-inner {
+                padding: 0.58rem 0.9rem;
+            }
+
+            .customer-brand-logo {
+                width: 40px;
+                height: 40px;
+            }
+        }
+
     </style>
 </head>
 
-<body class="bg-[#f7f7f7] text-gray-800">
+<body class="text-gray-800">
 
     <!-- CUSTOMER NAVBAR -->
     <nav

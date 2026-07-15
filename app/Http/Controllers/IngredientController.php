@@ -6,6 +6,7 @@ use App\Models\Ingredient;
 use App\Models\InventoryBatch;
 use App\Models\InventoryTransaction;
 use App\Models\MenuItem;
+use App\Services\AuditService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -42,6 +43,21 @@ class IngredientController extends Controller
             'threshold' => $validated['threshold'],
         ]);
 
+        AuditService::record(
+            module: 'Inventory',
+            action: 'create',
+            description: "Created ingredient {$ingredient->name}.",
+            auditable: $ingredient,
+            oldValues: [],
+            newValues: $ingredient->only([
+                'name',
+                'current_stock',
+                'unit',
+                'threshold',
+            ]),
+            request: $request
+        );
+
         return response()->json(
             $this->freshFormattedIngredient($ingredient->id),
             201
@@ -72,25 +88,69 @@ class IngredientController extends Controller
             'threshold' => 'required|numeric|min:0',
         ]);
 
+        $oldValues = $ingredient->only([
+            'name',
+            'threshold',
+            'unit',
+            'current_stock',
+        ]);
+
         $ingredient->update([
             'name' => $validated['name'],
             'threshold' => $validated['threshold'],
         ]);
+
+        $ingredient->refresh();
+
+        AuditService::record(
+            module: 'Inventory',
+            action: 'update',
+            description: "Updated ingredient {$ingredient->name}.",
+            auditable: $ingredient,
+            oldValues: $oldValues,
+            newValues: $ingredient->only([
+                'name',
+                'threshold',
+                'unit',
+                'current_stock',
+            ]),
+            request: $request
+        );
 
         return response()->json(
             $this->freshFormattedIngredient($ingredient->id)
         );
     }
 
-    public function destroy(Ingredient $ingredient)
+    public function destroy(Request $request, Ingredient $ingredient)
     {
         $linkedMenuItems = $ingredient->menuItems()->get();
+
+        $oldValues = $ingredient->only([
+            'id',
+            'name',
+            'current_stock',
+            'unit',
+            'threshold',
+        ]);
+
+        $ingredientName = $ingredient->name;
 
         $ingredient->delete();
 
         foreach ($linkedMenuItems as $menuItem) {
             $menuItem->refreshAvailability();
         }
+
+        AuditService::record(
+            module: 'Inventory',
+            action: 'delete',
+            description: "Deleted ingredient {$ingredientName}.",
+            auditable: Ingredient::class,
+            oldValues: $oldValues,
+            newValues: [],
+            request: $request
+        );
 
         return response()->json([
             'message' => 'Ingredient deleted successfully.',
@@ -109,7 +169,7 @@ class IngredientController extends Controller
             'remarks' => 'nullable|string',
         ]);
 
-        return DB::transaction(function () use ($validated, $ingredient) {
+        return DB::transaction(function () use ($validated, $ingredient, $request) {
             $quantity = (float) $validated['quantity_received'];
             $unitCost = (float) $validated['unit_cost'];
             $expiryDate = $validated['expiry_date'];
@@ -142,6 +202,31 @@ class IngredientController extends Controller
             $this->syncIngredientStock($ingredient);
             $this->refreshLinkedMenuAvailability($ingredient);
 
+            $ingredient->refresh();
+
+            AuditService::record(
+                module: 'Inventory',
+                action: 'stock_in',
+                description: "Added {$quantity} {$validated['unit']} stock to {$ingredient->name}.",
+                auditable: $batch,
+                oldValues: [],
+                newValues: [
+                    'ingredient_id' => $ingredient->id,
+                    'ingredient_name' => $ingredient->name,
+                    'batch_id' => $batch->id,
+                    'quantity_received' => $quantity,
+                    'quantity_remaining' => (float) $batch->quantity_remaining,
+                    'unit' => $validated['unit'],
+                    'unit_cost' => $unitCost,
+                    'supplier' => $batch->supplier,
+                    'received_date' => $batch->received_date,
+                    'expiry_date' => $batch->expiry_date,
+                    'status' => $batch->status,
+                    'current_stock' => (float) $ingredient->current_stock,
+                ],
+                request: $request
+            );
+
             return response()->json(
                 $this->freshFormattedIngredient($ingredient->id, true),
                 201
@@ -167,7 +252,19 @@ class IngredientController extends Controller
             'remarks' => 'nullable|string',
         ]);
 
-        return DB::transaction(function () use ($validated, $ingredient, $batch) {
+        return DB::transaction(function () use ($validated, $ingredient, $batch, $request) {
+            $oldBatchValues = [
+                'quantity_received' => (float) $batch->quantity_received,
+                'quantity_remaining' => (float) $batch->quantity_remaining,
+                'unit_cost' => (float) $batch->unit_cost,
+                'received_date' => $batch->received_date,
+                'expiry_date' => $batch->expiry_date,
+                'supplier' => $batch->supplier,
+                'status' => $batch->status,
+                'remarks' => $batch->remarks,
+                'unit' => $ingredient->unit,
+            ];
+
             $oldQuantityReceived = (float) $batch->quantity_received;
             $oldQuantityRemaining = (float) $batch->quantity_remaining;
 
@@ -204,13 +301,37 @@ class IngredientController extends Controller
             $this->syncIngredientStock($ingredient);
             $this->refreshLinkedMenuAvailability($ingredient);
 
+            $batch->refresh();
+            $ingredient->refresh();
+
+            AuditService::record(
+                module: 'Inventory',
+                action: 'stock_adjustment',
+                description: "Updated stock batch #{$batch->id} for {$ingredient->name}.",
+                auditable: $batch,
+                oldValues: $oldBatchValues,
+                newValues: [
+                    'quantity_received' => (float) $batch->quantity_received,
+                    'quantity_remaining' => (float) $batch->quantity_remaining,
+                    'unit_cost' => (float) $batch->unit_cost,
+                    'received_date' => $batch->received_date,
+                    'expiry_date' => $batch->expiry_date,
+                    'supplier' => $batch->supplier,
+                    'status' => $batch->status,
+                    'remarks' => $batch->remarks,
+                    'unit' => $ingredient->unit,
+                    'current_stock' => (float) $ingredient->current_stock,
+                ],
+                request: $request
+            );
+
             return response()->json(
                 $this->freshFormattedIngredient($ingredient->id, true)
             );
         });
     }
 
-    public function deleteBatch(Ingredient $ingredient, InventoryBatch $batch)
+    public function deleteBatch(Request $request, Ingredient $ingredient, InventoryBatch $batch)
     {
         if ((int) $batch->ingredient_id !== (int) $ingredient->id) {
             return response()->json([
@@ -218,7 +339,21 @@ class IngredientController extends Controller
             ], 404);
         }
 
-        return DB::transaction(function () use ($ingredient, $batch) {
+        return DB::transaction(function () use ($ingredient, $batch, $request) {
+            $oldBatchValues = [
+                'id' => $batch->id,
+                'ingredient_id' => $ingredient->id,
+                'ingredient_name' => $ingredient->name,
+                'quantity_received' => (float) $batch->quantity_received,
+                'quantity_remaining' => (float) $batch->quantity_remaining,
+                'unit_cost' => (float) $batch->unit_cost,
+                'received_date' => $batch->received_date,
+                'expiry_date' => $batch->expiry_date,
+                'supplier' => $batch->supplier,
+                'status' => $batch->status,
+                'remarks' => $batch->remarks,
+            ];
+
             $this->recordInventoryTransaction(
                 $ingredient,
                 $batch->id,
@@ -228,14 +363,168 @@ class IngredientController extends Controller
                 'Stock batch deleted.'
             );
 
+            $batchId = $batch->id;
             $batch->delete();
 
             $this->syncIngredientStock($ingredient);
             $this->refreshLinkedMenuAvailability($ingredient);
 
+            AuditService::record(
+                module: 'Inventory',
+                action: 'delete_batch',
+                description: "Deleted stock batch #{$batchId} from {$ingredient->name}.",
+                auditable: InventoryBatch::class,
+                oldValues: $oldBatchValues,
+                newValues: [],
+                request: $request
+            );
+
             return response()->json(
                 $this->freshFormattedIngredient($ingredient->id, true)
             );
+        });
+    }
+
+    public function recordStockLoss(Request $request, Ingredient $ingredient)
+    {
+        $validated = $request->validate([
+            'type' => [
+                'required',
+                'string',
+                'in:damaged,waste,missing,manual_usage',
+            ],
+            'quantity' => [
+                'required',
+                'numeric',
+                'min:0.01',
+            ],
+            'remarks' => [
+                'required',
+                'string',
+                'max:1000',
+            ],
+        ]);
+
+        return DB::transaction(function () use ($validated, $ingredient, $request) {
+            $oldCurrentStock = (float) $ingredient->current_stock;
+            $quantityToDeduct = (float) $validated['quantity'];
+            $remainingToDeduct = $quantityToDeduct;
+            $today = now()->toDateString();
+
+            $availableStock = (float) InventoryBatch::where(
+                'ingredient_id',
+                $ingredient->id
+            )
+                ->where('status', 'active')
+                ->where('quantity_remaining', '>', 0)
+                ->whereDate('expiry_date', '>=', $today)
+                ->sum('quantity_remaining');
+
+            if ($availableStock < $quantityToDeduct) {
+                return response()->json([
+                    'message' => sprintf(
+                        'Not enough usable stock. Requested: %.2f %s, available: %.2f %s.',
+                        $quantityToDeduct,
+                        $ingredient->unit,
+                        $availableStock,
+                        $ingredient->unit
+                    ),
+                ], 422);
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | FIFO stock-loss deduction
+            |--------------------------------------------------------------------------
+            | Deduct first from the batch with the nearest expiry date.
+            */
+            $batches = InventoryBatch::where(
+                'ingredient_id',
+                $ingredient->id
+            )
+                ->where('status', 'active')
+                ->where('quantity_remaining', '>', 0)
+                ->whereDate('expiry_date', '>=', $today)
+                ->orderBy('expiry_date', 'asc')
+                ->orderBy('id', 'asc')
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($batches as $batch) {
+                if ($remainingToDeduct <= 0) {
+                    break;
+                }
+
+                $availableInBatch = (float) $batch->quantity_remaining;
+                $deductedFromBatch = min(
+                    $availableInBatch,
+                    $remainingToDeduct
+                );
+
+                $newRemaining = $availableInBatch - $deductedFromBatch;
+
+                $batch->update([
+                    'quantity_remaining' => max(0, $newRemaining),
+                    'status' => $newRemaining <= 0
+                        ? 'used_up'
+                        : 'active',
+                ]);
+
+                $this->recordInventoryTransaction(
+                    $ingredient,
+                    $batch->id,
+                    $validated['type'],
+                    $deductedFromBatch,
+                    (float) ($batch->unit_cost ?? 0),
+                    $this->getStockLossLabel($validated['type'])
+                        . ': '
+                        . $validated['remarks']
+                );
+
+                $remainingToDeduct -= $deductedFromBatch;
+            }
+
+            if ($remainingToDeduct > 0) {
+                throw new \RuntimeException(
+                    'Unable to complete the stock-loss deduction.'
+                );
+            }
+
+            $this->syncIngredientStock($ingredient);
+            $this->refreshLinkedMenuAvailability($ingredient);
+
+            $ingredient->refresh();
+
+            AuditService::record(
+                module: 'Inventory',
+                action: 'stock_loss',
+                description: "{$this->getStockLossLabel($validated['type'])} recorded for {$ingredient->name}.",
+                auditable: $ingredient,
+                oldValues: [
+                    'current_stock' => $oldCurrentStock,
+                ],
+                newValues: [
+                    'type' => $validated['type'],
+                    'quantity_deducted' => $quantityToDeduct,
+                    'unit' => $ingredient->unit,
+                    'remarks' => $validated['remarks'],
+                    'current_stock' => (float) $ingredient->current_stock,
+                ],
+                request: $request
+            );
+
+            return response()->json([
+                'message' => sprintf(
+                    '%s stock recorded successfully. %.2f %s was deducted.',
+                    $this->getStockLossLabel($validated['type']),
+                    $quantityToDeduct,
+                    $ingredient->unit
+                ),
+                'ingredient' => $this->freshFormattedIngredient(
+                    $ingredient->id,
+                    true
+                ),
+            ]);
         });
     }
 
@@ -718,4 +1007,16 @@ class IngredientController extends Controller
 
         return 'active';
     }
+
+    private function getStockLossLabel(string $type): string
+    {
+        return match ($type) {
+            'damaged' => 'Damaged stock',
+            'waste' => 'Waste',
+            'missing' => 'Missing stock',
+            'manual_usage' => 'Manual usage',
+            default => 'Stock adjustment',
+        };
+    }
+
 }

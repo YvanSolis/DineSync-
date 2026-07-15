@@ -36,6 +36,7 @@ Route::post('/xendit/webhook', [XenditWebhookController::class, 'handle'])
 Route::prefix('admin')->group(function () {
     Route::apiResource('ingredients', IngredientController::class);
     Route::post('ingredients/{ingredient}/stock', [IngredientController::class, 'addStock']);
+    Route::post('ingredients/{ingredient}/stock-loss', [IngredientController::class, 'recordStockLoss']);
     Route::put('ingredients/{ingredient}/batches/{batch}', [IngredientController::class, 'updateBatch']);
     Route::delete('ingredients/{ingredient}/batches/{batch}', [IngredientController::class, 'deleteBatch']);
 

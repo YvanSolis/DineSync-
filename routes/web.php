@@ -3,7 +3,9 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AdminReservationController;
 use App\Http\Controllers\AdminRestaurantSettingController;
+use App\Http\Controllers\AdminAuditLogController;
 use App\Http\Controllers\ServiceStaffController;
+use App\Http\Controllers\ServiceStaff\RefillController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\Kitchen\KdsController;
 use App\Http\Controllers\Customer\HomeController as CustomerHomeController;
@@ -81,6 +83,7 @@ Route::delete('/reservations/{reservation}', [CustomerReservationController::cla
 Route::post('/chatbot/ask', [CustomerChatbotController::class, 'ask'])
     ->middleware(['auth', 'role:customer'])
     ->name('customer.chatbot.ask');
+
 /*
 |--------------------------------------------------------------------------
 | Default Dashboard Redirect
@@ -111,64 +114,70 @@ Route::get('/dashboard', function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
-    Route::get('/dashboard', function () {
-        return view('admin.dashboard');
-    })->name('dashboard');
+Route::middleware(['auth', 'role:admin'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('/dashboard', function () {
+            return view('admin.dashboard');
+        })->name('dashboard');
 
-    Route::get('/menu-items', function () {
-        return view('admin.menu-items');
-    })->name('menu-items');
+        Route::get('/menu-items', function () {
+            return view('admin.menu-items');
+        })->name('menu-items');
 
-    Route::get('/ingredients', function () {
-        return view('admin.ingredients');
-    })->name('ingredients');
+        Route::get('/ingredients', function () {
+            return view('admin.ingredients');
+        })->name('ingredients');
 
-    Route::get('/payments', function () {
-        return view('admin.payments');
-    })->name('payments');
+        Route::get('/payments', function () {
+            return view('admin.payments');
+        })->name('payments');
 
-    Route::get('/reservations', [AdminReservationController::class, 'index'])
-    ->name('reservations');
+        Route::get('/reservations', [AdminReservationController::class, 'index'])
+            ->name('reservations');
 
-    Route::post('/reservations', [AdminReservationController::class, 'store'])
-        ->name('reservations.store');
+        Route::post('/reservations', [AdminReservationController::class, 'store'])
+            ->name('reservations.store');
 
-    Route::patch('/reservations/{reservation}/status', [AdminReservationController::class, 'updateStatus'])
-        ->name('reservations.update-status');
+        Route::patch('/reservations/{reservation}/status', [AdminReservationController::class, 'updateStatus'])
+            ->name('reservations.update-status');
 
-    Route::patch('/reservations/{reservation}/verify-payment', [AdminReservationController::class, 'verifyPayment'])
-        ->name('reservations.verify-payment');
+        Route::patch('/reservations/{reservation}/verify-payment', [AdminReservationController::class, 'verifyPayment'])
+            ->name('reservations.verify-payment');
 
-    Route::patch('/reservations/{reservation}/reject-payment', [AdminReservationController::class, 'rejectPayment'])
-        ->name('reservations.reject-payment');
-        
-    Route::get('/settings', [AdminRestaurantSettingController::class, 'edit'])
-        ->name('settings');
+        Route::patch('/reservations/{reservation}/reject-payment', [AdminReservationController::class, 'rejectPayment'])
+            ->name('reservations.reject-payment');
 
-    Route::patch('/settings', [AdminRestaurantSettingController::class, 'update'])
-        ->name('settings.update');
+        Route::get('/settings', [AdminRestaurantSettingController::class, 'edit'])
+            ->name('settings');
 
-    Route::get('/reports', function () {
-        return view('admin.reports');
-    })->name('reports');
+        Route::patch('/settings', [AdminRestaurantSettingController::class, 'update'])
+            ->name('settings.update');
 
-    Route::get('/users', function () {
-        return view('admin.users');
-    })->name('users');
+        Route::get('/reports', function () {
+            return view('admin.reports');
+        })->name('reports');
 
-    Route::get('/users/list', [UserController::class, 'index'])
-        ->name('users.list');
+        Route::get('/audit-trail', [AdminAuditLogController::class, 'index'])
+            ->name('audit-trail');
 
-    Route::post('/users', [UserController::class, 'store'])
-        ->name('users.store');
+        Route::get('/users', function () {
+            return view('admin.users');
+        })->name('users');
 
-    Route::put('/users/{user}', [UserController::class, 'update'])
-        ->name('users.update');
+        Route::get('/users/list', [UserController::class, 'index'])
+            ->name('users.list');
 
-    Route::delete('/users/{user}', [UserController::class, 'destroy'])
-        ->name('users.destroy');
-});
+        Route::post('/users', [UserController::class, 'store'])
+            ->name('users.store');
+
+        Route::put('/users/{user}', [UserController::class, 'update'])
+            ->name('users.update');
+
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])
+            ->name('users.destroy');
+    });
 
 /*
 |--------------------------------------------------------------------------
@@ -176,55 +185,68 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:staff'])->prefix('service')->name('service.')->group(function () {
-    Route::get('/dashboard', [ServiceStaffController::class, 'dashboard'])
-        ->name('dashboard');
+Route::middleware(['auth', 'role:staff'])
+    ->prefix('service')
+    ->name('service.')
+    ->group(function () {
+        Route::get('/dashboard', [ServiceStaffController::class, 'dashboard'])
+            ->name('dashboard');
 
-    Route::get('/ready-order-count', [ServiceStaffController::class, 'readyOrderCount'])
-        ->name('ready-order-count');
+        Route::get('/ready-order-count', [ServiceStaffController::class, 'readyOrderCount'])
+            ->name('ready-order-count');
 
-    Route::get('/active-orders', [ServiceStaffController::class, 'activeOrders'])
-        ->name('active-orders');
+        Route::get('/active-orders', [ServiceStaffController::class, 'activeOrders'])
+            ->name('active-orders');
 
-    Route::get('/payments', [ServiceStaffController::class, 'payments'])
-    ->name('payments');
+        Route::patch('/active-orders/{order}/status', [ServiceStaffController::class, 'updateOrderStatus'])
+            ->name('active-orders.update-status');
 
-    Route::patch('/active-orders/{order}/status', [ServiceStaffController::class, 'updateOrderStatus'])
-        ->name('active-orders.update-status');
+        /*
+        |--------------------------------------------------------------------------
+        | Unlimited Refill Tracking
+        |--------------------------------------------------------------------------
+        */
+        Route::post(
+            '/orders/{order}/items/{orderItem}/refills',
+            [RefillController::class, 'store']
+        )->name('orders.refills.store');
 
-    Route::patch('/orders/{order}/mark-paid', [ServiceStaffController::class, 'markOrderPaid'])
-    ->name('orders.mark-paid');
+        Route::get('/payments', [ServiceStaffController::class, 'payments'])
+            ->name('payments');
 
-    Route::patch('/orders/{order}/process-payment', [ServiceStaffController::class, 'processOrderPayment'])
-        ->name('orders.process-payment');
-    
-    Route::get('/table-monitoring', [ServiceStaffController::class, 'tableMonitoring'])
-        ->name('table-monitoring');
+        Route::patch('/orders/{order}/mark-paid', [ServiceStaffController::class, 'markOrderPaid'])
+            ->name('orders.mark-paid');
 
-    Route::patch('/table-monitoring/{table}/walk-in', [ServiceStaffController::class, 'assignWalkIn'])
-        ->name('table-monitoring.walk-in');
+        Route::patch('/orders/{order}/process-payment', [ServiceStaffController::class, 'processOrderPayment'])
+            ->name('orders.process-payment');
 
-    Route::patch('/table-monitoring/{table}/cleaning', [ServiceStaffController::class, 'markTableCleaning'])
-        ->name('table-monitoring.cleaning');
+        Route::get('/table-monitoring', [ServiceStaffController::class, 'tableMonitoring'])
+            ->name('table-monitoring');
 
-    Route::patch('/table-monitoring/{table}/available', [ServiceStaffController::class, 'markTableAvailable'])
-        ->name('table-monitoring.available');
+        Route::patch('/table-monitoring/{table}/walk-in', [ServiceStaffController::class, 'assignWalkIn'])
+            ->name('table-monitoring.walk-in');
 
-    Route::get('/reservations', [ServiceStaffController::class, 'reservations'])
-        ->name('reservations');
+        Route::patch('/table-monitoring/{table}/cleaning', [ServiceStaffController::class, 'markTableCleaning'])
+            ->name('table-monitoring.cleaning');
 
-    Route::patch('/reservations/{reservation}/status', [ServiceStaffController::class, 'updateReservationStatus'])
-        ->name('reservations.update-status');
+        Route::patch('/table-monitoring/{table}/available', [ServiceStaffController::class, 'markTableAvailable'])
+            ->name('table-monitoring.available');
 
-    Route::patch('/reservations/{reservation}/verify-payment', [ServiceStaffController::class, 'verifyReservationPayment'])
-        ->name('reservations.verify-payment');
+        Route::get('/reservations', [ServiceStaffController::class, 'reservations'])
+            ->name('reservations');
 
-    Route::patch('/reservations/{reservation}/reject-payment', [ServiceStaffController::class, 'rejectReservationPayment'])
-        ->name('reservations.reject-payment');
+        Route::patch('/reservations/{reservation}/status', [ServiceStaffController::class, 'updateReservationStatus'])
+            ->name('reservations.update-status');
 
-    Route::get('/customer-assistance', [ServiceStaffController::class, 'customerAssistance'])
-        ->name('customer-assistance');
-});
+        Route::patch('/reservations/{reservation}/verify-payment', [ServiceStaffController::class, 'verifyReservationPayment'])
+            ->name('reservations.verify-payment');
+
+        Route::patch('/reservations/{reservation}/reject-payment', [ServiceStaffController::class, 'rejectReservationPayment'])
+            ->name('reservations.reject-payment');
+
+        Route::get('/customer-assistance', [ServiceStaffController::class, 'customerAssistance'])
+            ->name('customer-assistance');
+    });
 
 /*
 |--------------------------------------------------------------------------
@@ -232,16 +254,25 @@ Route::middleware(['auth', 'role:staff'])->prefix('service')->name('service.')->
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'kitchen.staff'])->prefix('kitchen')->name('kitchen.')->group(function () {
-    Route::get('/dashboard', [KdsController::class, 'index'])
-        ->name('dashboard');
+Route::middleware(['auth', 'kitchen.staff'])
+    ->prefix('kitchen')
+    ->name('kitchen.')
+    ->group(function () {
+        Route::get('/dashboard', [KdsController::class, 'index'])
+            ->name('dashboard');
 
-    Route::get('/orders/fetch', [KdsController::class, 'fetchOrders'])
-        ->name('orders.fetch');
+        Route::get('/orders/fetch', [KdsController::class, 'fetchOrders'])
+            ->name('orders.fetch');
 
-    Route::patch('/orders/{order}/status', [KdsController::class, 'updateStatus'])
-        ->name('orders.status');
-});
+        Route::patch('/orders/{order}/status', [KdsController::class, 'updateStatus'])
+            ->name('orders.status');
+
+        Route::get('/refills/fetch', [KdsController::class, 'fetchRefills'])
+            ->name('refills.fetch');
+
+        Route::patch('/refills/{refill}/status', [KdsController::class, 'updateRefillStatus'])
+            ->name('refills.update-status');
+    });
 
 /*
 |--------------------------------------------------------------------------

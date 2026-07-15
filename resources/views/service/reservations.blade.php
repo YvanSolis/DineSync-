@@ -213,11 +213,109 @@
     }
 </style>
 
-<div class="service-reservations-shell space-y-6">
+<style>
+    .service-premium-shell {
+        position: relative;
+    }
+
+    .service-premium-hero {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(254, 215, 170, 0.9);
+        border-radius: 1.75rem;
+        background:
+            radial-gradient(circle at top right, rgba(251, 146, 60, 0.18), transparent 30%),
+            linear-gradient(135deg, rgba(255, 247, 237, 0.98), rgba(255, 255, 255, 0.98) 55%, rgba(255, 251, 235, 0.98));
+        box-shadow: 0 20px 50px rgba(249, 115, 22, 0.08);
+    }
+
+    .service-premium-stat {
+        position: relative;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.97);
+        border: 1px solid rgba(226, 232, 240, 0.95);
+        border-radius: 1.2rem;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.055);
+        padding: 1rem 1.15rem;
+        min-height: 96px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .service-premium-panel {
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid rgba(226, 232, 240, 0.95);
+        border-radius: 1.5rem;
+        box-shadow: 0 18px 46px rgba(15, 23, 42, 0.065);
+        overflow: hidden;
+        backdrop-filter: blur(14px);
+    }
+
+    .service-premium-shell table thead {
+        background: linear-gradient(to right, #fff7ed, #ffffff, #fffbeb);
+    }
+
+    .service-premium-shell table tbody tr {
+        transition: background-color .18s ease;
+    }
+
+    .service-premium-shell table tbody tr:hover {
+        background: rgba(255, 247, 237, .65);
+    }
+
+    .service-premium-shell input,
+    .service-premium-shell select,
+    .service-premium-shell textarea {
+        border-radius: .9rem !important;
+    }
+
+    @media (max-width: 640px) {
+        .service-premium-hero {
+            border-radius: 1.35rem;
+        }
+
+        .service-premium-panel {
+            border-radius: 1.25rem;
+        }
+    }
+</style>
+
+
+<div class="service-premium-shell service-reservations-shell space-y-6">
+
+    <section class="service-premium-hero px-5 py-6 sm:px-7">
+        <div class="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+                <span class="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-orange-600">
+                    Guest Reservations
+                </span>
+
+                <h1 class="mt-3 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                    Reservations
+                </h1>
+
+                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                    Manage payment verification, arrivals, seating, and reservation completion.
+                </p>
+            </div>
+
+            <div class="rounded-2xl border border-orange-100 bg-white/90 px-4 py-3 shadow-sm">
+                <p class="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    Selected Date
+                </p>
+
+                <p class="mt-1 text-sm font-black text-slate-900">
+                    {{ $selectedDate }}
+                </p>
+            </div>
+        </div>
+    </section>
+
 
     {{-- STATS --}}
     <div class="reservation-stats-grid">
-        <div class="reservation-stat-card">
+        <div class="reservation-stat-card service-premium-stat">
             <p class="text-xs font-semibold text-gray-500">
                 Selected Date
             </p>
@@ -226,7 +324,7 @@
             </p>
         </div>
 
-        <div class="reservation-stat-card">
+        <div class="reservation-stat-card service-premium-stat">
             <p class="text-xs font-semibold text-gray-500">
                 Total
             </p>
@@ -235,7 +333,7 @@
             </p>
         </div>
 
-        <div class="reservation-stat-card">
+        <div class="reservation-stat-card service-premium-stat">
             <p class="text-xs font-semibold text-gray-500">
                 Pending
             </p>
@@ -244,7 +342,7 @@
             </p>
         </div>
 
-        <div class="reservation-stat-card">
+        <div class="reservation-stat-card service-premium-stat">
             <p class="text-xs font-semibold text-gray-500">
                 Approved
             </p>
@@ -268,7 +366,7 @@
     @endif
 
     {{-- RESERVATION PANEL --}}
-    <div class="reservation-panel">
+    <div class="reservation-panel service-premium-panel">
         <div class="p-5 lg:p-6 border-b border-gray-100">
             <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
                 <div>
@@ -1039,5 +1137,19 @@ setInterval(() => {
     window.location.reload();
 }, 30000);
 </script>
+
+
+<style>
+    .reservation-stats-grid .service-premium-stat {
+        padding: 1rem 1.15rem !important;
+        min-width: 0;
+        overflow: visible;
+    }
+
+    .reservation-stats-grid .service-premium-stat p {
+        margin-left: 0 !important;
+        line-height: 1.35;
+    }
+</style>
 
 @endsection

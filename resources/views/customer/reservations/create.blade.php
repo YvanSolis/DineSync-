@@ -32,14 +32,14 @@
         background-image:
             linear-gradient(
                 135deg,
-                rgba(15, 23, 42, 0.72),
-                rgba(67, 31, 12, 0.62)
+                rgba(12, 15, 22, 0.84),
+                rgba(62, 31, 18, 0.76)
             ),
             url('{{ asset('images/customer-menu/kds-background.png') }}');
         background-size: cover;
         background-position: center;
-        background-attachment: fixed;
-        background-color: #0f172a;
+        background-attachment: scroll;
+        background-color: #111318;
     }
 
     .reservation-create-page {
@@ -55,7 +55,7 @@
             url('{{ asset('images/customer-menu/kds-background.png') }}');
         background-size: cover;
         background-position: center;
-        background-attachment: fixed;
+        background-attachment: scroll;
     }
 
     @media (max-width: 1023px) {
@@ -83,13 +83,15 @@
     }
 
     .glass-card {
-        background: rgba(255, 255, 255, 0.93);
+        border-radius: 1.5rem;
+        background: rgba(255, 255, 255, 0.98);
         border: 1px solid rgba(255, 255, 255, 0.35);
-        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
-        backdrop-filter: blur(14px);
+        box-shadow: 0 24px 56px rgba(0, 0, 0, 0.24);
+        backdrop-filter: none;
     }
 
     .dark-card {
+        border: 1px solid rgba(255, 255, 255, 0.10);
         background:
             radial-gradient(circle at 85% 12%, rgba(249, 115, 22, 0.24), transparent 18rem),
             linear-gradient(135deg, #111827 0%, #020617 100%);
@@ -97,17 +99,18 @@
     }
 
     .form-input-clean {
+        min-height: 48px;
         width: 100%;
-        border-radius: 1rem;
+        border-radius: 0.9rem;
         border-color: #e5e7eb;
-        background: rgba(248, 250, 252, 0.92);
+        background: #f8fafc;
         transition: all 160ms ease;
         font-size: 0.95rem;
     }
 
     .form-input-clean:focus {
-        border-color: #fdba74;
-        box-shadow: 0 0 0 4px rgba(251, 146, 60, 0.18);
+        border-color: #f97316;
+        box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.14);
     }
 
     .reservation-create-shell {
@@ -153,7 +156,7 @@
         border: 1px solid rgba(255, 255, 255, 0.1);
         background: rgba(255, 255, 255, 0.1);
         padding: 1.25rem;
-        backdrop-filter: blur(10px);
+        backdrop-filter: none;
     }
 
     @media (max-width: 1023px) {
@@ -259,6 +262,7 @@
         }
 
         .form-input-clean {
+        min-height: 48px;
             border-radius: 0.9rem;
             font-size: 0.85rem;
             padding-top: 0.72rem;
@@ -266,10 +270,12 @@
         }
 
         textarea.form-input-clean {
+        min-height: 48px;
             min-height: 6rem;
         }
 
         .reservation-payment-panel .dark-card {
+        border: 1px solid rgba(255, 255, 255, 0.10);
             padding: 1rem !important;
             border-radius: 1.25rem !important;
         }
@@ -345,6 +351,54 @@
             margin-top: 0.75rem !important;
         }
     }
+
+    /* Chef Oppa reservation theme */
+    .reservation-create-header,
+    .reservation-edit-header,
+    .reservation-page-header {
+        border: 1px solid rgba(255,255,255,.20);
+    }
+
+    .reservation-step-number,
+    .mobile-hide {
+        box-shadow: none !important;
+    }
+
+    .reservation-submit-card {
+        background:
+            radial-gradient(circle at top right, rgba(249,115,22,.16), transparent 14rem),
+            linear-gradient(135deg, #111827, #111318) !important;
+        border: 1px solid rgba(255,255,255,.08);
+    }
+
+    .reservation-action-btn,
+    .reservation-create-header a,
+    .reservation-edit-header a,
+    .reservation-page-header a,
+    .reservation-submit-card button,
+    .reservation-submit-card a {
+        border-radius: 0.9rem !important;
+    }
+
+    .reservation-card,
+    .glass-dark,
+    .glass-card,
+    .dark-card {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            scroll-behavior: auto !important;
+            transition-duration: 0.01ms !important;
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+        }
+    }
+
 </style>
 
 <div class="reservation-create-page">

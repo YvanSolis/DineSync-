@@ -4,7 +4,142 @@
 @section('page-subtitle', 'Monitor tables, walk-ins, table status, and payment status')
 
 @section('content')
-<div class="space-y-5 sm:space-y-6">
+
+
+<style>
+    .service-premium-shell {
+        position: relative;
+    }
+
+    .service-premium-panel {
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid rgba(226, 232, 240, 0.94);
+        border-radius: 1.5rem;
+        box-shadow: 0 18px 46px rgba(15, 23, 42, 0.065);
+        backdrop-filter: blur(14px);
+    }
+
+    .service-premium-hero {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(254, 215, 170, 0.88);
+        border-radius: 1.75rem;
+        background:
+            radial-gradient(circle at top right, rgba(251, 146, 60, 0.18), transparent 30%),
+            linear-gradient(135deg, rgba(255, 247, 237, 0.98), rgba(255, 255, 255, 0.98) 55%, rgba(255, 251, 235, 0.98));
+        box-shadow: 0 20px 50px rgba(249, 115, 22, 0.08);
+    }
+
+    .service-premium-stat {
+        position: relative;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.97);
+        border: 1px solid rgba(226, 232, 240, 0.94);
+        border-radius: 1.35rem;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.055);
+        transition:
+            transform 0.2s ease,
+            box-shadow 0.2s ease,
+            border-color 0.2s ease;
+    }
+
+    .service-premium-stat:hover {
+        transform: translateY(-2px);
+        border-color: rgba(251, 146, 60, 0.32);
+        box-shadow: 0 20px 42px rgba(15, 23, 42, 0.08);
+    }
+
+    .service-premium-card {
+        border-radius: 1.35rem !important;
+        border-color: rgba(226, 232, 240, 0.92) !important;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.05) !important;
+        transition:
+            transform 0.2s ease,
+            box-shadow 0.2s ease,
+            border-color 0.2s ease;
+    }
+
+    .service-premium-card:hover {
+        transform: translateY(-1px);
+        border-color: rgba(251, 146, 60, 0.28) !important;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.075) !important;
+    }
+
+    .service-premium-shell table thead {
+        background: linear-gradient(to right, #fff7ed, #ffffff, #fffbeb) !important;
+    }
+
+    .service-premium-shell table tbody tr {
+        transition: background-color 0.18s ease;
+    }
+
+    .service-premium-shell table tbody tr:hover {
+        background: rgba(255, 247, 237, 0.66) !important;
+    }
+
+    .service-premium-shell input,
+    .service-premium-shell select,
+    .service-premium-shell textarea {
+        border-radius: 0.9rem !important;
+        border-color: #e2e8f0 !important;
+        box-shadow: none !important;
+    }
+
+    .service-premium-shell input:focus,
+    .service-premium-shell select:focus,
+    .service-premium-shell textarea:focus {
+        border-color: #fb923c !important;
+        box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.12) !important;
+    }
+
+    .service-premium-shell button,
+    .service-premium-shell a {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .service-premium-shell .premium-section-heading {
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        color: #0f172a;
+    }
+
+    .service-premium-shell .premium-muted {
+        color: #64748b;
+    }
+
+    @media (max-width: 640px) {
+        .service-premium-hero {
+            border-radius: 1.35rem;
+        }
+
+        .service-premium-panel {
+            border-radius: 1.25rem;
+        }
+    }
+</style>
+
+<div class="service-premium-shell space-y-5 sm:space-y-6">
+
+    <section class="service-premium-hero px-5 py-6 sm:px-7">
+        <div class="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+                <span class="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-orange-600">
+                    Dining Floor Control
+                </span>
+                <h1 class="mt-3 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                    Table Monitoring
+                </h1>
+                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                    View table availability, walk-in assignments, tablet status, and active payments.
+                </p>
+            </div>
+            <div class="rounded-2xl border border-orange-100 bg-white/90 px-4 py-3 shadow-sm">
+                <p class="text-[10px] font-black uppercase tracking-wide text-slate-400">Floor Capacity</p>
+                <p class="mt-1 text-lg font-black text-orange-600">{{ $tables->count() }} tables</p>
+            </div>
+        </div>
+    </section>
+
 
     {{-- FLASH MESSAGES --}}
     @if (session('success'))
@@ -21,34 +156,34 @@
 
     {{-- STATS --}}
     <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-        <div class="bg-white border border-gray-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm">
+        <div class="service-premium-stat px-4 sm:px-5 py-4">
             <p class="text-xs sm:text-sm text-gray-500">Total Tables</p>
             <p class="text-xl sm:text-2xl font-bold text-orange-500">{{ $tables->count() }}</p>
         </div>
 
-        <div class="bg-white border border-gray-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm">
+        <div class="service-premium-stat px-4 sm:px-5 py-4">
             <p class="text-xs sm:text-sm text-gray-500">Available</p>
             <p class="text-xl sm:text-2xl font-bold text-green-500">{{ $tableStats['available'] ?? 0 }}</p>
         </div>
 
-        <div class="bg-white border border-gray-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm">
+        <div class="service-premium-stat px-4 sm:px-5 py-4">
             <p class="text-xs sm:text-sm text-gray-500">Occupied</p>
             <p class="text-xl sm:text-2xl font-bold text-blue-500">{{ $tableStats['occupied'] ?? 0 }}</p>
         </div>
 
-        <div class="bg-white border border-gray-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm">
+        <div class="service-premium-stat px-4 sm:px-5 py-4">
             <p class="text-xs sm:text-sm text-gray-500">Reserved</p>
             <p class="text-xl sm:text-2xl font-bold text-purple-500">{{ $tableStats['reserved'] ?? 0 }}</p>
         </div>
 
-        <div class="bg-white border border-gray-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm">
+        <div class="service-premium-stat px-4 sm:px-5 py-4">
             <p class="text-xs sm:text-sm text-gray-500">Cleaning</p>
             <p class="text-xl sm:text-2xl font-bold text-yellow-500">{{ $tableStats['cleaning'] ?? 0 }}</p>
         </div>
     </div>
 
     {{-- TABLE CARDS --}}
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="service-premium-panel overflow-hidden">
         <div class="p-4 sm:p-5 border-b border-gray-100">
             <h2 class="text-base sm:text-lg font-bold text-gray-900">
                 Restaurant Tables
@@ -159,7 +294,7 @@
                         $needsPayment = $activeOrder && !in_array($paymentStatus, ['paid', 'verified']);
                     @endphp
 
-                    <div class="border {{ $cardBorderClass }} rounded-2xl bg-white shadow-sm overflow-hidden min-w-0">
+                    <div class="service-premium-card border {{ $cardBorderClass }} rounded-2xl bg-white overflow-hidden min-w-0">
 
                         {{-- CARD HEADER --}}
                         <div class="p-4 sm:p-5 border-b border-gray-100">

@@ -176,6 +176,71 @@
             width: 100%;
         }
     }
+
+
+    /* Premium reservation interactions */
+    .reservation-premium-card,
+    .admin-reservation-card,
+    .admin-reservation-page .bg-white.rounded-2xl {
+        transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+    }
+
+    .admin-reservation-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 18px 42px rgba(15, 23, 42, 0.09);
+        border-color: #fed7aa;
+    }
+
+    .reservation-modal-animate {
+        animation: reservationModalIn .2s ease-out;
+    }
+
+    .reservation-toast {
+        animation: reservationToastIn .28s ease-out;
+    }
+
+    .reservation-toast.is-leaving {
+        animation: reservationToastOut .22s ease-in forwards;
+    }
+
+    @keyframes reservationModalIn {
+        from { opacity: 0; transform: translateY(12px) scale(.97); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes reservationToastIn {
+        from { opacity: 0; transform: translateY(-10px) translateX(12px); }
+        to { opacity: 1; transform: translateY(0) translateX(0); }
+    }
+
+    @keyframes reservationToastOut {
+        from { opacity: 1; transform: translateX(0); }
+        to { opacity: 0; transform: translateX(22px); }
+    }
+
+    .summary-premium-card {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .summary-premium-card::after {
+        content: '';
+        position: absolute;
+        width: 92px;
+        height: 92px;
+        right: -38px;
+        top: -42px;
+        border-radius: 999px;
+        background: rgba(251, 146, 60, .08);
+        pointer-events: none;
+    }
+
+    .reservation-submit-loading {
+        opacity: .72;
+        cursor: wait !important;
+        pointer-events: none;
+    }
+
 </style>
 
 <div class="admin-reservation-page space-y-5 sm:space-y-6">
@@ -200,52 +265,36 @@
         </div>
 
         <div class="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full 2xl:w-auto 2xl:max-w-3xl">
-            <div class="bg-white border border-gray-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm min-w-0">
+            <div class="summary-premium-card bg-white border border-gray-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm min-w-0 hover:-translate-y-0.5 hover:shadow-md">
                 <p class="text-xs text-gray-500">Selected Date</p>
                 <p class="text-base sm:text-lg font-bold text-gray-900 truncate">
                     {{ $selectedDateCarbon->format('M d, Y') }}
                 </p>
             </div>
 
-            <div class="bg-white border border-gray-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm min-w-0">
+            <div class="summary-premium-card bg-white border border-gray-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm min-w-0 hover:-translate-y-0.5 hover:shadow-md">
                 <p class="text-xs text-gray-500">Total</p>
-                <p class="text-2xl font-bold text-orange-500">{{ $totalReservations }}</p>
+                <p data-animate-count="{{ $totalReservations }}" class="text-2xl font-bold text-orange-500">{{ $totalReservations }}</p>
             </div>
 
-            <div class="bg-white border border-gray-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm min-w-0">
+            <div class="summary-premium-card bg-white border border-gray-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm min-w-0 hover:-translate-y-0.5 hover:shadow-md">
                 <p class="text-xs text-gray-500">Pending</p>
-                <p class="text-2xl font-bold text-yellow-500">{{ $pendingCount }}</p>
+                <p data-animate-count="{{ $pendingCount }}" class="text-2xl font-bold text-yellow-500">{{ $pendingCount }}</p>
             </div>
 
-            <div class="bg-white border border-gray-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm min-w-0">
+            <div class="summary-premium-card bg-white border border-gray-200 rounded-2xl px-4 sm:px-5 py-4 shadow-sm min-w-0 hover:-translate-y-0.5 hover:shadow-md">
                 <p class="text-xs text-gray-500">Approved</p>
-                <p class="text-2xl font-bold text-green-500">{{ $approvedCount }}</p>
+                <p data-animate-count="{{ $approvedCount }}" class="text-2xl font-bold text-green-500">{{ $approvedCount }}</p>
             </div>
         </div>
     </div>
 
-    @if (session('success'))
-        <div class="bg-green-50 border border-green-200 text-green-700 px-5 py-4 rounded-2xl text-sm font-bold">
-            {{ session('success') }}
-        </div>
-    @endif
-
-    @if (session('error'))
-        <div class="bg-red-50 border border-red-200 text-red-700 px-5 py-4 rounded-2xl text-sm font-bold">
-            {{ session('error') }}
-        </div>
-    @endif
-
-    @if ($errors->any())
-        <div class="bg-red-50 border border-red-200 text-red-700 px-5 py-4 rounded-2xl text-sm font-bold">
-            <p class="mb-2">Please fix the following:</p>
-            <ul class="list-disc list-inside space-y-1 font-semibold">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
+    <!-- Server feedback is displayed as premium toasts -->
+    <div id="reservationServerMessages" class="hidden"
+        data-success="{{ session('success') }}"
+        data-error="{{ session('error') }}"
+        data-validation='@json($errors->all())'>
+    </div>
 
     <!-- MAIN PANEL -->
     <div class="w-full max-w-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
@@ -815,7 +864,7 @@
         id="adminReservationModal"
         class="fixed inset-0 z-[999] create-modal-backdrop hidden items-center justify-center px-4 py-6"
     >
-        <div class="create-modal-card w-full max-w-3xl rounded-[1.5rem] overflow-hidden">
+        <div class="create-modal-card reservation-modal-animate w-full max-w-3xl max-h-[94dvh] overflow-y-auto rounded-[1.5rem]">
             <div class="px-5 sm:px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
                 <div>
                     <p class="text-xs font-black text-orange-500 uppercase tracking-widest">
@@ -838,7 +887,7 @@
                 </button>
             </div>
 
-            <form method="POST" action="{{ route('admin.reservations.store') }}" class="p-5 sm:p-6 space-y-5">
+            <form id="adminReservationCreateForm" method="POST" action="{{ route('admin.reservations.store') }}" class="p-5 sm:p-6 space-y-5">
                 @csrf
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -977,7 +1026,8 @@
 
                     <button
                         type="submit"
-                        class="w-full sm:w-auto px-5 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-black transition shadow-sm"
+                        id="adminReservationCreateBtn"
+                        class="w-full sm:w-auto px-5 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-black transition shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
                     >
                         Create Reservation
                     </button>
@@ -987,7 +1037,226 @@
     </div>
 </div>
 
+<!-- Premium Toasts -->
+<div id="reservationToastContainer"
+    class="fixed right-4 top-20 z-[1100] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-3 sm:right-6 sm:top-6">
+</div>
+
+<!-- Reservation Action Confirmation -->
+<div id="reservationConfirmModal"
+    class="fixed inset-0 z-[1050] hidden items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm">
+    <div class="reservation-modal-animate w-full max-w-md overflow-hidden rounded-[28px] border border-orange-100 bg-white shadow-2xl">
+        <div id="reservationConfirmHeader" class="bg-gradient-to-br from-orange-50 via-white to-amber-50 px-6 py-6 text-center">
+            <div id="reservationConfirmIcon"
+                class="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-orange-200 bg-orange-100 text-2xl font-black text-orange-600 shadow-sm">
+                ?
+            </div>
+            <h3 id="reservationConfirmTitle" class="mt-4 text-2xl font-black text-gray-950">
+                Confirm Action
+            </h3>
+            <p id="reservationConfirmMessage" class="mt-3 text-sm leading-6 text-gray-600">
+                Continue with this reservation action?
+            </p>
+        </div>
+
+        <div class="border-t border-gray-100 bg-white px-6 py-5">
+            <div id="reservationConfirmNote" class="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-800">
+                The reservation record will be updated immediately.
+            </div>
+
+            <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <button id="reservationConfirmCancel" type="button"
+                    class="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 font-black text-gray-700 transition hover:bg-gray-50">
+                    Go Back
+                </button>
+                <button id="reservationConfirmProceed" type="button"
+                    class="w-full rounded-2xl bg-orange-500 px-4 py-3 font-black text-white shadow-sm transition hover:bg-orange-600">
+                    Continue
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+
+    let pendingReservationForm = null;
+    let pendingReservationSubmitter = null;
+
+    const reservationActionMeta = {
+        'Verify': {
+            title: 'Verify Payment?',
+            message: 'Confirm that this reservation payment has been received and is valid.',
+            note: 'After verification, the reservation may be accepted.',
+            icon: '✓',
+            tone: 'green',
+            proceed: 'Yes, Verify Payment'
+        },
+        'Reject': {
+            title: 'Reject Payment?',
+            message: 'This will mark the submitted payment as rejected.',
+            note: 'Use this only when the payment reference or transaction is invalid.',
+            icon: '!',
+            tone: 'red',
+            proceed: 'Yes, Reject Payment'
+        },
+        'Accept': {
+            title: 'Accept Reservation?',
+            message: 'The reservation will be approved for the selected date and time.',
+            note: 'Make sure the booking details and payment status are correct.',
+            icon: '✓',
+            tone: 'orange',
+            proceed: 'Yes, Accept'
+        },
+        'Decline': {
+            title: 'Decline Reservation?',
+            message: 'This reservation will be marked as declined.',
+            note: 'The customer will no longer have an active booking for this reservation.',
+            icon: '×',
+            tone: 'red',
+            proceed: 'Yes, Decline'
+        },
+        'Mark Arrived': {
+            title: 'Mark Customer as Arrived?',
+            message: 'Confirm that the customer is already at the restaurant.',
+            note: 'The reservation will move to the arrived stage.',
+            icon: '→',
+            tone: 'blue',
+            proceed: 'Yes, Mark Arrived'
+        },
+        'Seat': {
+            title: 'Seat This Reservation?',
+            message: 'The selected table will be assigned to this reservation.',
+            note: 'Confirm that the chosen table is correct before continuing.',
+            icon: '⌂',
+            tone: 'purple',
+            proceed: 'Yes, Seat Customer'
+        },
+        'Complete': {
+            title: 'Complete Reservation?',
+            message: 'This reservation will be marked as completed.',
+            note: 'Use this after the reservation service is finished.',
+            icon: '✓',
+            tone: 'gray',
+            proceed: 'Yes, Complete'
+        },
+        'Cancel': {
+            title: 'Cancel Reservation?',
+            message: 'This will cancel the active reservation.',
+            note: 'This action changes the reservation status immediately.',
+            icon: '!',
+            tone: 'red',
+            proceed: 'Yes, Cancel Reservation'
+        }
+    };
+
+    function showReservationToast(type, title, message = '') {
+        const container = document.getElementById('reservationToastContainer');
+        if (!container) return;
+
+        const styles = {
+            success: { border: 'border-green-200', bg: 'bg-green-50', iconBg: 'bg-green-100', iconText: 'text-green-700', icon: '✓' },
+            error: { border: 'border-red-200', bg: 'bg-red-50', iconBg: 'bg-red-100', iconText: 'text-red-700', icon: '!' },
+            warning: { border: 'border-yellow-200', bg: 'bg-yellow-50', iconBg: 'bg-yellow-100', iconText: 'text-yellow-700', icon: '!' },
+            info: { border: 'border-blue-200', bg: 'bg-blue-50', iconBg: 'bg-blue-100', iconText: 'text-blue-700', icon: 'i' }
+        };
+
+        const style = styles[type] || styles.info;
+        const toast = document.createElement('div');
+        toast.className = `reservation-toast overflow-hidden rounded-2xl border ${style.border} ${style.bg} shadow-xl`;
+        toast.innerHTML = `
+            <div class="flex items-start gap-3 p-4">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${style.iconBg} ${style.iconText} font-black">${style.icon}</div>
+                <div class="min-w-0 flex-1">
+                    <p class="font-black text-gray-950">${escapeReservationText(title)}</p>
+                    ${message ? `<p class="mt-1 text-sm leading-5 text-gray-600">${escapeReservationText(message)}</p>` : ''}
+                </div>
+                <button type="button" class="text-lg text-gray-400 hover:text-gray-700" aria-label="Close notification">×</button>
+            </div>`;
+
+        const close = () => {
+            toast.classList.add('is-leaving');
+            setTimeout(() => toast.remove(), 220);
+        };
+
+        toast.querySelector('button').addEventListener('click', close);
+        container.appendChild(toast);
+        setTimeout(close, type === 'error' ? 6500 : 4200);
+    }
+
+    function escapeReservationText(value) {
+        return String(value ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
+
+    function openReservationConfirm(form, submitter) {
+        const modal = document.getElementById('reservationConfirmModal');
+        const actionText = (submitter?.textContent || 'Continue').trim();
+        const meta = reservationActionMeta[actionText] || {
+            title: 'Confirm Reservation Action?',
+            message: 'Continue with this update?',
+            note: 'The reservation record will be updated immediately.',
+            icon: '?', tone: 'orange', proceed: 'Continue'
+        };
+
+        pendingReservationForm = form;
+        pendingReservationSubmitter = submitter;
+
+        document.getElementById('reservationConfirmTitle').textContent = meta.title;
+        document.getElementById('reservationConfirmMessage').textContent = meta.message;
+        document.getElementById('reservationConfirmNote').textContent = meta.note;
+        document.getElementById('reservationConfirmIcon').textContent = meta.icon;
+        document.getElementById('reservationConfirmProceed').textContent = meta.proceed;
+
+        const toneClasses = {
+            green: ['bg-green-100', 'text-green-700', 'border-green-200', 'bg-green-600', 'hover:bg-green-700'],
+            red: ['bg-red-100', 'text-red-700', 'border-red-200', 'bg-red-600', 'hover:bg-red-700'],
+            blue: ['bg-blue-100', 'text-blue-700', 'border-blue-200', 'bg-blue-600', 'hover:bg-blue-700'],
+            purple: ['bg-purple-100', 'text-purple-700', 'border-purple-200', 'bg-purple-600', 'hover:bg-purple-700'],
+            gray: ['bg-gray-100', 'text-gray-700', 'border-gray-200', 'bg-gray-900', 'hover:bg-black'],
+            orange: ['bg-orange-100', 'text-orange-700', 'border-orange-200', 'bg-orange-500', 'hover:bg-orange-600']
+        };
+        const icon = document.getElementById('reservationConfirmIcon');
+        const proceed = document.getElementById('reservationConfirmProceed');
+        icon.className = 'mx-auto flex h-16 w-16 items-center justify-center rounded-full border text-2xl font-black shadow-sm';
+        proceed.className = 'w-full rounded-2xl px-4 py-3 font-black text-white shadow-sm transition';
+        const cls = toneClasses[meta.tone] || toneClasses.orange;
+        icon.classList.add(cls[0], cls[1], cls[2]);
+        proceed.classList.add(cls[3], cls[4]);
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeReservationConfirm() {
+        const modal = document.getElementById('reservationConfirmModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        pendingReservationForm = null;
+        pendingReservationSubmitter = null;
+        document.body.style.overflow = '';
+    }
+
+    function submitPendingReservationAction() {
+        if (!pendingReservationForm) return;
+        const form = pendingReservationForm;
+        const submitter = pendingReservationSubmitter;
+        closeReservationConfirm();
+
+        if (submitter) {
+            submitter.dataset.originalText = submitter.textContent;
+            submitter.textContent = 'Processing...';
+            submitter.classList.add('reservation-submit-loading');
+            submitter.disabled = true;
+        }
+        form.dataset.confirmed = 'true';
+        form.submit();
+    }
     function openAdminReservationModal() {
         const modal = document.getElementById('adminReservationModal');
 
@@ -1054,6 +1323,61 @@
 
         refreshAdminReservationTimeSlots();
 
+        const serverMessages = document.getElementById('reservationServerMessages');
+        if (serverMessages) {
+            const success = serverMessages.dataset.success || '';
+            const error = serverMessages.dataset.error || '';
+            let validation = [];
+            try { validation = JSON.parse(serverMessages.dataset.validation || '[]'); } catch (e) {}
+
+            if (success) showReservationToast('success', 'Reservation Updated', success);
+            if (error) showReservationToast('error', 'Reservation Error', error);
+            if (validation.length) {
+                showReservationToast('error', 'Please Check the Form', validation.join(' '));
+            }
+        }
+
+        document.querySelectorAll('.admin-reservation-page form').forEach(function (form) {
+            if (form.id === 'adminReservationCreateForm' || (form.method || '').toLowerCase() === 'get') return;
+
+            form.addEventListener('submit', function (event) {
+                if (form.dataset.confirmed === 'true') return;
+                const submitter = event.submitter || form.querySelector('button[type="submit"]');
+                if (!submitter) return;
+                event.preventDefault();
+                openReservationConfirm(form, submitter);
+            });
+        });
+
+        const createForm = document.getElementById('adminReservationCreateForm');
+        if (createForm) {
+            createForm.addEventListener('submit', function () {
+                const button = document.getElementById('adminReservationCreateBtn');
+                if (!button) return;
+                button.dataset.originalText = button.textContent;
+                button.textContent = 'Creating Reservation...';
+                button.disabled = true;
+                button.classList.add('reservation-submit-loading');
+            });
+        }
+
+        document.querySelectorAll('[data-animate-count]').forEach(function (element) {
+            const target = Number(element.dataset.animateCount || element.textContent || 0);
+            let current = 0;
+            const duration = 500;
+            const started = performance.now();
+            function frame(now) {
+                const progress = Math.min((now - started) / duration, 1);
+                current = Math.round(target * (1 - Math.pow(1 - progress, 3)));
+                element.textContent = current.toLocaleString();
+                if (progress < 1) requestAnimationFrame(frame);
+            }
+            requestAnimationFrame(frame);
+        });
+
+        document.getElementById('reservationConfirmCancel')?.addEventListener('click', closeReservationConfirm);
+        document.getElementById('reservationConfirmProceed')?.addEventListener('click', submitPendingReservationAction);
+
         @if ($errors->any())
             openAdminReservationModal();
         @endif
@@ -1062,10 +1386,17 @@
     document.addEventListener('keydown', function (event) {
         if (event.key === 'Escape') {
             closeAdminReservationModal();
+            closeReservationConfirm();
         }
     });
 
     document.addEventListener('click', function (event) {
+        const confirmModal = document.getElementById('reservationConfirmModal');
+        if (confirmModal && event.target === confirmModal) {
+            closeReservationConfirm();
+            return;
+        }
+
         const modal = document.getElementById('adminReservationModal');
 
         if (!modal || modal.classList.contains('hidden')) {

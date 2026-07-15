@@ -17,6 +17,7 @@ class MenuItem extends Model
         'meal_type',
         'inventory_type',
         'daily_limit',
+        'is_unlimited',
     ];
 
     protected $casts = [
@@ -24,6 +25,7 @@ class MenuItem extends Model
         'price' => 'decimal:2',
         'flavor_tags' => 'array',
         'daily_limit' => 'integer',
+        'is_unlimited' => 'boolean',
     ];
 
     protected $appends = [
@@ -35,13 +37,34 @@ class MenuItem extends Model
     public function ingredients()
     {
         return $this->belongsToMany(Ingredient::class, 'menu_item_ingredients')
-            ->withPivot('quantity_required')
+            ->withPivot([
+                'quantity_required',
+                'is_refillable',
+                'refill_quantity',
+            ])
             ->withTimestamps();
     }
-
+    
     public function orderItems()
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function refillRecords()
+    {
+        return $this->hasMany(RefillRecord::class);
+    }
+
+    public function refillableIngredients()
+    {
+        return $this->belongsToMany(Ingredient::class, 'menu_item_ingredients')
+            ->withPivot([
+                'quantity_required',
+                'is_refillable',
+                'refill_quantity',
+            ])
+            ->wherePivot('is_refillable', true)
+            ->withTimestamps();
     }
 
     public function getImageUrlAttribute(): ?string

@@ -25,8 +25,17 @@ class Ingredient extends Model
     public function menuItems()
     {
         return $this->belongsToMany(MenuItem::class, 'menu_item_ingredients')
-            ->withPivot('quantity_required')
+            ->withPivot([
+                'quantity_required',
+                'is_refillable',
+                'refill_quantity',
+            ])
             ->withTimestamps();
+    }
+
+    public function refillRecords()
+    {
+        return $this->hasMany(RefillRecord::class);
     }
 
     public function batches()

@@ -36,14 +36,15 @@
     .menu-bg {
         position: relative;
         width: 100%;
+        min-height: calc(100dvh - 72px);
         background:
             radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.14), transparent 18rem),
             radial-gradient(circle at 82% 20%, rgba(249, 115, 22, 0.16), transparent 20rem),
-            linear-gradient(135deg, rgba(15, 23, 42, 0.72), rgba(67, 31, 12, 0.62)),
+            linear-gradient(135deg, rgba(12, 15, 22, 0.84), rgba(62, 31, 18, 0.76)),
             url('{{ asset('images/customer-menu/kds-background.png') }}');
         background-size: cover;
         background-position: center;
-        background-attachment: fixed;
+        background-attachment: scroll;
     }
 
     .menu-bg::before {
@@ -69,7 +70,7 @@
         inset: 0;
         pointer-events: none;
         background:
-            radial-gradient(circle at center, rgba(255,255,255,0.16), transparent 34rem),
+            radial-gradient(circle at center, rgba(255,255,255,0.06), transparent 34rem),
             linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.14) 100%);
     }
 
@@ -113,7 +114,7 @@
         align-items: center;
         justify-content: center;
         transform-style: preserve-3d;
-        animation: bookFloat 5.2s ease-in-out infinite;
+        animation: none;
     }
 
     @keyframes bookFloat {
@@ -149,12 +150,15 @@
     #chefOppaFlipBook {
         margin: 0 auto;
         transform-style: preserve-3d;
-        filter: drop-shadow(0 22px 26px rgba(0, 0, 0, 0.34));
+        filter: none;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
     }
 
     .page {
         background: transparent;
         overflow: hidden;
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
     }
 
     .page-content {
@@ -164,6 +168,9 @@
         overflow: hidden;
         background: #fffaf3;
         border-radius: 4px;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
     }
 
     .page-content::before {
@@ -310,14 +317,16 @@
     .mobile-menu-header {
         border: 1px solid rgba(255, 255, 255, 0.16);
         background: rgba(15, 23, 42, 0.76);
-        backdrop-filter: blur(14px);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
         box-shadow: 0 18px 40px rgba(0,0,0,0.22);
     }
 
     .mobile-menu-card {
         border: 1px solid rgba(255, 255, 255, 0.18);
         background: rgba(255, 255, 255, 0.10);
-        backdrop-filter: blur(12px);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
         box-shadow: 0 18px 40px rgba(0,0,0,0.22);
     }
 
@@ -362,6 +371,9 @@
                     src="{{ asset('images/customer-menu/page-' . $i . '.jpg') }}"
                     alt="DineSync+ menu page {{ $i }}"
                     loading="{{ $i <= 2 ? 'eager' : 'lazy' }}"
+                    decoding="async"
+                    fetchpriority="{{ $i === 1 ? 'high' : 'low' }}"
+                    draggable="false"
                 >
             </a>
         @endfor
@@ -401,12 +413,12 @@
                 maxWidth: 1040,
                 minHeight: 620,
                 maxHeight: 720,
-                maxShadowOpacity: 0.24,
+                maxShadowOpacity: 0.08,
                 showCover: true,
                 mobileScrollSupport: false,
                 usePortrait: true,
-                flippingTime: 950,
-                drawShadow: true,
+                flippingTime: 450,
+                drawShadow: false,
                 startPage: 0,
                 autoSize: true,
                 clickEventForward: true,
@@ -479,6 +491,10 @@
                                 <img
                                     src="{{ asset('images/customer-menu/page-' . $i . '.jpg') }}"
                                     alt="DineSync+ menu page {{ $i }}"
+                                    loading="{{ $i <= 2 ? 'eager' : 'lazy' }}"
+                                    decoding="async"
+                                    fetchpriority="{{ $i === 1 ? 'high' : 'low' }}"
+                                    draggable="false"
                                 >
                             </div>
                         </div>

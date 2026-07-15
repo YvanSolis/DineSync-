@@ -37,4 +37,9 @@ class OrderItem extends Model
     {
         return $this->belongsTo(MenuItem::class, 'menu_item_id');
     }
+
+    public function refillRecords()
+    {
+        return $this->hasMany(RefillRecord::class);
+    }
 }

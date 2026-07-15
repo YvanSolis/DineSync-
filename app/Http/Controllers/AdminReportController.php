@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Services\OpenAIForecastService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 
 class AdminReportController extends Controller
@@ -454,6 +455,330 @@ class AdminReportController extends Controller
                 ];
             });
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Ingredient Consumption Analytics
+        |--------------------------------------------------------------------------
+        | Tracks actual ingredient usage for the same 7-day reporting period.
+        */
+        $ingredientConsumption7d = collect();
+
+        if (Schema::hasTable('ingredient_usages')) {
+            $quantityColumn = Schema::hasColumn(
+                'ingredient_usages',
+                'quantity_used'
+            )
+                ? 'ingredient_usages.quantity_used'
+                : 'ingredient_usages.quantity';
+
+            $ingredientConsumption7d = DB::table('ingredient_usages')
+                ->join(
+                    'ingredients',
+                    'ingredient_usages.ingredient_id',
+                    '=',
+                    'ingredients.id'
+                )
+                ->select(
+                    'ingredients.id',
+                    'ingredients.name',
+                    'ingredients.unit',
+                    'ingredients.current_stock',
+                    'ingredients.threshold',
+                    DB::raw("SUM({$quantityColumn}) as quantity_used_7d")
+                )
+                ->whereBetween(
+                    'ingredient_usages.created_at',
+                    [$startDate, $endDate]
+                )
+                ->groupBy(
+                    'ingredients.id',
+                    'ingredients.name',
+                    'ingredients.unit',
+                    'ingredients.current_stock',
+                    'ingredients.threshold'
+                )
+                ->orderByDesc('quantity_used_7d')
+                ->limit(20)
+                ->get()
+                ->map(function ($item) {
+                    $used7d = (float) $item->quantity_used_7d;
+                    $dailyAverage = $used7d / 7;
+                    $forecastTomorrow = round($dailyAverage * 1.15, 2);
+                    $currentStock = (float) ($item->current_stock ?? 0);
+                    $threshold = (float) ($item->threshold ?? 0);
+
+                    $riskLevel = 'Safe';
+                    $recommendation = 'Current stock is sufficient based on recent usage.';
+
+                    if ($currentStock <= 0) {
+                        $riskLevel = 'Critical';
+                        $recommendation = 'Out of stock. Restock immediately.';
+                    } elseif ($currentStock < $forecastTomorrow) {
+                        $riskLevel = 'Critical';
+                        $recommendation = 'Stock may not cover tomorrow’s forecasted usage.';
+                    } elseif (
+                        $currentStock < ($forecastTomorrow * 2)
+                        || ($threshold > 0 && $currentStock <= $threshold)
+                    ) {
+                        $riskLevel = 'Warning';
+                        $recommendation = 'Restock soon to maintain a safe stock buffer.';
+                    }
+
+                    return [
+                        'ingredient_id' => (int) $item->id,
+                        'name' => $item->name,
+                        'ingredient_name' => $item->name,
+                        'unit' => $item->unit ?: 'unit',
+                        'quantity_used_7d' => round($used7d, 2),
+                        'used_7d' => round($used7d, 2),
+                        'daily_average' => round($dailyAverage, 2),
+                        'forecast_tomorrow' => $forecastTomorrow,
+                        'current_stock' => round($currentStock, 2),
+                        'threshold' => round($threshold, 2),
+                        'risk_level' => $riskLevel,
+                        'recommendation' => $recommendation,
+                    ];
+                });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Peak Hours
+        |--------------------------------------------------------------------------
+        | Groups orders by Manila local hour without database-specific timezone SQL.
+        */
+        $peakHours = Order::query()
+            ->select(['id', 'created_at', 'total_amount'])
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->whereNotIn(
+                DB::raw('LOWER(TRIM(status))'),
+                ['cancelled', 'canceled', 'voided']
+            )
+            ->get()
+            ->groupBy(function ($order) {
+                return optional($order->created_at)
+                    ?->timezone($this->timezone)
+                    ->format('H');
+            })
+            ->filter(fn ($orders, $hour) => $hour !== null)
+            ->map(function ($orders, $hour) {
+                $hourNumber = (int) $hour;
+                $label = Carbon::createFromTime(
+                    $hourNumber,
+                    0,
+                    0,
+                    $this->timezone
+                )->format('h:i A');
+
+                return [
+                    'hour' => $hourNumber,
+                    'label' => $label,
+                    'orders' => $orders->count(),
+                    'revenue' => round(
+                        (float) $orders->sum('total_amount'),
+                        2
+                    ),
+                ];
+            })
+            ->sortBy('hour')
+            ->values();
+
+        $busiestHour = $peakHours
+            ->sortByDesc('orders')
+            ->first();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Unlimited Refill Analytics
+        |--------------------------------------------------------------------------
+        */
+        $refillAnalytics = [
+            'total_requests' => 0,
+            'requested' => 0,
+            'preparing' => 0,
+            'ready' => 0,
+            'served' => 0,
+            'cancelled' => 0,
+            'average_per_order' => 0,
+            'top_refill_ingredients' => [],
+            'top_unlimited_items' => [],
+        ];
+
+        $refillHistory = collect();
+
+        if (
+            Schema::hasTable('refills')
+            && Schema::hasTable('refill_items')
+        ) {
+            $refillsQuery = DB::table('refills')
+                ->whereBetween('refills.created_at', [$startDate, $endDate]);
+
+            $totalRefillRequests = (clone $refillsQuery)->count();
+            $distinctRefillOrders = (clone $refillsQuery)
+                ->whereNotNull('order_id')
+                ->distinct()
+                ->count('order_id');
+
+            $statusCounts = (clone $refillsQuery)
+                ->select(
+                    DB::raw("LOWER(TRIM(status)) as status"),
+                    DB::raw('COUNT(*) as total')
+                )
+                ->groupBy(DB::raw('LOWER(TRIM(status))'))
+                ->pluck('total', 'status');
+
+            $topRefillIngredients = DB::table('refill_items')
+                ->join(
+                    'refills',
+                    'refill_items.refill_id',
+                    '=',
+                    'refills.id'
+                )
+                ->leftJoin(
+                    'ingredients',
+                    'refill_items.ingredient_id',
+                    '=',
+                    'ingredients.id'
+                )
+                ->select(
+                    'refill_items.ingredient_id',
+                    DB::raw(
+                        "COALESCE(ingredients.name, 'Unknown Ingredient') as name"
+                    ),
+                    DB::raw(
+                        "COALESCE(refill_items.unit, ingredients.unit, 'unit') as unit"
+                    ),
+                    DB::raw('COUNT(DISTINCT refill_items.refill_id) as request_count'),
+                    DB::raw('SUM(refill_items.quantity) as total_quantity')
+                )
+                ->whereBetween('refills.created_at', [$startDate, $endDate])
+                ->groupBy(
+                    'refill_items.ingredient_id',
+                    'ingredients.name',
+                    'refill_items.unit',
+                    'ingredients.unit'
+                )
+                ->orderByDesc('request_count')
+                ->limit(10)
+                ->get()
+                ->map(fn ($item) => [
+                    'ingredient_id' => $item->ingredient_id,
+                    'name' => $item->name,
+                    'ingredient_name' => $item->name,
+                    'unit' => $item->unit ?: 'unit',
+                    'request_count' => (int) $item->request_count,
+                    'total_quantity' => round(
+                        (float) $item->total_quantity,
+                        2
+                    ),
+                ]);
+
+            $topUnlimitedItems = DB::table('refills')
+                ->leftJoin(
+                    'menu_items',
+                    'refills.menu_item_id',
+                    '=',
+                    'menu_items.id'
+                )
+                ->select(
+                    'refills.menu_item_id',
+                    DB::raw(
+                        "COALESCE(menu_items.name, 'Unknown Unlimited Item') as name"
+                    ),
+                    DB::raw('COUNT(*) as request_count')
+                )
+                ->whereBetween('refills.created_at', [$startDate, $endDate])
+                ->groupBy('refills.menu_item_id', 'menu_items.name')
+                ->orderByDesc('request_count')
+                ->limit(10)
+                ->get()
+                ->map(fn ($item) => [
+                    'menu_item_id' => $item->menu_item_id,
+                    'name' => $item->name,
+                    'menu_item' => $item->name,
+                    'request_count' => (int) $item->request_count,
+                ]);
+
+            $refillAnalytics = [
+                'total_requests' => (int) $totalRefillRequests,
+                'requested' => (int) ($statusCounts['requested'] ?? 0),
+                'preparing' => (int) ($statusCounts['preparing'] ?? 0),
+                'ready' => (int) ($statusCounts['ready'] ?? 0),
+                'served' => (int) ($statusCounts['served'] ?? 0),
+                'cancelled' => (int) ($statusCounts['cancelled'] ?? 0),
+                'average_per_order' => $distinctRefillOrders > 0
+                    ? round(
+                        $totalRefillRequests / $distinctRefillOrders,
+                        2
+                    )
+                    : 0,
+                'top_refill_ingredients' => $topRefillIngredients,
+                'top_unlimited_items' => $topUnlimitedItems,
+            ];
+
+            $refillHistory = DB::table('refills')
+                ->leftJoin(
+                    'orders',
+                    'refills.order_id',
+                    '=',
+                    'orders.id'
+                )
+                ->leftJoin(
+                    'menu_items',
+                    'refills.menu_item_id',
+                    '=',
+                    'menu_items.id'
+                )
+                ->select(
+                    'refills.id',
+                    'refills.order_id',
+                    'refills.menu_item_id',
+                    'refills.table_number',
+                    'refills.status',
+                    'refills.requested_at',
+                    'refills.preparing_at',
+                    'refills.ready_at',
+                    'refills.served_at',
+                    'refills.created_at',
+                    'orders.order_number',
+                    DB::raw(
+                        "COALESCE(menu_items.name, 'Unlimited Menu') as menu_name"
+                    )
+                )
+                ->whereBetween('refills.created_at', [$startDate, $endDate])
+                ->latest('refills.created_at')
+                ->limit(25)
+                ->get()
+                ->map(function ($refill) {
+                    return [
+                        'id' => $refill->id,
+                        'order_id' => $refill->order_id,
+                        'order_number' => $refill->order_number
+                            ?: ('Order #' . $refill->order_id),
+                        'menu_item_id' => $refill->menu_item_id,
+                        'menu_name' => $refill->menu_name,
+                        'table_number' => $refill->table_number ?: '—',
+                        'status' => strtolower(
+                            trim($refill->status ?? 'requested')
+                        ),
+                        'requested_at' => $refill->requested_at,
+                        'preparing_at' => $refill->preparing_at,
+                        'ready_at' => $refill->ready_at,
+                        'served_at' => $refill->served_at,
+                        'created_at' => $refill->created_at,
+                    ];
+                });
+        }
+
+        $stockRisk = $ingredientConsumption7d
+            ->filter(fn ($item) => in_array(
+                $item['risk_level'],
+                ['Critical', 'Warning'],
+                true
+            ))
+            ->values();
+
         $forecastConfidence = $totalOrders7d >= 20
             ? 'High'
             : ($totalOrders7d >= 8 ? 'Medium' : 'Low');
@@ -505,7 +830,20 @@ class AdminReportController extends Controller
             'forecast_confidence' => $forecastConfidence,
             'ai_forecast_confidence' => $forecastConfidence,
 
-            'forecast_mode' => '7-day system forecast based on sales, orders, and menu demand',
+            'ingredient_consumption_7d' => $ingredientConsumption7d,
+            'ingredient_usage_7d' => $ingredientConsumption7d,
+            'stock_risk' => $stockRisk,
+            'stock_risk_count' => $stockRisk->count(),
+
+            'peak_hours' => $peakHours,
+            'busiest_hour' => $busiestHour,
+
+            'refill_analytics' => $refillAnalytics,
+            'top_refill_ingredients' => $refillAnalytics['top_refill_ingredients'],
+            'top_unlimited_items' => $refillAnalytics['top_unlimited_items'],
+            'refill_history' => $refillHistory,
+
+            'forecast_mode' => '7-day system forecast based on sales, orders, menu demand, ingredient usage, and refills',
         ]);
     }
 

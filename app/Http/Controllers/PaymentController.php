@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Reservation;
+use App\Models\RestaurantSetting;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -65,10 +66,20 @@ class PaymentController extends Controller
             return in_array(strtolower($payment['status'] ?? ''), $this->pendingStatuses, true);
         });
 
+        $restaurantSettings = RestaurantSetting::current();
+
         return response()->json([
             'mode' => $mode,
             'selected_date' => $selectedDate,
             'today_manila' => now($this->timezone)->toDateString(),
+            'restaurant' => [
+                'name' => $restaurantSettings->restaurant_name ?: 'Chef Oppa',
+                'branch' => 'Main Branch',
+                'address' => $restaurantSettings->address,
+                'contact_number' => $restaurantSettings->contact_number,
+                'website' => 'dinesync.shop',
+                'logo_url' => asset('images/customer-menu/chef-oppa-logo.png'),
+            ],
             'payments' => $payments,
             'summary' => [
                 'total_transactions' => $payments->count(),
@@ -128,7 +139,7 @@ class PaymentController extends Controller
     {
         [$start, $end] = $this->getManilaDayUtcRange($selectedDate);
 
-        $query = Payment::with(['order.items.menuItem']);
+        $query = Payment::with(['order.items.menuItem', 'order.discountVerifiedBy']);
 
         if ($mode !== 'all') {
             $query->where(function ($query) use ($start, $end) {
@@ -172,7 +183,7 @@ class PaymentController extends Controller
 
     private function getOrderPaymentRecords(string $mode, string $selectedDate): Collection
     {
-        $query = Order::with(['items.menuItem'])
+        $query = Order::with(['items.menuItem', 'discountVerifiedBy'])
             ->whereNotNull('payment_method')
             ->whereIn('payment_method', [
                 'Pay at Counter',
@@ -220,7 +231,7 @@ class PaymentController extends Controller
                     'order_id' => $order->id,
                     'order_number' => $order->order_number ?? ('Order #' . $order->id),
                     'payment_method' => $this->normalizePaymentMethod($order->payment_method),
-                    'amount' => (float) ($order->total_amount ?? 0),
+                    'amount' => (float) (($order->final_amount ?? 0) > 0 ? $order->final_amount : $order->total_amount),
                     'status' => $status,
                     'created_at' => $this->safeDateIso($order->created_at),
                     'updated_at' => $this->safeDateIso($order->updated_at),
@@ -311,12 +322,46 @@ class PaymentController extends Controller
 
     private function formatOrderForReceipt(Order $order): array
     {
+        $discountType = strtolower(trim($order->discount_type ?? 'none'));
+        $hasGovernmentDiscount = in_array($discountType, ['senior', 'pwd'], true);
+
+        $originalAmount = (float) ($order->total_amount ?? 0);
+        $finalAmount = (float) (($order->final_amount ?? 0) > 0
+            ? $order->final_amount
+            : $originalAmount);
+
         return [
             'id' => $order->id,
             'order_number' => $order->order_number ?? ('Order #' . $order->id),
+            'table_number' => $order->table_number
+                ?? optional($order->table)->table_number
+                ?? null,
+            'customer_name' => $order->customer_name,
             'payment_method' => $this->normalizePaymentMethod($order->payment_method),
             'payment_status' => $this->normalizePaymentStatus($order->payment_status ?? 'pending'),
-            'total_amount' => (float) ($order->total_amount ?? 0),
+            'original_amount' => $originalAmount,
+            'total_amount' => $originalAmount,
+            'final_amount' => $finalAmount,
+            'amount_paid' => $finalAmount,
+            'paid_at' => $this->safeDateIso($order->paid_at),
+            'processed_by' => $order->discountVerifiedBy?->name ?? 'Service Staff',
+            'discount' => [
+                'applied' => $hasGovernmentDiscount,
+                'type' => $discountType,
+                'label' => match ($discountType) {
+                    'senior' => 'Senior Citizen',
+                    'pwd' => 'PWD',
+                    default => 'None',
+                },
+                'qualified_diners' => (int) ($order->qualified_diners ?? 0),
+                'total_diners' => (int) ($order->total_diners ?? 0),
+                'holder_name' => $order->discount_holder_name,
+                'id_number' => $order->discount_id_number,
+                'vat_exempt_amount' => (float) ($order->vat_exempt_amount ?? 0),
+                'discount_amount' => (float) ($order->discount_amount ?? 0),
+                'verified_at' => $this->safeDateIso($order->discount_verified_at),
+                'verified_by' => $order->discountVerifiedBy?->name,
+            ],
             'items' => $order->items->map(function ($item) {
                 $name = $item->menuItem->name
                     ?? $item->menuItem->item_name

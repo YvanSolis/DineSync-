@@ -292,6 +292,7 @@
 
         #manageStockModal input,
         #manageStockModal select,
+        #manageStockModal textarea,
         #ingredientModal input {
             font-size: 16px !important;
         }
@@ -883,6 +884,87 @@
                 </form>
             </div>
 
+            <!-- Record Stock Loss -->
+            <div class="rounded-3xl border border-red-200 bg-white shadow-sm overflow-hidden">
+                <div class="px-5 py-4 border-b bg-gradient-to-r from-red-50 to-white">
+                    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                        <div>
+                            <h4 class="font-bold text-gray-900 text-lg">Record Stock Loss</h4>
+                            <p class="text-sm text-gray-500 mt-1">
+                                Record damaged, wasted, missing, or manually used stock. The system deducts from the nearest-expiry usable batch first.
+                            </p>
+                        </div>
+
+                        <span id="stockLossAvailableBadge"
+                            class="inline-flex items-center px-3 py-1.5 rounded-full bg-red-50 text-red-700 border border-red-100 text-xs font-bold shrink-0">
+                            Available: 0 unit
+                        </span>
+                    </div>
+                </div>
+
+                <form id="stockLossForm" class="p-5 space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">Loss Type</label>
+                            <select id="stockLossType"
+                                class="w-full border border-gray-300 rounded-2xl px-4 py-3 bg-white focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none transition"
+                                required>
+                                <option value="">Select type</option>
+                                <option value="damaged">Damaged</option>
+                                <option value="waste">Waste</option>
+                                <option value="missing">Missing</option>
+                                <option value="manual_usage">Manual Usage</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">Quantity to Deduct</label>
+                            <div class="grid grid-cols-[1fr_auto] gap-3 items-center">
+                                <input id="stockLossQuantity" type="number" min="0.01" step="0.01"
+                                    placeholder="Example: 2"
+                                    class="w-full border border-gray-300 rounded-2xl px-4 py-3 focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none transition"
+                                    required>
+
+                                <span id="stockLossUnitLabel"
+                                    class="inline-flex justify-center min-w-[76px] px-4 py-3 rounded-2xl bg-red-50 border border-red-100 text-sm font-bold text-red-700">
+                                    unit
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">Reason / Remarks</label>
+                        <textarea id="stockLossRemarks" rows="3" maxlength="1000"
+                            placeholder="Example: Eggs broke during unloading."
+                            class="w-full border border-gray-300 rounded-2xl px-4 py-3 resize-y focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none transition"
+                            required></textarea>
+
+                        <div class="flex items-center justify-between gap-3 mt-2">
+                            <p class="text-xs text-gray-400">
+                                This action cannot be reversed automatically.
+                            </p>
+
+                            <p id="stockLossRemarksCounter" class="text-xs text-gray-400">
+                                0 / 1000
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row sm:justify-end gap-2 border-t pt-4">
+                        <button type="button" onclick="resetStockLossForm()"
+                            class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium">
+                            Clear
+                        </button>
+
+                        <button id="stockLossSaveBtn" type="submit"
+                            class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold disabled:opacity-70 disabled:cursor-not-allowed">
+                            Record Stock Loss
+                        </button>
+                    </div>
+                </form>
+            </div>
+
             <!-- Batch List -->
             <div class="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
                 <div class="px-5 py-4 border-b bg-gray-50/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -935,7 +1017,191 @@
     </div>
 </div>
 
+<!-- Designed Stock Loss Confirmation Modal -->
+<div id="stockLossConfirmModal"
+    class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+
+    <div class="w-full max-w-md overflow-hidden rounded-[28px] border border-orange-100 bg-white shadow-2xl">
+        <div class="bg-gradient-to-br from-orange-50 via-white to-amber-50 px-6 py-6 text-center">
+            <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-orange-200 bg-orange-100 text-3xl text-orange-600 shadow-sm">
+                !
+            </div>
+
+            <h3 class="mt-4 text-2xl font-extrabold text-gray-900">
+                Confirm Stock Loss
+            </h3>
+
+            <p id="stockLossConfirmMessage" class="mt-3 text-sm leading-6 text-gray-600">
+                Are you sure you want to record this stock loss?
+            </p>
+        </div>
+
+        <div class="border-t border-gray-100 bg-white px-6 py-4">
+            <div class="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3">
+                <p class="text-sm text-orange-700">
+                    This action cannot be undone. The system will deduct the specified quantity from the nearest-expiry usable stock batch.
+                </p>
+            </div>
+
+            <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <button id="stockLossConfirmCancelBtn" type="button"
+                    class="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 font-bold text-gray-700 transition hover:bg-gray-50">
+                    Cancel
+                </button>
+
+                <button id="stockLossConfirmProceedBtn" type="button"
+                    class="w-full rounded-2xl bg-orange-500 px-4 py-3 font-bold text-white shadow-sm transition hover:bg-orange-600">
+                    Yes, Record Loss
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Global Designed Alert / Confirmation Modal -->
+<div id="appMessageModal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div id="appMessageCard" class="w-full max-w-md overflow-hidden rounded-[28px] border border-gray-100 bg-white shadow-2xl">
+        <div id="appMessageHeader" class="bg-gradient-to-br from-orange-50 via-white to-amber-50 px-6 py-7 text-center">
+            <div id="appMessageIcon" class="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-orange-200 bg-orange-100 text-3xl font-black text-orange-600 shadow-sm">!</div>
+            <h3 id="appMessageTitle" class="mt-4 text-2xl font-extrabold text-gray-900">Notice</h3>
+            <p id="appMessageText" class="mt-3 whitespace-pre-line text-sm leading-6 text-gray-600"></p>
+        </div>
+        <div class="border-t border-gray-100 bg-white px-6 py-5">
+            <div id="appMessageActions" class="grid grid-cols-1 gap-3">
+                <button id="appMessageCancelBtn" type="button" class="hidden w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 font-bold text-gray-700 transition hover:bg-gray-50">Cancel</button>
+                <button id="appMessageOkBtn" type="button" class="w-full rounded-2xl bg-orange-500 px-4 py-3 font-bold text-white shadow-sm transition hover:bg-orange-600">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+let appMessageResolve = null;
+
+function getAppMessageTheme(type = 'info') {
+    const themes = {
+        success: {
+            title: 'Success!', icon: '✓',
+            header: 'bg-gradient-to-br from-green-50 via-white to-emerald-50',
+            iconClass: 'border-green-200 bg-green-100 text-green-600',
+            button: 'bg-green-600 hover:bg-green-700'
+        },
+        error: {
+            title: 'Something Went Wrong', icon: '×',
+            header: 'bg-gradient-to-br from-red-50 via-white to-rose-50',
+            iconClass: 'border-red-200 bg-red-100 text-red-600',
+            button: 'bg-red-600 hover:bg-red-700'
+        },
+        warning: {
+            title: 'Please Check', icon: '!',
+            header: 'bg-gradient-to-br from-yellow-50 via-white to-amber-50',
+            iconClass: 'border-yellow-200 bg-yellow-100 text-yellow-700',
+            button: 'bg-amber-500 hover:bg-amber-600'
+        },
+        danger: {
+            title: 'Confirm Action', icon: '!',
+            header: 'bg-gradient-to-br from-red-50 via-white to-orange-50',
+            iconClass: 'border-red-200 bg-red-100 text-red-600',
+            button: 'bg-red-600 hover:bg-red-700'
+        },
+        info: {
+            title: 'Notice', icon: 'i',
+            header: 'bg-gradient-to-br from-orange-50 via-white to-amber-50',
+            iconClass: 'border-orange-200 bg-orange-100 text-orange-600',
+            button: 'bg-orange-500 hover:bg-orange-600'
+        }
+    };
+    return themes[type] || themes.info;
+}
+
+function inferAppMessageType(message) {
+    const text = String(message || '').toLowerCase();
+    if (text.includes('success') || text.includes('recorded') || text.includes('saved') || text.includes('updated') || text.includes('added') || text.includes('deleted')) return 'success';
+    if (text.includes('failed') || text.includes('error') || text.includes('not found') || text.includes('connection')) return 'error';
+    if (text.includes('please') || text.includes('not enough') || text.includes('wait') || text.includes('changed')) return 'warning';
+    return 'info';
+}
+
+function applyAppMessageTheme(type, customTitle = '') {
+    const theme = getAppMessageTheme(type);
+    const header = document.getElementById('appMessageHeader');
+    const icon = document.getElementById('appMessageIcon');
+    const title = document.getElementById('appMessageTitle');
+    const okBtn = document.getElementById('appMessageOkBtn');
+
+    header.className = `px-6 py-7 text-center ${theme.header}`;
+    icon.className = `mx-auto flex h-16 w-16 items-center justify-center rounded-full border text-3xl font-black shadow-sm ${theme.iconClass}`;
+    icon.textContent = theme.icon;
+    title.textContent = customTitle || theme.title;
+    okBtn.className = `w-full rounded-2xl px-4 py-3 font-bold text-white shadow-sm transition ${theme.button}`;
+}
+
+function openAppMessageModal() {
+    const modal = document.getElementById('appMessageModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.classList.add('overflow-hidden');
+}
+
+function closeAppMessageModal(result = true) {
+    const modal = document.getElementById('appMessageModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.classList.remove('overflow-hidden');
+    if (appMessageResolve) {
+        const resolve = appMessageResolve;
+        appMessageResolve = null;
+        resolve(result);
+    }
+}
+
+function showAppAlert(message, type = null, title = '') {
+    const finalType = type || inferAppMessageType(message);
+    applyAppMessageTheme(finalType, title);
+    document.getElementById('appMessageText').textContent = String(message || '');
+    document.getElementById('appMessageCancelBtn').classList.add('hidden');
+    document.getElementById('appMessageActions').className = 'grid grid-cols-1 gap-3';
+    document.getElementById('appMessageOkBtn').textContent = 'OK';
+    document.getElementById('appMessageOkBtn').onclick = () => closeAppMessageModal(true);
+    openAppMessageModal();
+}
+
+function showAppConfirm(title, message, confirmText = 'Confirm') {
+    applyAppMessageTheme('danger', title);
+    document.getElementById('appMessageText').textContent = String(message || '');
+    const cancelBtn = document.getElementById('appMessageCancelBtn');
+    const okBtn = document.getElementById('appMessageOkBtn');
+    cancelBtn.classList.remove('hidden');
+    document.getElementById('appMessageActions').className = 'grid grid-cols-1 gap-3 sm:grid-cols-2';
+    cancelBtn.textContent = 'Cancel';
+    okBtn.textContent = confirmText;
+    openAppMessageModal();
+
+    return new Promise(resolve => {
+        appMessageResolve = resolve;
+        cancelBtn.onclick = () => closeAppMessageModal(false);
+        okBtn.onclick = () => closeAppMessageModal(true);
+    });
+}
+
+// Replace every browser alert on this page with the designed modal.
+window.alert = function(message) {
+    showAppAlert(message);
+};
+
+document.getElementById('appMessageModal').addEventListener('click', function(event) {
+    if (event.target === this && !document.getElementById('appMessageCancelBtn').classList.contains('hidden')) {
+        closeAppMessageModal(false);
+    }
+});
+
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape' && !document.getElementById('appMessageModal').classList.contains('hidden')) {
+        const isConfirm = !document.getElementById('appMessageCancelBtn').classList.contains('hidden');
+        closeAppMessageModal(isConfirm ? false : true);
+    }
+});
 let ingredients = [];
 let filteredIngredients = [];
 let editingIngredientId = null;
@@ -944,6 +1210,7 @@ let currentManageStockData = null;
 let editingBatchId = null;
 let manageStockRequestToken = 0;
 let stockSaveInProgress = false;
+let stockLossInProgress = false;
 let ingredientSaveInProgress = false;
 let ingredientRequestToken = 0;
 
@@ -1743,6 +2010,17 @@ function updateManageStockModalFromData(data) {
     document.getElementById('manageStockThreshold').textContent = formatNumber(data.threshold || 0);
     document.getElementById('manageStockBatchCount').textContent = Array.isArray(data.batches) ? data.batches.length : getBatchCount(data);
 
+    const stockLossAvailableBadge = document.getElementById('stockLossAvailableBadge');
+    const stockLossUnitLabel = document.getElementById('stockLossUnitLabel');
+
+    if (stockLossAvailableBadge) {
+        stockLossAvailableBadge.textContent = `Available: ${formatNumber(stock)} ${data.unit || 'unit'}`;
+    }
+
+    if (stockLossUnitLabel) {
+        stockLossUnitLabel.textContent = data.unit || 'unit';
+    }
+
     setManageStockStatusBadge(data.stock_status);
     renderBatches(data.batches || []);
     setStockUnitValue(data.unit || 'unit');
@@ -1771,6 +2049,46 @@ function lockManageStockActions(isLocked, text = 'Processing...') {
 
     if (clearBtn) clearBtn.disabled = isLocked;
     if (cancelEditBtn) cancelEditBtn.disabled = isLocked;
+}
+
+function lockStockLossActions(isLocked, text = 'Recording...') {
+    const saveBtn = document.getElementById('stockLossSaveBtn');
+    const inputs = document.querySelectorAll('#stockLossForm input, #stockLossForm select, #stockLossForm textarea, #stockLossForm button');
+
+    inputs.forEach(input => {
+        input.disabled = isLocked;
+        input.classList.toggle('opacity-70', isLocked);
+        input.classList.toggle('cursor-not-allowed', isLocked);
+    });
+
+    if (saveBtn) {
+        if (isLocked) {
+            saveBtn.dataset.originalText = saveBtn.dataset.originalText || saveBtn.textContent;
+            saveBtn.textContent = text;
+        } else {
+            saveBtn.textContent = saveBtn.dataset.originalText || 'Record Stock Loss';
+        }
+    }
+}
+
+function resetStockLossForm() {
+    const form = document.getElementById('stockLossForm');
+
+    if (form) {
+        form.reset();
+    }
+
+    const counter = document.getElementById('stockLossRemarksCounter');
+
+    if (counter) {
+        counter.textContent = '0 / 1000';
+    }
+
+    const unitLabel = document.getElementById('stockLossUnitLabel');
+
+    if (unitLabel) {
+        unitLabel.textContent = currentManageStockData?.unit || 'unit';
+    }
 }
 
 async function refreshManageStockDetails(ingredientId, requestToken = manageStockRequestToken) {
@@ -1842,7 +2160,9 @@ async function openManageStockModal(id) {
     document.getElementById('stockSaveBtn').textContent = 'Add Stock';
     document.getElementById('cancelEditBatchBtn').classList.add('hidden');
     setManageStockStatusBadge(null);
+    resetStockLossForm();
     lockManageStockActions(true, 'Loading...');
+    lockStockLossActions(true, 'Loading...');
 
     document.getElementById('batchTableBody').innerHTML = `
         <tr>
@@ -1863,20 +2183,30 @@ async function openManageStockModal(id) {
         if (!data) return;
 
         resetStockForm();
+        resetStockLossForm();
         lockManageStockActions(false);
+        lockStockLossActions(false);
     } catch (error) {
         if (requestToken !== manageStockRequestToken) return;
 
         console.error('Load manage stock failed:', error);
         alert(error.message || 'Failed to load stock details.');
         lockManageStockActions(false);
+        lockStockLossActions(false);
     }
 }
 
 function closeManageStockModal() {
+    if (stockSaveInProgress || stockLossInProgress) {
+        return;
+    }
+
     manageStockRequestToken++;
     stockSaveInProgress = false;
+    stockLossInProgress = false;
     lockManageStockActions(false);
+    lockStockLossActions(false);
+    resetStockLossForm();
     activeManageStockIngredientId = null;
     currentManageStockData = null;
     editingBatchId = null;
@@ -2028,6 +2358,176 @@ function cancelEditBatch() {
     resetStockForm();
 }
 
+let stockLossConfirmResolver = null;
+
+function openStockLossConfirmModal(message) {
+    const modal = document.getElementById('stockLossConfirmModal');
+    const messageElement = document.getElementById('stockLossConfirmMessage');
+
+    messageElement.textContent = message;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    return new Promise(resolve => {
+        stockLossConfirmResolver = resolve;
+    });
+}
+
+function closeStockLossConfirmModal(result) {
+    const modal = document.getElementById('stockLossConfirmModal');
+
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+
+    if (stockLossConfirmResolver) {
+        stockLossConfirmResolver(result);
+        stockLossConfirmResolver = null;
+    }
+}
+
+document.getElementById('stockLossConfirmCancelBtn').addEventListener('click', function() {
+    closeStockLossConfirmModal(false);
+});
+
+document.getElementById('stockLossConfirmProceedBtn').addEventListener('click', function() {
+    closeStockLossConfirmModal(true);
+});
+
+document.getElementById('stockLossConfirmModal').addEventListener('click', function(event) {
+    if (event.target === this) {
+        closeStockLossConfirmModal(false);
+    }
+});
+
+document.addEventListener('keydown', function(event) {
+    if (
+        event.key === 'Escape'
+        && !document.getElementById('stockLossConfirmModal').classList.contains('hidden')
+    ) {
+        closeStockLossConfirmModal(false);
+    }
+});
+
+document.getElementById('stockLossRemarks').addEventListener('input', function() {
+    document.getElementById('stockLossRemarksCounter').textContent = `${this.value.length} / 1000`;
+});
+
+document.getElementById('stockLossForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    if (stockLossInProgress) {
+        return;
+    }
+
+    const ingredientId = document.getElementById('manageStockIngredientId').value;
+    const requestToken = manageStockRequestToken;
+    const type = document.getElementById('stockLossType').value;
+    const quantity = Number(document.getElementById('stockLossQuantity').value);
+    const remarks = document.getElementById('stockLossRemarks').value.trim();
+    const availableStock = getStockValue(currentManageStockData || {});
+
+    if (!ingredientId) {
+        alert('Ingredient not found.');
+        return;
+    }
+
+    if (Number(activeManageStockIngredientId) !== Number(ingredientId)) {
+        alert('Stock panel changed. Please reopen the correct ingredient before recording a stock loss.');
+        return;
+    }
+
+    if (!type) {
+        alert('Please select a stock loss type.');
+        return;
+    }
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+        alert('Please enter a valid quantity.');
+        return;
+    }
+
+    if (quantity > availableStock) {
+        alert(`Not enough usable stock. Available: ${formatNumber(availableStock)} ${currentManageStockData?.unit || 'unit'}.`);
+        return;
+    }
+
+    if (!remarks) {
+        alert('Please enter the reason or remarks.');
+        return;
+    }
+
+    const typeLabels = {
+        damaged: 'Damaged',
+        waste: 'Waste',
+        missing: 'Missing',
+        manual_usage: 'Manual Usage',
+    };
+
+    const confirmed = await openStockLossConfirmModal(
+        `Record ${typeLabels[type] || 'stock loss'} of ${formatNumber(quantity)} ${currentManageStockData?.unit || 'unit'}?`
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    stockLossInProgress = true;
+    lockStockLossActions(true, 'Recording...');
+
+    try {
+        const res = await fetch(`/api/admin/ingredients/${ingredientId}/stock-loss`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+                type,
+                quantity,
+                remarks,
+            }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            if (data.errors) {
+                const firstError = Object.values(data.errors)[0][0];
+                alert(firstError);
+            } else {
+                alert(data.message || 'Failed to record stock loss.');
+            }
+            return;
+        }
+
+        if (
+            requestToken !== manageStockRequestToken
+            || Number(activeManageStockIngredientId) !== Number(ingredientId)
+        ) {
+            alert('Stock loss was recorded, but the panel changed. Please reopen the ingredient.');
+            return;
+        }
+
+        const updatedIngredient = data?.ingredient || data?.data || null;
+
+        if (updatedIngredient?.id) {
+            updateIngredientInMemory(updatedIngredient);
+            updateManageStockModalFromData(updatedIngredient);
+        } else {
+            await refreshManageStockDetails(ingredientId, requestToken);
+        }
+
+        resetStockLossForm();
+        alert(data.message || 'Stock loss recorded successfully.');
+    } catch (error) {
+        console.error('Record stock loss failed:', error);
+        alert('Failed to record stock loss. Please check your connection.');
+    } finally {
+        stockLossInProgress = false;
+        lockStockLossActions(false);
+    }
+});
+
 document.getElementById('stockForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
@@ -2066,6 +2566,7 @@ document.getElementById('stockForm').addEventListener('submit', async function(e
 
     stockSaveInProgress = true;
     lockManageStockActions(true, isEditing ? 'Updating...' : 'Adding...');
+    lockStockLossActions(true, 'Please wait...');
 
     try {
         const res = await fetch(url, {
@@ -2117,6 +2618,7 @@ document.getElementById('stockForm').addEventListener('submit', async function(e
     } finally {
         stockSaveInProgress = false;
         lockManageStockActions(false);
+        lockStockLossActions(false);
     }
 });
 
@@ -2128,7 +2630,7 @@ async function deleteBatch(batchId, button) {
         return;
     }
 
-    if (!confirm('Delete this stock batch?')) return;
+    if (!(await showAppConfirm('Delete Stock Batch', 'Are you sure you want to delete this stock batch? This action cannot be undone.', 'Delete Batch'))) return;
 
     setButtonLoading(button, true, 'Deleting...');
 
@@ -2158,7 +2660,7 @@ async function deleteBatch(batchId, button) {
 }
 
 async function deleteIngredient(id, button) {
-    if (!confirm('Delete this ingredient?')) return;
+    if (!(await showAppConfirm('Delete Ingredient', 'Are you sure you want to delete this ingredient? This action cannot be undone.', 'Delete Ingredient'))) return;
 
     setButtonLoading(button, true, 'Deleting...');
 

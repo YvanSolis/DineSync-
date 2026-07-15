@@ -9,6 +9,8 @@ use App\Models\TableSession;
 use App\Models\User;
 use App\Services\XenditService;
 use App\Services\InventoryDeductionService;
+use App\Services\GovernmentDiscountService;
+use App\Services\AuditService;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -46,7 +48,11 @@ class ServiceStaffController extends Controller
             'seated' => Reservation::where('status', 'seated')->count(),
         ];
 
-        $recentOrders = Order::with(['items.menuItem', 'payment'])
+        $recentOrders = Order::with([
+            'items.menuItem.ingredients',
+            'items.refillRecords',
+            'payment',
+        ])
             ->whereRaw("LOWER(TRIM(status)) IN (?, ?, ?, ?, ?, ?)", $activeStatuses)
             ->orderByRaw("
                 CASE
@@ -89,7 +95,11 @@ class ServiceStaffController extends Controller
             'ready',
         ];
 
-        $orders = Order::with(['items.menuItem', 'payment'])
+        $orders = Order::with([
+            'items.menuItem.ingredients',
+            'items.refillRecords',
+            'payment',
+        ])
             ->whereRaw("LOWER(TRIM(status)) IN (?, ?, ?, ?, ?, ?)", $activeStatuses)
             ->orderByRaw("
                 CASE
@@ -148,14 +158,27 @@ class ServiceStaffController extends Controller
             'status' => ['required', 'in:pending,preparing,ready,served,cancelled'],
         ]);
 
-        $order->status = strtolower(trim($request->status));
+        $oldStatus = strtolower(trim($order->status ?? 'pending'));
+        $newStatus = strtolower(trim($request->status));
+
+        $order->status = $newStatus;
         $order->updated_at = now();
         $order->save();
+
+        AuditService::record(
+            module: 'Orders',
+            action: 'status_changed',
+            description: "Service staff changed order {$order->order_number} from {$oldStatus} to {$newStatus}.",
+            auditable: $order,
+            oldValues: ['status' => $oldStatus],
+            newValues: ['status' => $newStatus],
+            request: $request
+        );
 
         return back()->with('success', 'Order status updated successfully.');
     }
 
-    public function markOrderPaid(Order $order, InventoryDeductionService $inventoryDeductionService)
+    public function markOrderPaid(Request $request, Order $order, InventoryDeductionService $inventoryDeductionService)
     {
         $orderStatus = strtolower(trim($order->status ?? 'pending'));
 
@@ -168,6 +191,13 @@ class ServiceStaffController extends Controller
             : $orderStatus;
 
         try {
+            $oldValues = $order->only([
+                'payment_method',
+                'payment_status',
+                'paid_at',
+                'status',
+            ]);
+
             $inventoryDeductionService->deductForOrder($order);
 
             $order->update([
@@ -177,6 +207,23 @@ class ServiceStaffController extends Controller
                 'status' => $newStatus,
                 'updated_at' => now(),
             ]);
+
+            $order->refresh();
+
+            AuditService::record(
+                module: 'Payments',
+                action: 'payment_processed',
+                description: "Service staff confirmed cash payment for order {$order->order_number}.",
+                auditable: $order,
+                oldValues: $oldValues,
+                newValues: $order->only([
+                    'payment_method',
+                    'payment_status',
+                    'paid_at',
+                    'status',
+                ]),
+                request: $request
+            );
 
             return back()->with('success', 'Payment confirmed. Inventory was deducted and the order is now sent to KDS.');
         } catch (ValidationException $e) {
@@ -304,6 +351,15 @@ class ServiceStaffController extends Controller
             return back()->with('error', 'Guest count exceeds the table capacity.');
         }
 
+        $oldValues = $table->only([
+            'status',
+            'current_guest_count',
+            'current_order_id',
+            'current_reservation_id',
+            'occupied_at',
+            'notes',
+        ]);
+
         $table->update([
             'status' => 'occupied',
             'current_guest_count' => $request->guest_count,
@@ -314,15 +370,42 @@ class ServiceStaffController extends Controller
         ]);
 
         $this->createTableSession($table, $request->guest_count, $request->notes ?: 'Walk-in customer');
+        $table->refresh();
+
+        AuditService::record(
+            module: 'Tables',
+            action: 'walk_in_assigned',
+            description: "Assigned {$request->guest_count} walk-in guest(s) to Table {$table->table_number}.",
+            auditable: $table,
+            oldValues: $oldValues,
+            newValues: $table->only([
+                'status',
+                'current_guest_count',
+                'current_order_id',
+                'current_reservation_id',
+                'occupied_at',
+                'notes',
+            ]),
+            request: $request
+        );
 
         return back()->with('success', 'Walk-in customer assigned to table successfully.');
     }
 
-    public function markTableCleaning(RestaurantTable $table)
+    public function markTableCleaning(Request $request, RestaurantTable $table)
     {
         if ($table->status !== 'occupied') {
             return back()->with('error', 'Only occupied tables can be marked for cleaning.');
         }
+
+        $oldValues = $table->only([
+            'status',
+            'current_guest_count',
+            'current_order_id',
+            'current_reservation_id',
+            'occupied_at',
+            'notes',
+        ]);
 
         $this->closeActiveTableSession($table);
 
@@ -336,14 +419,42 @@ class ServiceStaffController extends Controller
             'updated_at' => now(),
         ]);
 
+        $table->refresh();
+
+        AuditService::record(
+            module: 'Tables',
+            action: 'marked_cleaning',
+            description: "Marked Table {$table->table_number} for cleaning.",
+            auditable: $table,
+            oldValues: $oldValues,
+            newValues: $table->only([
+                'status',
+                'current_guest_count',
+                'current_order_id',
+                'current_reservation_id',
+                'occupied_at',
+                'notes',
+            ]),
+            request: $request
+        );
+
         return back()->with('success', 'Table marked for cleaning. Tablet session has been reset.');
     }
 
-    public function markTableAvailable(RestaurantTable $table)
+    public function markTableAvailable(Request $request, RestaurantTable $table)
     {
         if ($table->status !== 'cleaning') {
             return back()->with('error', 'Only cleaning tables can be marked as available.');
         }
+
+        $oldValues = $table->only([
+            'status',
+            'current_guest_count',
+            'current_order_id',
+            'current_reservation_id',
+            'occupied_at',
+            'notes',
+        ]);
 
         $table->update([
             'status' => 'available',
@@ -354,6 +465,25 @@ class ServiceStaffController extends Controller
             'notes' => null,
             'updated_at' => now(),
         ]);
+
+        $table->refresh();
+
+        AuditService::record(
+            module: 'Tables',
+            action: 'marked_available',
+            description: "Marked Table {$table->table_number} as available.",
+            auditable: $table,
+            oldValues: $oldValues,
+            newValues: $table->only([
+                'status',
+                'current_guest_count',
+                'current_order_id',
+                'current_reservation_id',
+                'occupied_at',
+                'notes',
+            ]),
+            request: $request
+        );
 
         return back()->with('success', 'Table is now available.');
     }
@@ -418,6 +548,14 @@ class ServiceStaffController extends Controller
         $request->validate([
             'status' => ['required', 'in:pending,approved,declined,arrived,seated,completed,cancelled'],
             'table_number' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $oldValues = $reservation->only([
+            'status',
+            'table_number',
+            'arrived_at',
+            'seated_at',
+            'payment_status',
         ]);
 
         $status = strtolower(trim($request->status));
@@ -503,12 +641,35 @@ class ServiceStaffController extends Controller
         }
 
         $reservation->save();
+        $reservation->refresh();
+
+        AuditService::record(
+            module: 'Reservations',
+            action: 'status_changed',
+            description: "Service staff changed reservation #{$reservation->id} to {$reservation->status}.",
+            auditable: $reservation,
+            oldValues: $oldValues,
+            newValues: $reservation->only([
+                'status',
+                'table_number',
+                'arrived_at',
+                'seated_at',
+                'payment_status',
+            ]),
+            request: $request
+        );
 
         return back()->with('success', 'Reservation status updated successfully.');
     }
 
-    public function verifyReservationPayment(Reservation $reservation)
+    public function verifyReservationPayment(Request $request, Reservation $reservation)
     {
+        $oldValues = $reservation->only([
+            'payment_status',
+            'payment_reference',
+            'paid_at',
+        ]);
+
         $reservation->payment_status = 'verified';
 
         if (empty($reservation->payment_reference)) {
@@ -520,14 +681,42 @@ class ServiceStaffController extends Controller
         }
 
         $reservation->save();
+        $reservation->refresh();
+
+        AuditService::record(
+            module: 'Reservations',
+            action: 'payment_verified',
+            description: "Service staff verified payment for reservation #{$reservation->id}.",
+            auditable: $reservation,
+            oldValues: $oldValues,
+            newValues: $reservation->only([
+                'payment_status',
+                'payment_reference',
+                'paid_at',
+            ]),
+            request: $request
+        );
 
         return back()->with('success', 'Reservation payment verified successfully.');
     }
 
-    public function rejectReservationPayment(Reservation $reservation)
+    public function rejectReservationPayment(Request $request, Reservation $reservation)
     {
+        $oldValues = $reservation->only(['payment_status']);
+
         $reservation->payment_status = 'rejected';
         $reservation->save();
+        $reservation->refresh();
+
+        AuditService::record(
+            module: 'Reservations',
+            action: 'payment_rejected',
+            description: "Service staff rejected payment for reservation #{$reservation->id}.",
+            auditable: $reservation,
+            oldValues: $oldValues,
+            newValues: $reservation->only(['payment_status']),
+            request: $request
+        );
 
         return back()->with('success', 'Reservation payment rejected.');
     }
@@ -778,91 +967,402 @@ class ServiceStaffController extends Controller
         });
     }
 
-    public function processOrderPayment(Request $request, Order $order, XenditService $xenditService)
-    {
-        $request->validate([
-            'payment_method' => ['required', 'in:cash,qrph'],
+    public function processOrderPayment(
+        Request $request,
+        Order $order,
+        GovernmentDiscountService $discountService,
+        InventoryDeductionService $inventoryDeductionService
+    ) {
+        $validated = $request->validate([
+            'payment_method' => [
+                'required',
+                'in:cash',
+            ],
+            'discount_type' => [
+                'required',
+                'in:none,senior,pwd',
+            ],
+            'total_diners' => [
+                'nullable',
+                'integer',
+                'min:1',
+                'max:100',
+            ],
+            'qualified_diners' => [
+                'nullable',
+                'integer',
+                'min:1',
+                'max:100',
+            ],
+            'discount_holder_name' => [
+                'nullable',
+                'string',
+                'max:1000',
+            ],
+            'discount_id_number' => [
+                'nullable',
+                'string',
+                'max:1000',
+            ],
+            'discount_id_verified' => [
+                'nullable',
+            ],
         ]);
 
-        $selectedMethod = strtolower(trim($request->payment_method));
-        $orderStatus = strtolower(trim($order->status ?? 'pending'));
+        $paymentStatus = strtolower(
+            trim($order->payment_status ?? 'pending')
+        );
 
-        if (in_array(strtolower(trim($order->payment_status ?? 'pending')), ['paid', 'verified'], true)) {
-            return back()->with('error', 'This order is already paid.');
+        if (in_array($paymentStatus, [
+            'paid',
+            'verified',
+            'completed',
+            'success',
+            'successful',
+            'settled',
+        ], true)) {
+            return back()->with(
+                'error',
+                'This order is already paid.'
+            );
         }
 
-        if ($selectedMethod === 'cash') {
-            $newStatus = $orderStatus === 'awaiting_payment'
-                ? 'pending'
-                : $orderStatus;
+        $discountType = strtolower(
+            trim($validated['discount_type'])
+        );
 
-            try {
-                app(InventoryDeductionService::class)->deductForOrder($order);
+        $totalDiners = (int) (
+            $validated['total_diners'] ?? 0
+        );
 
-                $order->update([
+        $qualifiedDiners = (int) (
+            $validated['qualified_diners'] ?? 0
+        );
+
+        $discountHolderName = trim(
+            (string) (
+                $validated['discount_holder_name'] ?? ''
+            )
+        );
+
+        $discountIdNumber = trim(
+            (string) (
+                $validated['discount_id_number'] ?? ''
+            )
+        );
+
+        $discountIdVerified = $request->boolean(
+            'discount_id_verified'
+        );
+
+        if ($discountType !== 'none') {
+            if ($totalDiners < 1) {
+                throw ValidationException::withMessages([
+                    'total_diners' =>
+                        'The total number of diners must be at least 1.',
+                ]);
+            }
+
+            if ($qualifiedDiners < 1) {
+                throw ValidationException::withMessages([
+                    'qualified_diners' =>
+                        'At least one qualified diner is required.',
+                ]);
+            }
+
+            if ($qualifiedDiners > $totalDiners) {
+                throw ValidationException::withMessages([
+                    'qualified_diners' =>
+                        'Qualified diners cannot exceed total diners.',
+                ]);
+            }
+
+            if ($discountHolderName === '') {
+                throw ValidationException::withMessages([
+                    'discount_holder_name' =>
+                        'Enter the name of every qualified ID holder.',
+                ]);
+            }
+
+            if ($discountIdNumber === '') {
+                throw ValidationException::withMessages([
+                    'discount_id_number' =>
+                        'Enter the ID number of every qualified diner.',
+                ]);
+            }
+
+            if (!$discountIdVerified) {
+                throw ValidationException::withMessages([
+                    'discount_id_verified' =>
+                        'The valid Senior Citizen or PWD ID must be verified.',
+                ]);
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Multiple qualified diners
+            |--------------------------------------------------------------------------
+            |
+            | For more than one qualified diner, the cashier must enter one name
+            | and one ID number per person, separated by commas or new lines.
+            |
+            */
+            $holderNames = collect(
+                preg_split(
+                    '/[\r\n,]+/',
+                    $discountHolderName
+                )
+            )
+                ->map(fn ($value) => trim($value))
+                ->filter()
+                ->values();
+
+            $idNumbers = collect(
+                preg_split(
+                    '/[\r\n,]+/',
+                    $discountIdNumber
+                )
+            )
+                ->map(fn ($value) => trim($value))
+                ->filter()
+                ->values();
+
+            if ($holderNames->count() !== $qualifiedDiners) {
+                throw ValidationException::withMessages([
+                    'discount_holder_name' =>
+                        "Enter exactly {$qualifiedDiners} qualified holder name(s), separated by commas.",
+                ]);
+            }
+
+            if ($idNumbers->count() !== $qualifiedDiners) {
+                throw ValidationException::withMessages([
+                    'discount_id_number' =>
+                        "Enter exactly {$qualifiedDiners} verified ID number(s), separated by commas.",
+                ]);
+            }
+
+            if (
+                $holderNames->map(fn ($value) => strtolower($value))
+                    ->duplicates()
+                    ->isNotEmpty()
+            ) {
+                throw ValidationException::withMessages([
+                    'discount_holder_name' =>
+                        'Duplicate qualified holder names are not allowed.',
+                ]);
+            }
+
+            if (
+                $idNumbers->map(fn ($value) => strtolower($value))
+                    ->duplicates()
+                    ->isNotEmpty()
+            ) {
+                throw ValidationException::withMessages([
+                    'discount_id_number' =>
+                        'Duplicate Senior Citizen or PWD ID numbers are not allowed.',
+                ]);
+            }
+
+            $discountHolderName = $holderNames->implode(', ');
+            $discountIdNumber = $idNumbers->implode(', ');
+        } else {
+            $totalDiners = 0;
+            $qualifiedDiners = 0;
+            $discountHolderName = '';
+            $discountIdNumber = '';
+            $discountIdVerified = false;
+        }
+
+        $calculation = $discountService->calculate(
+            originalAmount: (float) $order->total_amount,
+            discountType: $discountType,
+            qualifiedDiners: $qualifiedDiners,
+            totalDiners: $totalDiners
+        );
+
+        $orderStatus = strtolower(
+            trim($order->status ?? 'pending')
+        );
+
+        $newStatus = $orderStatus === 'awaiting_payment'
+            ? 'pending'
+            : $orderStatus;
+
+        try {
+            DB::transaction(function () use (
+                $request,
+                $order,
+                $inventoryDeductionService,
+                $discountType,
+                $totalDiners,
+                $qualifiedDiners,
+                $discountHolderName,
+                $discountIdNumber,
+                $discountIdVerified,
+                $calculation,
+                $newStatus
+            ) {
+                $lockedOrder = Order::query()
+                    ->whereKey($order->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $lockedPaymentStatus = strtolower(
+                    trim(
+                        $lockedOrder->payment_status
+                        ?? 'pending'
+                    )
+                );
+
+                if (in_array($lockedPaymentStatus, [
+                    'paid',
+                    'verified',
+                    'completed',
+                    'success',
+                    'successful',
+                    'settled',
+                ], true)) {
+                    throw ValidationException::withMessages([
+                        'payment' =>
+                            'This order has already been paid.',
+                    ]);
+                }
+
+                $oldValues = $lockedOrder->only([
+                    'payment_method',
+                    'payment_status',
+                    'paid_at',
+                    'status',
+                    'discount_type',
+                    'qualified_diners',
+                    'total_diners',
+                    'discount_holder_name',
+                    'discount_id_number',
+                    'vat_exempt_amount',
+                    'discount_amount',
+                    'final_amount',
+                    'discount_verified_by',
+                    'discount_verified_at',
+                ]);
+
+                $inventoryDeductionService
+                    ->deductForOrder($lockedOrder);
+
+                $updateData = [
                     'payment_method' => 'Cash',
                     'payment_status' => 'paid',
                     'paid_at' => now(),
                     'status' => $newStatus,
+                    'discount_type' => $discountType,
+                    'qualified_diners' => $qualifiedDiners,
+                    'total_diners' => $totalDiners,
+                    'discount_holder_name' =>
+                        $discountType === 'none'
+                            ? null
+                            : $discountHolderName,
+                    'discount_id_number' =>
+                        $discountType === 'none'
+                            ? null
+                            : $discountIdNumber,
+                    'vat_exempt_amount' =>
+                        $calculation['vat_exempt_amount'],
+                    'discount_amount' =>
+                        $calculation['discount_amount'],
+                    'final_amount' =>
+                        $calculation['final_amount'],
+                    'discount_verified_by' =>
+                        $discountType === 'none'
+                            ? null
+                            : $request->user()?->id,
+                    'discount_verified_at' =>
+                        $discountType === 'none'
+                            ? null
+                            : now(),
                     'updated_at' => now(),
-                ]);
+                ];
 
-                return back()->with('success', 'Cash payment confirmed. Inventory was deducted and the order is now sent to KDS.');
-            } catch (ValidationException $e) {
-                $message = collect($e->errors())->flatten()->first();
+                $lockedOrder->update($updateData);
+                $lockedOrder->refresh();
 
-                return back()->with('error', $message ?: 'Not enough stock to process this order.');
-            } catch (\Throwable $e) {
-                report($e);
+                $discountLabel = match ($discountType) {
+                    'senior' => 'Senior Citizen',
+                    'pwd' => 'PWD',
+                    default => 'No',
+                };
 
-                return back()->with('error', $e->getMessage() ?: 'Unable to process payment and inventory deduction.');
-            }
-        }
+                $description = $discountType === 'none'
+                    ? "Service staff processed cash payment for order {$lockedOrder->order_number} without a government discount."
+                    : sprintf(
+                        'Service staff processed cash payment for order %s with a %s discount for %d of %d diner(s). Original: ₱%s. Final: ₱%s.',
+                        $lockedOrder->order_number,
+                        $discountLabel,
+                        $qualifiedDiners,
+                        $totalDiners,
+                        number_format(
+                            (float) $lockedOrder->total_amount,
+                            2
+                        ),
+                        number_format(
+                            (float) $calculation['final_amount'],
+                            2
+                        )
+                    );
 
-        try {
-            $invoice = $xenditService->createOrderInvoice($order);
+                AuditService::record(
+                    module: 'Payments',
+                    action: $discountType === 'none'
+                        ? 'payment_processed'
+                        : 'government_discount_applied',
+                    description: $description,
+                    auditable: $lockedOrder,
+                    oldValues: $oldValues,
+                    newValues: $lockedOrder->only([
+                        'payment_method',
+                        'payment_status',
+                        'paid_at',
+                        'status',
+                        'discount_type',
+                        'qualified_diners',
+                        'total_diners',
+                        'discount_holder_name',
+                        'discount_id_number',
+                        'vat_exempt_amount',
+                        'discount_amount',
+                        'final_amount',
+                        'discount_verified_by',
+                        'discount_verified_at',
+                    ]),
+                    request: $request
+                );
+            });
 
-            $updateData = [
-                'payment_method' => 'Digital Payment',
-                'payment_status' => 'pending',
-                'status' => 'awaiting_payment',
-                'updated_at' => now(),
-            ];
+            $successMessage = $discountType === 'none'
+                ? 'Cash payment confirmed. The order is now sent to KDS.'
+                : sprintf(
+                    '%s discount applied. Final payable amount: ₱%s. The order is now sent to KDS.',
+                    $discountType === 'senior'
+                        ? 'Senior Citizen'
+                        : 'PWD',
+                    number_format(
+                        (float) $calculation['final_amount'],
+                        2
+                    )
+                );
 
-            if (Schema::hasColumn('orders', 'xendit_invoice_id')) {
-                $updateData['xendit_invoice_id'] = $invoice['id'] ?? null;
-            }
+            return back()->with(
+                'success',
+                $successMessage
+            );
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            report($exception);
 
-            if (Schema::hasColumn('orders', 'xendit_external_id')) {
-                $updateData['xendit_external_id'] = $invoice['external_id'] ?? null;
-            }
-
-            if (Schema::hasColumn('orders', 'xendit_invoice_url')) {
-                $updateData['xendit_invoice_url'] = $invoice['invoice_url'] ?? null;
-            }
-
-            if (Schema::hasColumn('orders', 'xendit_expiry_date')) {
-                $updateData['xendit_expiry_date'] = $invoice['expiry_date'] ?? null;
-            }
-
-            if (Schema::hasColumn('orders', 'payment_reference')) {
-                $updateData['payment_reference'] = $invoice['external_id'] ?? null;
-            }
-
-            $order->update($updateData);
-
-            if (empty($invoice['invoice_url'])) {
-                return back()->with('error', 'Xendit payment link was not generated.');
-            }
-
-            return redirect()->away($invoice['invoice_url']);
-        } catch (\Throwable $e) {
-            Log::error('Service order QR PH payment creation failed', [
-                'order_id' => $order->id,
-                'message' => $e->getMessage(),
-            ]);
-
-            return back()->with('error', $e->getMessage() ?: 'Unable to create QR PH payment right now.');
+            return back()->with(
+                'error',
+                $exception->getMessage()
+                    ?: 'Unable to process the payment and discount.'
+            );
         }
     }
 

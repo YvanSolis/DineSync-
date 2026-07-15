@@ -12,14 +12,14 @@
         background-image:
             linear-gradient(
                 135deg,
-                rgba(15, 23, 42, 0.72),
-                rgba(67, 31, 12, 0.62)
+                rgba(12, 15, 22, 0.84),
+                rgba(62, 31, 18, 0.76)
             ),
             url('{{ asset('images/customer-menu/kds-background.png') }}');
         background-size: cover;
         background-position: center;
-        background-attachment: fixed;
-        background-color: #0f172a;
+        background-attachment: scroll;
+        background-color: #111318;
     }
 
     .reservations-page {
@@ -35,7 +35,7 @@
             url('{{ asset('images/customer-menu/kds-background.png') }}');
         background-size: cover;
         background-position: center;
-        background-attachment: fixed;
+        background-attachment: scroll;
     }
 
     @media (max-width: 1023px) {
@@ -63,17 +63,17 @@
     }
 
     .glass-dark {
-        background: rgba(10, 10, 10, 0.88);
+        background: rgba(17, 19, 24, 0.94);
         border: 1px solid rgba(255, 255, 255, 0.12);
-        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
-        backdrop-filter: blur(14px);
+        box-shadow: 0 24px 56px rgba(0, 0, 0, 0.28);
+        backdrop-filter: none;
     }
 
     .reservation-card {
-        background: rgba(10, 10, 10, 0.88);
+        background: rgba(17, 19, 24, 0.94);
         border: 1px solid rgba(255, 255, 255, 0.14);
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
-        backdrop-filter: blur(14px);
+        box-shadow: 0 20px 48px rgba(0, 0, 0, 0.24);
+        backdrop-filter: none;
     }
 
     .status-badge {
@@ -91,7 +91,7 @@
 
     .info-box {
         border: 1px solid rgba(255, 255, 255, 0.18);
-        background: rgba(255, 255, 255, 0.04);
+        background: rgba(255, 255, 255, 0.055);
     }
 
     .reservation-main-grid {
@@ -140,7 +140,7 @@
         align-items: center;
         justify-content: center;
         padding: 0.75rem 1rem;
-        border-radius: 1rem;
+        border-radius: 0.9rem;
         font-size: 0.8rem;
         font-weight: 900;
         line-height: 1.2;
@@ -198,11 +198,11 @@
 
     .cancel-modal-backdrop {
         background: rgba(0, 0, 0, 0.68);
-        backdrop-filter: blur(6px);
+        backdrop-filter: none;
     }
 
     .cancel-modal-card {
-        background: linear-gradient(135deg, #111827 0%, #020617 100%);
+        background: linear-gradient(135deg, #111318 0%, #07090d 100%);
         border: 1px solid rgba(255, 255, 255, 0.12);
         box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
     }
@@ -355,6 +355,54 @@
             grid-template-columns: 1fr;
         }
     }
+
+    /* Chef Oppa reservation theme */
+    .reservation-create-header,
+    .reservation-edit-header,
+    .reservation-page-header {
+        border: 1px solid rgba(255,255,255,.20);
+    }
+
+    .reservation-step-number,
+    .mobile-hide {
+        box-shadow: none !important;
+    }
+
+    .reservation-submit-card {
+        background:
+            radial-gradient(circle at top right, rgba(249,115,22,.16), transparent 14rem),
+            linear-gradient(135deg, #111827, #111318) !important;
+        border: 1px solid rgba(255,255,255,.08);
+    }
+
+    .reservation-action-btn,
+    .reservation-create-header a,
+    .reservation-edit-header a,
+    .reservation-page-header a,
+    .reservation-submit-card button,
+    .reservation-submit-card a {
+        border-radius: 0.9rem !important;
+    }
+
+    .reservation-card,
+    .glass-dark,
+    .glass-card,
+    .dark-card {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            scroll-behavior: auto !important;
+            transition-duration: 0.01ms !important;
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+        }
+    }
+
 </style>
 
 <div

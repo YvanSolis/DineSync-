@@ -157,6 +157,13 @@
             bottom: 0;
         }
     }
+
+
+    .premium-modal-panel { animation: premiumModalIn .20s ease-out; }
+    .premium-toast { animation: premiumToastIn .25s ease-out; }
+    @keyframes premiumModalIn { from { opacity: 0; transform: translateY(12px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @keyframes premiumToastIn { from { opacity: 0; transform: translateY(-10px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
 </style>
 
 <div class="space-y-5 sm:space-y-6">
@@ -408,6 +415,17 @@
                                 <input id="itemAvailable" type="checkbox" class="rounded shrink-0 scale-110" checked>
                             </label>
 
+                            <label class="flex items-center justify-between gap-4 border border-blue-200 rounded-3xl px-5 py-4 bg-blue-50">
+                                <div class="min-w-0">
+                                    <p class="text-sm font-bold text-blue-900">Unlimited Menu</p>
+                                    <p class="text-xs text-blue-700 mt-1">
+                                        Enable refill tracking for unlimited meat, cheese, drinks, and similar menu items.
+                                    </p>
+                                </div>
+
+                                <input id="itemUnlimited" type="checkbox" class="rounded shrink-0 scale-110">
+                            </label>
+
                             <div class="rounded-3xl border border-orange-100 bg-orange-50 px-5 py-4">
                                 <div class="flex items-start gap-3">
                                     <div class="w-9 h-9 rounded-2xl bg-white border border-orange-100 flex items-center justify-center text-orange-600 font-bold shrink-0">
@@ -565,6 +583,50 @@
                             class="w-full xl:w-auto h-[50px] bg-orange-500 hover:bg-orange-600 text-white px-6 rounded-2xl font-semibold shadow-sm disabled:opacity-70 disabled:cursor-not-allowed transition">
                             Add Ingredient
                         </button>
+
+                        <div id="refillConfigPanel"
+                            class="hidden xl:col-span-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                            <label class="flex items-center gap-3 cursor-pointer">
+                                <input
+                                    id="ingredientRefillable"
+                                    type="checkbox"
+                                    class="rounded text-blue-600 focus:ring-blue-400"
+                                >
+
+                                <span>
+                                    <span class="block text-sm font-bold text-blue-900">Refillable Ingredient</span>
+                                    <span class="block text-xs text-blue-700 mt-0.5">
+                                        Enable this when the service staff may record a refill for this ingredient.
+                                    </span>
+                                </span>
+                            </label>
+
+                            <div id="refillQuantityWrapper" class="hidden mt-4">
+                                <label class="block text-sm font-semibold mb-2 text-blue-900">
+                                    Quantity Per Refill
+                                </label>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-center">
+                                    <input
+                                        id="refillQuantity"
+                                        type="number"
+                                        min="0.01"
+                                        step="0.01"
+                                        placeholder="Example: 0.20"
+                                        class="w-full border border-blue-200 rounded-2xl px-4 py-3 bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition"
+                                    >
+
+                                    <span id="refillUnitLabel"
+                                        class="inline-flex justify-center px-4 py-3 rounded-2xl bg-white border border-blue-100 text-sm font-bold text-blue-700">
+                                        unit
+                                    </span>
+                                </div>
+
+                                <p class="text-xs text-blue-700 mt-2">
+                                    This amount will be deducted from inventory every time a refill is confirmed.
+                                </p>
+                            </div>
+                        </div>
                     </form>
 
                     <div class="mt-4 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3">
@@ -626,6 +688,26 @@
     </div>
 </div>
 
+<!-- Premium Toasts -->
+<div id="premiumToastContainer" class="fixed top-4 right-4 z-[100] w-[calc(100%-2rem)] max-w-sm space-y-3 pointer-events-none"></div>
+
+<!-- Premium Confirmation Modal -->
+<div id="premiumConfirmModal" class="fixed inset-0 z-[90] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div class="premium-modal-panel w-full max-w-md overflow-hidden rounded-[28px] border border-orange-100 bg-white shadow-2xl">
+        <div class="bg-gradient-to-br from-orange-50 via-white to-amber-50 px-6 py-6 text-center">
+            <div id="premiumConfirmIcon" class="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-red-200 bg-red-100 text-3xl font-black text-red-600 shadow-sm">!</div>
+            <h3 id="premiumConfirmTitle" class="mt-4 text-2xl font-extrabold text-gray-900">Confirm Action</h3>
+            <p id="premiumConfirmMessage" class="mt-3 text-sm leading-6 text-gray-600">Are you sure?</p>
+        </div>
+        <div class="border-t border-gray-100 bg-white px-6 py-5">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <button id="premiumConfirmCancel" type="button" class="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 font-bold text-gray-700 transition hover:bg-gray-50">Cancel</button>
+                <button id="premiumConfirmProceed" type="button" class="w-full rounded-2xl bg-red-600 px-4 py-3 font-bold text-white shadow-sm transition hover:bg-red-700">Continue</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 let menuItems = [];
 let filteredMenuItems = [];
@@ -669,6 +751,74 @@ function safeText(value) {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
+}
+
+function showNotice(message, type = 'success', title = '') {
+    const container = document.getElementById('premiumToastContainer');
+    if (!container) return;
+
+    const styles = {
+        success: { icon: '✓', title: title || 'Success', classes: 'border-green-200 bg-green-50 text-green-800', iconClasses: 'bg-green-500 text-white' },
+        error: { icon: '!', title: title || 'Something went wrong', classes: 'border-red-200 bg-red-50 text-red-800', iconClasses: 'bg-red-500 text-white' },
+        warning: { icon: '!', title: title || 'Please check', classes: 'border-amber-200 bg-amber-50 text-amber-800', iconClasses: 'bg-amber-500 text-white' },
+        info: { icon: 'i', title: title || 'Information', classes: 'border-blue-200 bg-blue-50 text-blue-800', iconClasses: 'bg-blue-500 text-white' },
+    };
+
+    const style = styles[type] || styles.info;
+    const toast = document.createElement('div');
+    toast.className = `premium-toast pointer-events-auto rounded-2xl border p-4 shadow-xl ${style.classes}`;
+    toast.innerHTML = `
+        <div class="flex items-start gap-3">
+            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-black ${style.iconClasses}">${style.icon}</div>
+            <div class="min-w-0 flex-1">
+                <p class="font-extrabold">${safeText(style.title)}</p>
+                <p class="mt-1 text-sm leading-5">${safeText(message)}</p>
+            </div>
+            <button type="button" class="text-lg opacity-60 hover:opacity-100" aria-label="Close">&times;</button>
+        </div>`;
+
+    const remove = () => toast.remove();
+    toast.querySelector('button').addEventListener('click', remove);
+    container.appendChild(toast);
+    setTimeout(remove, 4200);
+}
+
+function premiumConfirm({ title = 'Confirm Action', message = 'Are you sure?', confirmText = 'Continue', tone = 'danger' } = {}) {
+    const modal = document.getElementById('premiumConfirmModal');
+    const titleEl = document.getElementById('premiumConfirmTitle');
+    const messageEl = document.getElementById('premiumConfirmMessage');
+    const proceed = document.getElementById('premiumConfirmProceed');
+    const cancel = document.getElementById('premiumConfirmCancel');
+    const icon = document.getElementById('premiumConfirmIcon');
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    proceed.textContent = confirmText;
+
+    if (tone === 'warning') {
+        proceed.className = 'w-full rounded-2xl bg-orange-500 px-4 py-3 font-bold text-white shadow-sm transition hover:bg-orange-600';
+        icon.className = 'mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-orange-200 bg-orange-100 text-3xl font-black text-orange-600 shadow-sm';
+    } else {
+        proceed.className = 'w-full rounded-2xl bg-red-600 px-4 py-3 font-bold text-white shadow-sm transition hover:bg-red-700';
+        icon.className = 'mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-red-200 bg-red-100 text-3xl font-black text-red-600 shadow-sm';
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.classList.add('overflow-hidden');
+
+    return new Promise(resolve => {
+        const finish = value => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.body.classList.remove('overflow-hidden');
+            proceed.onclick = null;
+            cancel.onclick = null;
+            resolve(value);
+        };
+        proceed.onclick = () => finish(true);
+        cancel.onclick = () => finish(false);
+    });
 }
 
 function formatMoney(value) {
@@ -1319,7 +1469,7 @@ function setupImagePreviewHandler() {
         const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
         if (!allowedTypes.includes(file.type)) {
-            alert('Please upload JPG, PNG, or WEBP image only.');
+            showNotice('Please upload a JPG, PNG, or WEBP image only.', 'warning', 'Invalid image type');
             this.value = '';
             resetImagePreview();
             return;
@@ -1328,7 +1478,7 @@ function setupImagePreviewHandler() {
         const maxSize = 4 * 1024 * 1024;
 
         if (file.size > maxSize) {
-            alert('Image must not be larger than 4MB.');
+            showNotice('Image must not be larger than 4MB.', 'warning', 'Image is too large');
             this.value = '';
             resetImagePreview();
             return;
@@ -1379,6 +1529,7 @@ function openMenuModal(id = null) {
 
         currentImageText.classList.toggle('hidden', !item.image && !item.image_url);
         document.getElementById('itemAvailable').checked = Boolean(item.is_available);
+        document.getElementById('itemUnlimited').checked = Boolean(item.is_unlimited);
 
         populateFlavorTags(item.flavor_tags || []);
         populateMealTypes(item.meal_type || '');
@@ -1395,6 +1546,7 @@ function openMenuModal(id = null) {
         resetImagePreview();
         currentImageText.classList.add('hidden');
         document.getElementById('itemAvailable').checked = true;
+        document.getElementById('itemUnlimited').checked = false;
 
         populateFlavorTags([]);
         populateMealTypes('');
@@ -1417,6 +1569,7 @@ document.getElementById('menuForm').addEventListener('submit', async function(e)
     e.preventDefault();
 
     const saveBtn = document.getElementById('menuSaveBtn');
+    const wasEditingMenuItem = Boolean(editingMenuItemId);
     const imageInput = document.getElementById('itemImage');
 
     const formData = new FormData();
@@ -1425,6 +1578,7 @@ document.getElementById('menuForm').addEventListener('submit', async function(e)
     formData.append('description', document.getElementById('itemDescription').value);
     formData.append('price', document.getElementById('itemPrice').value);
     formData.append('is_available', document.getElementById('itemAvailable').checked ? '1' : '0');
+    formData.append('is_unlimited', document.getElementById('itemUnlimited').checked ? '1' : '0');
 
     const selectedFlavorTags = getSelectedFlavorTags();
 
@@ -1463,9 +1617,9 @@ document.getElementById('menuForm').addEventListener('submit', async function(e)
         if (!res.ok) {
             if (data.errors) {
                 const firstError = Object.values(data.errors)[0][0];
-                alert(firstError);
+                showNotice(firstError, 'error', 'Validation error');
             } else {
-                alert(data.message || 'Failed to save menu item.');
+                showNotice(data.message || 'Failed to save menu item.', 'error');
             }
             return;
         }
@@ -1479,9 +1633,10 @@ document.getElementById('menuForm').addEventListener('submit', async function(e)
         }
 
         closeMenuModal();
+        showNotice(wasEditingMenuItem ? 'Menu item updated successfully.' : 'Menu item added successfully.', 'success', wasEditingMenuItem ? 'Menu item updated' : 'Menu item created');
     } catch (error) {
         console.error('Save menu item failed:', error);
-        alert('Failed to save menu item. Please check your connection.');
+        showNotice('Failed to save menu item. Please check your connection.', 'error', 'Connection error');
     } finally {
         setButtonLoading(saveBtn, false);
     }
@@ -1505,7 +1660,7 @@ async function toggleAvailability(id, currentStatus, button) {
         const data = await res.json();
 
         if (!res.ok) {
-            alert(data.message || 'Failed to update availability.');
+            showNotice(data.message || 'Failed to update availability.', 'error');
             return;
         }
 
@@ -1516,16 +1671,17 @@ async function toggleAvailability(id, currentStatus, button) {
         } else {
             silentReloadMenuItems();
         }
+        showNotice('Menu availability updated successfully.', 'success', 'Availability updated');
     } catch (error) {
         console.error('Availability update failed:', error);
-        alert('Failed to update availability. Please check your connection.');
+        showNotice('Failed to update availability. Please check your connection.', 'error', 'Connection error');
     } finally {
         setButtonLoading(button, false);
     }
 }
 
 async function deleteMenuItem(id, button) {
-    if (!confirm('Delete this menu item?')) return;
+    if (!await premiumConfirm({ title: 'Delete Menu Item?', message: 'This menu item will be permanently removed. This action cannot be undone.', confirmText: 'Yes, Delete Item' })) return;
 
     setButtonLoading(button, true, 'Deleting...');
 
@@ -1538,15 +1694,16 @@ async function deleteMenuItem(id, button) {
         });
 
         if (!res.ok) {
-            alert('Failed to delete menu item.');
+            showNotice('Failed to delete menu item.', 'error');
             return;
         }
 
         removeMenuItemFromMemory(id);
         silentReloadMenuItems();
+        showNotice('Menu item deleted successfully.', 'success', 'Menu item deleted');
     } catch (error) {
         console.error('Delete menu item failed:', error);
-        alert('Failed to delete menu item. Please check your connection.');
+        showNotice('Failed to delete menu item. Please check your connection.', 'error', 'Connection error');
     } finally {
         setButtonLoading(button, false);
     }
@@ -1579,10 +1736,14 @@ function setIngredientFormDisabled(isDisabled) {
     const form = document.getElementById('attachIngredientForm');
     const ingredientSelect = document.getElementById('ingredientSelect');
     const quantityInput = document.getElementById('quantityRequired');
+    const refillableInput = document.getElementById('ingredientRefillable');
+    const refillQuantityInput = document.getElementById('refillQuantity');
     const submitButton = document.getElementById('attachIngredientBtn');
 
     if (ingredientSelect) ingredientSelect.disabled = isDisabled;
     if (quantityInput) quantityInput.disabled = isDisabled;
+    if (refillableInput) refillableInput.disabled = isDisabled;
+    if (refillQuantityInput) refillQuantityInput.disabled = isDisabled;
     if (submitButton) submitButton.disabled = isDisabled;
 
     if (form) {
@@ -1621,7 +1782,13 @@ function restoreMenuItemSnapshot(snapshot) {
     }
 }
 
-function applyOptimisticIngredientLink(menuItemId, ingredientId, quantityRequired) {
+function applyOptimisticIngredientLink(
+    menuItemId,
+    ingredientId,
+    quantityRequired,
+    isRefillable = false,
+    refillQuantity = null
+) {
     const item = menuItems.find(menuItem => Number(menuItem.id) === Number(menuItemId));
     const ingredient = findIngredientFromList(ingredientId);
 
@@ -1634,11 +1801,15 @@ function applyOptimisticIngredientLink(menuItemId, ingredientId, quantityRequire
     const optimisticIngredient = {
         ...ingredient,
         quantity_required: Number(quantityRequired),
+        is_refillable: Boolean(isRefillable),
+        refill_quantity: isRefillable ? Number(refillQuantity) : null,
         pivot: {
             ...(ingredient.pivot || {}),
             menu_item_id: Number(menuItemId),
             ingredient_id: Number(ingredientId),
             quantity_required: Number(quantityRequired),
+            is_refillable: Boolean(isRefillable),
+            refill_quantity: isRefillable ? Number(refillQuantity) : null,
         },
     };
 
@@ -1646,9 +1817,13 @@ function applyOptimisticIngredientLink(menuItemId, ingredientId, quantityRequire
         linkedIngredients[existingIndex] = {
             ...linkedIngredients[existingIndex],
             quantity_required: Number(quantityRequired),
+            is_refillable: Boolean(isRefillable),
+            refill_quantity: isRefillable ? Number(refillQuantity) : null,
             pivot: {
                 ...(linkedIngredients[existingIndex].pivot || {}),
                 quantity_required: Number(quantityRequired),
+                is_refillable: Boolean(isRefillable),
+                refill_quantity: isRefillable ? Number(refillQuantity) : null,
             },
         };
     } else {
@@ -1691,7 +1866,7 @@ function applyOptimisticIngredientDetach(menuItemId, ingredientId) {
 
 function openIngredientsModal(id) {
     if (ingredientMutationInProgress) {
-        alert('Please wait for the current ingredient update to finish.');
+        showNotice('Please wait for the current ingredient update to finish.', 'info');
         return;
     }
 
@@ -1703,6 +1878,17 @@ function openIngredientsModal(id) {
     document.getElementById('ingredientsMenuItemId').value = id;
     document.getElementById('ingredientsModalTitle').textContent = `Ingredients - ${item.name}`;
     document.getElementById('attachIngredientForm').reset();
+
+    const refillPanel = document.getElementById('refillConfigPanel');
+    const refillableInput = document.getElementById('ingredientRefillable');
+    const refillQuantityInput = document.getElementById('refillQuantity');
+    const refillQuantityWrapper = document.getElementById('refillQuantityWrapper');
+
+    refillPanel.classList.toggle('hidden', !Boolean(item.is_unlimited));
+    refillableInput.checked = false;
+    refillQuantityInput.value = '';
+    refillQuantityWrapper.classList.add('hidden');
+    updateRefillUnitLabel();
 
     setIngredientsAvailabilityBadge(item);
     populateIngredientSelect();
@@ -1731,6 +1917,48 @@ function getIngredientRequiredValue(ingredient) {
     }
 
     return 0;
+}
+
+function getIngredientRefillableValue(ingredient) {
+    if (ingredient.is_refillable !== undefined && ingredient.is_refillable !== null) {
+        return Boolean(ingredient.is_refillable);
+    }
+
+    return Boolean(ingredient.pivot?.is_refillable);
+}
+
+function getIngredientRefillQuantityValue(ingredient) {
+    if (ingredient.refill_quantity !== undefined && ingredient.refill_quantity !== null) {
+        return Number(ingredient.refill_quantity || 0);
+    }
+
+    if (ingredient.pivot?.refill_quantity !== undefined && ingredient.pivot.refill_quantity !== null) {
+        return Number(ingredient.pivot.refill_quantity || 0);
+    }
+
+    return 0;
+}
+
+function updateRefillUnitLabel() {
+    const ingredientId = document.getElementById('ingredientSelect')?.value;
+    const ingredient = findIngredientFromList(ingredientId);
+    const unitLabel = document.getElementById('refillUnitLabel');
+
+    if (unitLabel) {
+        unitLabel.textContent = ingredient?.unit || 'unit';
+    }
+}
+
+function resetRefillIngredientFields() {
+    const refillableInput = document.getElementById('ingredientRefillable');
+    const refillQuantityInput = document.getElementById('refillQuantity');
+    const refillQuantityWrapper = document.getElementById('refillQuantityWrapper');
+
+    if (refillableInput) refillableInput.checked = false;
+    if (refillQuantityInput) refillQuantityInput.value = '';
+    if (refillQuantityWrapper) refillQuantityWrapper.classList.add('hidden');
+
+    updateRefillUnitLabel();
 }
 
 function getIngredientStockValue(ingredient) {
@@ -1828,6 +2056,18 @@ function renderLinkedIngredients(id) {
                 <td class="px-5 py-4">
                     <p class="font-semibold text-gray-900">${safeText(formatNumber(required))} ${safeText(unit)}</p>
                     <p class="text-xs text-gray-400 mt-0.5">Consumed per order</p>
+
+                    ${
+                        getIngredientRefillableValue(ingredient)
+                            ? `
+                                <div class="mt-2">
+                                    <span class="inline-flex px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-[11px] font-semibold">
+                                        Refill: ${safeText(formatNumber(getIngredientRefillQuantityValue(ingredient)))} ${safeText(unit)}
+                                    </span>
+                                </div>
+                            `
+                            : ''
+                    }
                 </td>
 
                 <td class="px-5 py-4">
@@ -1882,6 +2122,19 @@ function renderLinkedIngredients(id) {
                         </p>
                     </div>
 
+                    ${
+                        getIngredientRefillableValue(ingredient)
+                            ? `
+                                <div class="rounded-xl bg-blue-50 border border-blue-100 px-3 py-2">
+                                    <p class="text-[11px] uppercase tracking-wide text-blue-500 font-semibold">Refill Quantity</p>
+                                    <p class="text-sm font-semibold text-blue-900 mt-1">
+                                        ${safeText(formatNumber(getIngredientRefillQuantityValue(ingredient)))} ${safeText(unit)}
+                                    </p>
+                                </div>
+                            `
+                            : ''
+                    }
+
                     <div class="rounded-xl bg-gray-50 border px-3 py-2">
                         <p class="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Possible Orders</p>
                         <div class="mt-1 flex items-center justify-between gap-2">
@@ -1905,15 +2158,28 @@ document.getElementById('attachIngredientForm').addEventListener('submit', async
     const menuItemId = document.getElementById('ingredientsMenuItemId').value;
     const ingredientId = document.getElementById('ingredientSelect').value;
     const quantityRequired = document.getElementById('quantityRequired').value;
+    const isRefillable = document.getElementById('ingredientRefillable').checked;
+    const refillQuantity = document.getElementById('refillQuantity').value;
 
     if (!menuItemId || !ingredientId || !quantityRequired) {
-        alert('Please select an ingredient and enter quantity required.');
+        showNotice('Please select an ingredient and enter the quantity required.', 'warning', 'Missing information');
+        return;
+    }
+
+    if (isRefillable && (!refillQuantity || Number(refillQuantity) <= 0)) {
+        showNotice('Please enter a valid refill quantity.', 'warning', 'Invalid refill quantity');
         return;
     }
 
     const requestToken = ++ingredientMutationToken;
     ingredientMutationInProgress = true;
-    const snapshot = applyOptimisticIngredientLink(menuItemId, ingredientId, quantityRequired);
+    const snapshot = applyOptimisticIngredientLink(
+        menuItemId,
+        ingredientId,
+        quantityRequired,
+        isRefillable,
+        refillQuantity
+    );
 
     setButtonLoading(saveBtn, true, 'Adding...');
     setIngredientFormDisabled(true);
@@ -1928,6 +2194,8 @@ document.getElementById('attachIngredientForm').addEventListener('submit', async
             body: JSON.stringify({
                 ingredient_id: ingredientId,
                 quantity_required: Number(quantityRequired),
+                is_refillable: isRefillable,
+                refill_quantity: isRefillable ? Number(refillQuantity) : null,
             }),
         });
 
@@ -1938,9 +2206,9 @@ document.getElementById('attachIngredientForm').addEventListener('submit', async
 
             if (data.errors) {
                 const firstError = Object.values(data.errors)[0][0];
-                alert(firstError);
+                showNotice(firstError, 'error', 'Validation error');
             } else {
-                alert(data.message || 'Failed to attach ingredient.');
+                showNotice(data.message || 'Failed to attach ingredient.', 'error');
             }
             return;
         }
@@ -1959,11 +2227,12 @@ document.getElementById('attachIngredientForm').addEventListener('submit', async
         }
 
         form.reset();
+        resetRefillIngredientFields();
         populateIngredientSelect();
     } catch (error) {
         console.error('Attach ingredient failed:', error);
         restoreMenuItemSnapshot(snapshot);
-        alert('Failed to attach ingredient. Please check your connection.');
+        showNotice('Failed to attach ingredient. Please check your connection.', 'error', 'Connection error');
     } finally {
         if (requestToken === ingredientMutationToken) {
             ingredientMutationInProgress = false;
@@ -1975,7 +2244,7 @@ document.getElementById('attachIngredientForm').addEventListener('submit', async
 
 async function detachIngredient(menuItemId, ingredientId, button) {
     if (ingredientMutationInProgress) return;
-    if (!confirm('Remove this ingredient from the menu item?')) return;
+    if (!await premiumConfirm({ title: 'Remove Ingredient?', message: 'This ingredient link will be removed from the menu item and its availability calculation will be updated.', confirmText: 'Yes, Remove', tone: 'warning' })) return;
 
     const requestToken = ++ingredientMutationToken;
     ingredientMutationInProgress = true;
@@ -1996,7 +2265,7 @@ async function detachIngredient(menuItemId, ingredientId, button) {
 
         if (!res.ok) {
             restoreMenuItemSnapshot(snapshot);
-            alert(data.message || 'Failed to remove ingredient.');
+            showNotice(data.message || 'Failed to remove ingredient.', 'error');
             return;
         }
 
@@ -2012,10 +2281,11 @@ async function detachIngredient(menuItemId, ingredientId, button) {
         } else if (Number(activeIngredientsMenuItemId) === Number(menuItemId) && requestToken === ingredientMutationToken) {
             renderLinkedIngredients(menuItemId);
         }
+        showNotice('Ingredient removed successfully.', 'success', 'Ingredient removed');
     } catch (error) {
         console.error('Detach ingredient failed:', error);
         restoreMenuItemSnapshot(snapshot);
-        alert('Failed to remove ingredient. Please check your connection.');
+        showNotice('Failed to remove ingredient. Please check your connection.', 'error', 'Connection error');
     } finally {
         if (requestToken === ingredientMutationToken) {
             ingredientMutationInProgress = false;
@@ -2027,6 +2297,25 @@ async function detachIngredient(menuItemId, ingredientId, button) {
 
 document.getElementById('menuSearch').addEventListener('input', applyFilters);
 document.getElementById('categoryFilter').addEventListener('change', applyFilters);
+
+document.getElementById('itemCategory').addEventListener('change', function () {
+    if (this.value === 'Unlimited') {
+        document.getElementById('itemUnlimited').checked = true;
+    }
+});
+
+document.getElementById('ingredientSelect').addEventListener('change', updateRefillUnitLabel);
+
+document.getElementById('ingredientRefillable').addEventListener('change', function () {
+    const wrapper = document.getElementById('refillQuantityWrapper');
+    wrapper.classList.toggle('hidden', !this.checked);
+
+    if (!this.checked) {
+        document.getElementById('refillQuantity').value = '';
+    }
+
+    updateRefillUnitLabel();
+});
 
 setupImagePreviewHandler();
 loadIngredientsList();
