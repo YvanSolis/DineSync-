@@ -44,7 +44,22 @@ class AdminAuditLogController extends Controller
             ->whereIn('module', $this->allowedModules);
 
         $query = (clone $baseQuery)
-            ->with('user:id,name,email,role')
+            ->select([
+                'id',
+                'user_id',
+                'user_name',
+                'user_role',
+                'module',
+                'action',
+                'description',
+                'auditable_type',
+                'auditable_id',
+                'old_values',
+                'new_values',
+                'ip_address',
+                'user_agent',
+                'created_at',
+            ])
             ->latest('created_at');
 
         if (!empty($validated['search'])) {
@@ -57,70 +72,46 @@ class AdminAuditLogController extends Controller
                     ->orWhere('action', 'like', "%{$search}%");
 
                 if (ctype_digit($search)) {
-                    $builder->orWhere(
-                        'auditable_id',
-                        (int) $search
-                    );
+                    $builder->orWhere('auditable_id', (int) $search);
                 }
             });
         }
 
         if (!empty($validated['user_id'])) {
-            $query->where(
-                'user_id',
-                $validated['user_id']
-            );
+            $query->where('user_id', $validated['user_id']);
         }
 
         if (!empty($validated['role'])) {
-            $query->where(
-                'user_role',
-                $validated['role']
-            );
+            $query->where('user_role', $validated['role']);
         }
 
         if (!empty($validated['module'])) {
-            $query->where(
-                'module',
-                $validated['module']
-            );
+            $query->where('module', $validated['module']);
         }
 
         if (!empty($validated['action'])) {
-            $query->where(
-                'action',
-                $validated['action']
-            );
+            $query->where('action', $validated['action']);
         }
 
         if (!empty($validated['date_from'])) {
-            $query->whereDate(
-                'created_at',
-                '>=',
-                $validated['date_from']
-            );
+            $query->whereDate('created_at', '>=', $validated['date_from']);
         }
 
         if (!empty($validated['date_to'])) {
-            $query->whereDate(
-                'created_at',
-                '<=',
-                $validated['date_to']
-            );
+            $query->whereDate('created_at', '<=', $validated['date_to']);
         }
 
+        // Fewer cards per page keeps the audit screen responsive as logs grow.
         $logs = $query
-            ->paginate(25)
+            ->paginate(10)
             ->withQueryString();
 
         $todayCount = (clone $baseQuery)
-            ->whereDate(
-                'created_at',
-                now()->toDateString()
-            )
+            ->whereDate('created_at', now('Asia/Manila')->toDateString())
             ->count();
 
         $lastActivity = (clone $baseQuery)
+            ->select(['user_name', 'created_at'])
             ->latest('created_at')
             ->first();
 

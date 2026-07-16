@@ -3,27 +3,53 @@
 @section('content')
 <style>
     .audit-panel {
-        background: rgba(255, 255, 255, 0.96);
+        background: rgba(255, 255, 255, 0.985);
         border: 1px solid rgba(226, 232, 240, 0.95);
-        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.055);
-        backdrop-filter: blur(14px);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.045);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
 
     .audit-log-card {
-        transition:
-            transform 0.2s ease,
-            box-shadow 0.2s ease,
-            border-color 0.2s ease;
+        content-visibility: auto;
+        contain-intrinsic-size: 132px;
+        contain: layout paint style;
+        transition: border-color 0.16s ease, background-color 0.16s ease;
     }
 
     .audit-log-card:hover {
-        transform: translateY(-1px);
-        border-color: rgba(251, 146, 60, 0.35);
-        box-shadow: 0 16px 34px rgba(15, 23, 42, 0.07);
+        border-color: rgba(249, 115, 22, 0.3);
+        background: rgba(255, 247, 237, 0.42);
     }
 
     .audit-change-row + .audit-change-row {
         border-top: 1px solid rgb(241 245 249);
+    }
+
+    #auditDetailsModal {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+
+    #auditDetailsModal > div {
+        transform: translateZ(0);
+    }
+
+    .audit-details-button {
+        transition: background-color 0.16s ease, border-color 0.16s ease;
+    }
+
+    @media (max-width: 767px) {
+        .audit-log-card {
+            contain-intrinsic-size: 190px;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .audit-log-card,
+        .audit-details-button {
+            transition: none !important;
+        }
     }
 </style>
 
@@ -156,7 +182,7 @@
                     ];
                 @endphp
 
-                <article class="audit-log-card rounded-[22px] border border-slate-200 bg-white p-4 sm:p-5">
+                <article class="audit-log-card rounded-[20px] border border-slate-200 bg-white p-4">
                     <div class="flex items-start gap-3 sm:gap-4">
 
                         <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-xs font-black text-orange-700">
@@ -242,7 +268,7 @@
 {{-- Details Modal --}}
 <div
     id="auditDetailsModal"
-    class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/60 p-3 backdrop-blur-sm sm:p-5"
+    class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/60 p-3 sm:p-5"
 >
     <div class="max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-[28px] bg-white shadow-2xl">
 
