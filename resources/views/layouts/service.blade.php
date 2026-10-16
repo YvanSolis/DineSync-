@@ -27,7 +27,7 @@
                 url('{{ asset('images/customer-menu/login-bg.png') }}');
             background-size: cover;
             background-position: center;
-            background-attachment: fixed;
+            background-attachment: scroll;
         }
 
         @media (max-width: 1023px) {
@@ -54,14 +54,14 @@
 
         .soft-glass {
             background: rgba(255, 255, 255, 0.76);
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
         }
 
         .service-overlay {
             background: rgba(15, 23, 42, 0.38);
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
         }
 
         .no-scrollbar::-webkit-scrollbar {
@@ -143,7 +143,7 @@
         id="serviceSidebar"
         class="service-sidebar fixed left-0 top-0 z-50 h-dvh
                service-sidebar-bg border-r border-orange-100/70 flex flex-col overflow-hidden
-               shadow-xl
+               shadow-md
                transform -translate-x-full transition-transform duration-300 ease-in-out">
 
         <!-- Top Area -->
@@ -164,7 +164,7 @@
 
             <!-- Brand -->
             <div class="px-5 py-5 border-b border-orange-100/70">
-                <div class="service-brand-card rounded-2xl px-4 py-4 text-gray-900 shadow-lg shadow-orange-200/60">
+                <div class="service-brand-card rounded-2xl px-4 py-4 text-gray-900 shadow-sm">
                     <div class="flex items-center gap-3">
                         <div class="w-12 h-12 rounded-2xl bg-white border border-white/60 flex items-center justify-center overflow-hidden shadow-sm shrink-0">
                             <img
@@ -227,7 +227,7 @@
         </nav>
 
         <!-- User / Logout Fixed Bottom -->
-        <div class="shrink-0 px-4 pt-3 pb-4 border-t border-orange-100/70 bg-white/85 backdrop-blur">
+        <div class="shrink-0 px-4 pt-3 pb-4 border-t border-orange-100/70 bg-white/95">
             <div class="rounded-2xl border border-orange-100 bg-white/90 px-3 py-3 shadow-sm">
                 <div class="flex items-center gap-3 mb-3">
                     <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white flex items-center justify-center text-sm font-bold shadow-md shadow-orange-200 shrink-0">

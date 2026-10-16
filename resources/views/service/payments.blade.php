@@ -15,8 +15,8 @@
         background: rgba(255, 255, 255, 0.96);
         border: 1px solid rgba(226, 232, 240, 0.94);
         border-radius: 1.5rem;
-        box-shadow: 0 18px 46px rgba(15, 23, 42, 0.065);
-        backdrop-filter: blur(14px);
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+        backdrop-filter: none;
     }
 
     .service-premium-hero {
@@ -27,7 +27,7 @@
         background:
             radial-gradient(circle at top right, rgba(251, 146, 60, 0.18), transparent 30%),
             linear-gradient(135deg, rgba(255, 247, 237, 0.98), rgba(255, 255, 255, 0.98) 55%, rgba(255, 251, 235, 0.98));
-        box-shadow: 0 20px 50px rgba(249, 115, 22, 0.08);
+        box-shadow: 0 8px 24px rgba(249, 115, 22, 0.06);
     }
 
     .service-premium-stat {
@@ -123,7 +123,7 @@
         to { opacity: 1; transform: scale(1) translateY(0); }
     }
 
-    .receipt-modal-panel { animation: receiptModalIn .22s ease both; }
+    .receipt-modal-panel { animation: none; contain: layout paint; }
 
     .thermal-receipt {
         width: 100%;
@@ -360,12 +360,12 @@
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 w-full xl:w-auto">
         <div class="service-premium-stat px-5 py-4 min-w-[155px]">
             <p class="text-xs font-semibold text-gray-500">Counter Waiting</p>
-            <p class="text-2xl font-black text-orange-500 mt-1">{{ $stats['awaiting_counter'] ?? 0 }}</p>
+            <p id="statAwaitingCounter" class="text-2xl font-black text-orange-500 mt-1">{{ $stats['awaiting_counter'] ?? 0 }}</p>
         </div>
 
         <div class="service-premium-stat px-5 py-4 min-w-[155px]">
             <p class="text-xs font-semibold text-gray-500">Pay Later</p>
-            <p class="text-2xl font-black text-purple-500 mt-1">{{ $stats['pay_later_unpaid'] ?? 0 }}</p>
+            <p id="statPayLater" class="text-2xl font-black text-purple-500 mt-1">{{ $stats['pay_later_unpaid'] ?? 0 }}</p>
         </div>
 
         <div class="service-premium-stat px-5 py-4 min-w-[155px]">
@@ -375,7 +375,7 @@
 
         <div class="service-premium-stat px-5 py-4 min-w-[155px]">
             <p class="text-xs font-semibold text-gray-500">Paid</p>
-            <p class="text-2xl font-black text-green-500 mt-1">{{ $stats['paid'] ?? 0 }}</p>
+            <p id="statPaid" class="text-2xl font-black text-green-500 mt-1">{{ $stats['paid'] ?? 0 }}</p>
         </div>
     </div>
 
@@ -1037,8 +1037,8 @@
 
 
 {{-- ADMIN-STYLE THERMAL RECEIPT MODAL --}}
-<div id="receiptModal" class="fixed inset-0 z-[10000] hidden items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm sm:p-5" aria-hidden="true">
-    <div class="receipt-modal-panel flex max-h-[94vh] w-full max-w-md flex-col overflow-hidden rounded-[28px] border border-orange-100 bg-white shadow-2xl">
+<div id="receiptModal" class="fixed inset-0 z-[10000] hidden items-center justify-center bg-slate-950/60 p-3 sm:p-5" aria-hidden="true">
+    <div class="receipt-modal-panel flex max-h-[94vh] w-full max-w-md flex-col overflow-hidden rounded-[24px] border border-orange-100 bg-white shadow-lg">
         <div class="receipt-screen-only flex shrink-0 items-center justify-between gap-3 border-b bg-gradient-to-r from-orange-50 via-white to-amber-50 px-5 py-4">
             <div>
                 <h3 class="text-lg font-black text-gray-950">Payment Receipt</h3>
@@ -1050,7 +1050,7 @@
         <div id="receiptPrintArea" class="min-h-0 flex-1 overflow-y-auto bg-gray-100 p-3 sm:p-5">
             <div id="receiptContent" class="thermal-receipt rounded-sm bg-white px-5 py-6 shadow-sm">
                 <header class="text-center">
-                    <img src="{{ asset('images/customer-menu/chef-oppa-logo.png') }}" alt="Chef Oppa Logo" class="mx-auto mb-2 h-16 w-16 rounded-full object-cover grayscale">
+                    <img src="{{ asset('images/customer-menu/chef-oppa-logo.png') }}" alt="Chef Oppa Logo" class="mx-auto mb-2 h-16 w-16 rounded-full object-cover" loading="lazy" decoding="async">
                     <h2 class="text-[20px] font-black uppercase tracking-wide">CHEF OPPA</h2>
                     <p class="mt-0.5 font-bold uppercase">Main Branch</p>
                     <p class="mt-1 leading-4 text-gray-700">DineSync+ Restaurant</p>
@@ -1641,9 +1641,23 @@
         return value || 'Cash';
     }
 
+    let activeReceiptId = null;
+
     function openReceiptModal(orderId) {
         const receipt = window.receiptOrders?.[orderId];
         if (!receipt) return;
+
+        const modal = document.getElementById('receiptModal');
+        if (!modal) return;
+
+        activeReceiptId = String(orderId);
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('overflow-hidden');
+
+        requestAnimationFrame(() => {
+            if (activeReceiptId !== String(orderId)) return;
 
         document.getElementById('receiptTransactionId').textContent = receipt.transaction_id || '-';
         document.getElementById('receiptOrderId').textContent = receipt.order_number || '-';
@@ -1656,21 +1670,43 @@
         document.getElementById('receiptBottomTotal').textContent = receiptMoney(receipt.final_amount);
 
         const items = document.getElementById('receiptItems');
-        items.innerHTML = '';
-        (receipt.items || []).forEach(item => {
-            const row = document.createElement('div');
-            row.className = 'receipt-row';
-            row.innerHTML = `
-                <div class="min-w-0">
-                    <div><strong>${item.quantity}x</strong> ${String(item.name || 'Menu item').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]))}</div>
-                    <div class="text-[10px] text-gray-500">@ ${receiptMoney(item.unit_price)}</div>
-                </div>
-                <strong>${receiptMoney(item.line_total)}</strong>`;
-            items.appendChild(row);
-        });
-        if (!receipt.items || receipt.items.length === 0) {
-            items.innerHTML = '<p class="text-center text-gray-500">No items recorded</p>';
+        const receiptItems = receipt.items || [];
+        const fragment = document.createDocumentFragment();
+        items.replaceChildren();
+
+        if (receiptItems.length === 0) {
+            const empty = document.createElement('p');
+            empty.className = 'text-center text-gray-500';
+            empty.textContent = 'No items recorded';
+            fragment.appendChild(empty);
+        } else {
+            for (const item of receiptItems) {
+                const row = document.createElement('div');
+                row.className = 'receipt-row';
+
+                const left = document.createElement('div');
+                left.className = 'min-w-0';
+
+                const title = document.createElement('div');
+                const quantity = document.createElement('strong');
+                quantity.textContent = `${item.quantity}x `;
+                title.appendChild(quantity);
+                title.appendChild(document.createTextNode(item.name || 'Menu item'));
+
+                const unit = document.createElement('div');
+                unit.className = 'text-[10px] text-gray-500';
+                unit.textContent = `@ ${receiptMoney(item.unit_price)}`;
+
+                const total = document.createElement('strong');
+                total.textContent = receiptMoney(item.line_total);
+
+                left.append(title, unit);
+                row.append(left, total);
+                fragment.appendChild(row);
+            }
         }
+
+        items.appendChild(fragment);
 
         const discountSection = document.getElementById('receiptDiscountSection');
         if (receipt.has_government_discount) {
@@ -1685,14 +1721,11 @@
             discountSection.classList.add('hidden');
         }
 
-        const modal = document.getElementById('receiptModal');
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        modal.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('overflow-hidden');
+        });
     }
 
     function closeReceiptModal() {
+        activeReceiptId = null;
         const modal = document.getElementById('receiptModal');
         modal.classList.add('hidden');
         modal.classList.remove('flex');
@@ -2157,36 +2190,73 @@
         );
     }
 
-    function submitPaymentForm() {
-        if (paymentIsSubmitting) {
-            return;
-        }
+    async function submitPaymentForm() {
+        if (paymentIsSubmitting) return;
 
         paymentIsSubmitting = true;
-
-        const button = document.getElementById(
-            'finalSubmitButton'
-        );
-
+        const button = document.getElementById('finalSubmitButton');
         button.disabled = true;
+        document.getElementById('finalSubmitSpinner').classList.remove('hidden');
+        document.getElementById('finalSubmitText').textContent = 'Processing Payment...';
+        document.getElementById('reviewPaymentButton').disabled = true;
+        document.getElementById('selectedPaymentMethod').value = 'cash';
 
-        document.getElementById(
-            'finalSubmitSpinner'
-        ).classList.remove('hidden');
+        const form = document.getElementById('paymentForm');
+        const orderId = activePaymentOrder?.id;
 
-        document.getElementById(
-            'finalSubmitText'
-        ).textContent = 'Processing Payment...';
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: new FormData(form),
+            });
 
-        document.getElementById(
-            'reviewPaymentButton'
-        ).disabled = true;
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const validationMessage = data?.errors
+                    ? Object.values(data.errors).flat()[0]
+                    : data?.message;
+                throw new Error(validationMessage || 'Unable to process payment.');
+            }
 
-        document.getElementById(
-            'selectedPaymentMethod'
-        ).value = 'cash';
+            closePaymentConfirmation();
+            paymentIsSubmitting = false;
+            closePaymentModal();
 
-        document.getElementById('paymentForm').submit();
+            document.querySelectorAll(`[onclick="openPaymentModal('${orderId}')"]`).forEach((paymentButton) => {
+                const replacement = document.createElement('button');
+                replacement.type = 'button';
+                replacement.className = 'w-full rounded-xl bg-green-600 px-4 py-3 text-sm font-black text-white';
+                replacement.textContent = 'Paid Successfully';
+                replacement.disabled = true;
+                paymentButton.replaceWith(replacement);
+            });
+
+            const paidStat = document.getElementById('statPaid');
+            if (paidStat) paidStat.textContent = String((parseInt(paidStat.textContent || '0', 10) || 0) + 1);
+
+            const method = (activePaymentOrder?.payment_method || '').toLowerCase();
+            const pendingStat = method.includes('later')
+                ? document.getElementById('statPayLater')
+                : document.getElementById('statAwaitingCounter');
+            if (pendingStat) pendingStat.textContent = String(Math.max(0, (parseInt(pendingStat.textContent || '0', 10) || 0) - 1));
+
+            const toast = document.createElement('div');
+            toast.className = 'fixed right-4 top-4 z-[10000] rounded-xl bg-green-600 px-5 py-3 text-sm font-black text-white shadow-lg';
+            toast.textContent = data.message || 'Payment settled successfully.';
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3500);
+        } catch (error) {
+            paymentIsSubmitting = false;
+            button.disabled = false;
+            document.getElementById('finalSubmitSpinner').classList.add('hidden');
+            document.getElementById('finalSubmitText').textContent = 'Confirm Payment';
+            document.getElementById('reviewPaymentButton').disabled = false;
+            alert(error.message || 'Unable to process payment.');
+        }
     }
 
     /*

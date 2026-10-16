@@ -26,11 +26,11 @@
     };
 
     $accentClass = match ($columnType ?? $currentStatus) {
-        'pending' => 'from-orange-400 to-orange-600',
-        'preparing' => 'from-yellow-400 to-yellow-600',
-        'ready' => 'from-green-400 to-green-600',
-        'served' => 'from-gray-300 to-gray-500',
-        default => 'from-gray-300 to-gray-500',
+        'pending' => 'bg-orange-500',
+        'preparing' => 'bg-yellow-500',
+        'ready' => 'bg-green-500',
+        'served' => 'bg-gray-400',
+        default => 'bg-gray-400',
     };
 
     $orderTime = $order->getRawOriginal('created_at')
@@ -40,19 +40,17 @@
         : 'No time';
 
     $items = $order->items ?? collect();
+    $itemCount = $items->count();
     $visibleItems = $items->take(2);
-    $remainingItemCount = max($items->count() - 2, 0);
+    $remainingItemCount = max($itemCount - 2, 0);
 @endphp
 
 <div id="order-card-{{ $order->id }}"
-     class="order-card relative overflow-hidden rounded-2xl bg-white shadow-md border border-white/80">
+     class="order-card relative overflow-hidden rounded-2xl bg-white border border-gray-200 shadow-sm">
 
-    {{-- Accent line --}}
-    <div class="h-1 bg-gradient-to-r {{ $accentClass }}"></div>
+    <div class="h-1 {{ $accentClass }}"></div>
 
     <div class="p-2.5">
-
-        {{-- HEADER --}}
         <div class="flex items-start justify-between gap-2">
             <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2 min-w-0">
@@ -73,7 +71,7 @@
                     </span>
 
                     <span class="rounded-lg border border-gray-200 bg-gray-50 px-2 py-0.5 text-[9px] font-bold text-gray-600">
-                        {{ $items->count() }} item{{ $items->count() !== 1 ? 's' : '' }}
+                        {{ $itemCount }} item{{ $itemCount !== 1 ? 's' : '' }}
                     </span>
                 </div>
             </div>
@@ -83,10 +81,9 @@
             </span>
         </div>
 
-        {{-- ITEMS --}}
         <div class="mt-2 space-y-1">
             @forelse ($visibleItems as $item)
-                <div class="flex items-center justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50/90 px-2.5 py-1.5">
+                <div class="flex items-center justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50 px-2.5 py-1.5">
                     <div class="min-w-0 flex-1">
                         <p class="text-[12px] lg:text-[13px] font-bold text-gray-900 truncate leading-tight">
                             {{ $item->menuItem->name ?? 'Menu Item Deleted' }}
@@ -116,7 +113,6 @@
             @endif
         </div>
 
-        {{-- SPECIAL INSTRUCTIONS --}}
         @if ($notes)
             <div class="mt-1.5 rounded-xl border border-yellow-100 bg-yellow-50 px-2.5 py-1.5">
                 <p class="text-[9px] font-semibold leading-relaxed text-yellow-700 truncate">
@@ -125,7 +121,6 @@
             </div>
         @endif
 
-        {{-- ACTION --}}
         <div class="mt-2">
             @if (!empty($buttonText) && !empty($nextStatus))
                 <form method="POST"
@@ -137,7 +132,7 @@
 
                     <input type="hidden" name="status" value="{{ $nextStatus }}">
 
-                    <button class="w-full {{ $buttonClass }} text-white py-2 rounded-xl font-extrabold text-[10px] lg:text-[11px] uppercase tracking-wide transition active:scale-[0.98] shadow-sm">
+                    <button class="w-full {{ $buttonClass }} text-white py-2 rounded-xl font-extrabold text-[10px] lg:text-[11px] uppercase tracking-wide transition-colors duration-150 shadow-none">
                         {{ $buttonText }}
                     </button>
                 </form>
@@ -147,6 +142,5 @@
                 </div>
             @endif
         </div>
-
     </div>
 </div>

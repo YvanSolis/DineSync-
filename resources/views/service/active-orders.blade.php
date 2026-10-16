@@ -15,8 +15,9 @@
         background: rgba(255, 255, 255, 0.96);
         border: 1px solid rgba(226, 232, 240, 0.94);
         border-radius: 1.5rem;
-        box-shadow: 0 18px 46px rgba(15, 23, 42, 0.065);
-        backdrop-filter: blur(14px);
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.045);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
 
     .service-premium-hero {
@@ -27,7 +28,7 @@
         background:
             radial-gradient(circle at top right, rgba(251, 146, 60, 0.18), transparent 30%),
             linear-gradient(135deg, rgba(255, 247, 237, 0.98), rgba(255, 255, 255, 0.98) 55%, rgba(255, 251, 235, 0.98));
-        box-shadow: 0 20px 50px rgba(249, 115, 22, 0.08);
+        box-shadow: 0 4px 14px rgba(249, 115, 22, 0.05);
     }
 
     .service-premium-stat {
@@ -36,33 +37,23 @@
         background: rgba(255, 255, 255, 0.97);
         border: 1px solid rgba(226, 232, 240, 0.94);
         border-radius: 1.35rem;
-        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.055);
-        transition:
-            transform 0.2s ease,
-            box-shadow 0.2s ease,
-            border-color 0.2s ease;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04);
+        transition: border-color 0.15s ease, background-color 0.15s ease;
     }
 
     .service-premium-stat:hover {
-        transform: translateY(-2px);
-        border-color: rgba(251, 146, 60, 0.32);
-        box-shadow: 0 20px 42px rgba(15, 23, 42, 0.08);
+        border-color: rgba(251, 146, 60, 0.28);
     }
 
     .service-premium-card {
         border-radius: 1.35rem !important;
         border-color: rgba(226, 232, 240, 0.92) !important;
-        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.05) !important;
-        transition:
-            transform 0.2s ease,
-            box-shadow 0.2s ease,
-            border-color 0.2s ease;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04) !important;
+        transition: border-color 0.15s ease, background-color 0.15s ease;
     }
 
     .service-premium-card:hover {
-        transform: translateY(-1px);
-        border-color: rgba(251, 146, 60, 0.28) !important;
-        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.075) !important;
+        border-color: rgba(251, 146, 60, 0.24) !important;
     }
 
     .service-premium-shell table thead {
@@ -105,6 +96,26 @@
 
     .service-premium-shell .premium-muted {
         color: #64748b;
+    }
+
+    .service-premium-card,
+    .service-premium-panel,
+    .service-premium-shell tbody tr {
+        content-visibility: auto;
+        contain-intrinsic-size: 1px 180px;
+    }
+
+    .service-premium-shell * {
+        scroll-behavior: auto !important;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .service-premium-shell *,
+        .service-premium-shell *::before,
+        .service-premium-shell *::after {
+            animation: none !important;
+            transition: none !important;
+        }
     }
 
     @media (max-width: 640px) {
@@ -679,34 +690,11 @@
 </div>
 
 <script>
-let activeOrdersReloadTimer = null;
-
-function startActiveOrdersReloadTimer() {
-    clearInterval(activeOrdersReloadTimer);
-
-    activeOrdersReloadTimer = setInterval(() => {
-        if (document.hidden) {
-            return;
-        }
-
-        const activeElement = document.activeElement;
-
-        if (
-            activeElement &&
-            (
-                activeElement.tagName === 'BUTTON' ||
-                activeElement.tagName === 'INPUT' ||
-                activeElement.tagName === 'SELECT'
-            )
-        ) {
-            return;
-        }
-
-        window.location.reload();
-    }, 30000);
-}
-
-startActiveOrdersReloadTimer();
+document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) {
+        document.documentElement.style.setProperty('--service-page-active', '1');
+    }
+});
 </script>
 
 @endsection

@@ -23,20 +23,12 @@
                 url('{{ asset('images/customer-menu/kds-background.png') }}');
             background-size: cover;
             background-position: center;
-            background-attachment: fixed;
+            background-attachment: scroll;
             position: relative;
         }
 
         .kds-bg::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background:
-                radial-gradient(circle at top left, rgba(249, 115, 22, 0.08), transparent 26%),
-                radial-gradient(circle at bottom right, rgba(249, 115, 22, 0.10), transparent 30%),
-                linear-gradient(180deg, rgba(5, 8, 15, 0.10), rgba(5, 8, 15, 0.18));
-            pointer-events: none;
-            z-index: 0;
+            content: none;
         }
 
         .kds-page {
@@ -68,10 +60,11 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            background: rgba(2, 6, 23, 0.82);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            box-shadow: 0 14px 32px rgba(0,0,0,0.26);
+            background: rgba(2, 6, 23, 0.94);
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+            contain: layout paint style;
         }
 
         .kds-column-header {
@@ -84,7 +77,11 @@
             min-height: 0;
             overflow-y: auto;
             padding: 8px;
-            background: rgba(2, 6, 23, 0.42);
+            background: rgba(2, 6, 23, 0.72);
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+            -webkit-overflow-scrolling: touch;
+            will-change: scroll-position;
         }
 
         .kds-column-body::-webkit-scrollbar {
@@ -147,6 +144,33 @@
             font-size: 14px;
             font-weight: 800;
             text-align: center;
+        }
+
+
+        .order-card,
+        .refill-card {
+            content-visibility: auto;
+            contain-intrinsic-size: 1px 150px;
+            contain: layout paint style;
+        }
+
+        .kds-column-body > * {
+            transform: translateZ(0);
+        }
+
+        .kds-page *,
+        .kds-page *::before,
+        .kds-page *::after {
+            scroll-behavior: auto !important;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .kds-page *,
+            .kds-page *::before,
+            .kds-page *::after {
+                animation: none !important;
+                transition: none !important;
+            }
         }
 
         @media (min-width: 768px) and (max-width: 1180px) {
@@ -235,7 +259,7 @@
 <div class="kds-page">
 
     {{-- TOP BAR --}}
-    <div class="kds-topbar rounded-3xl px-4 py-3 border border-white/10 bg-slate-950/82 backdrop-blur-xl shadow-[0_14px_32px_rgba(0,0,0,0.28)]">
+    <div class="kds-topbar rounded-3xl px-4 py-3 border border-white/10 bg-slate-950/95 shadow-md">
         <div class="flex items-center justify-between gap-3">
 
             <div class="flex items-center gap-3 min-w-0">
@@ -292,7 +316,7 @@
                 </div>
 
                 <div class="hidden sm:inline-flex items-center gap-2 bg-green-500/10 text-green-300 border border-green-400/20 px-3 py-2 rounded-2xl text-xs lg:text-sm font-bold shadow-sm">
-                    <span class="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse"></span>
+                    <span class="w-2.5 h-2.5 rounded-full bg-green-400 "></span>
                     Online
                 </div>
 
@@ -546,58 +570,105 @@
 <script>
     let isUpdatingOrder = false;
     let isUpdatingRefill = false;
+    let isRefreshingOrders = false;
+    let isRefreshingRefills = false;
     let activeKdsView = localStorage.getItem('kdsActiveView') || 'orders';
+
+    const columnIds = [
+        'pending-column',
+        'preparing-column',
+        'ready-column',
+        'served-column',
+        'requested-refill-column',
+        'preparing-refill-column',
+        'ready-refill-column',
+        'served-refill-column'
+    ];
+
+    const clockFormatter = new Intl.DateTimeFormat('en-PH', {
+        timeZone: 'Asia/Manila',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+    });
 
     function switchKdsView(view) {
         activeKdsView = view === 'refills' ? 'refills' : 'orders';
         localStorage.setItem('kdsActiveView', activeKdsView);
 
-        document.getElementById('ordersBoard').classList.toggle('hidden', activeKdsView !== 'orders');
-        document.getElementById('refillsBoard').classList.toggle('hidden', activeKdsView !== 'refills');
+        document.getElementById('ordersBoard')?.classList.toggle('hidden', activeKdsView !== 'orders');
+        document.getElementById('refillsBoard')?.classList.toggle('hidden', activeKdsView !== 'refills');
 
-        document.getElementById('ordersViewButton').classList.toggle('active', activeKdsView === 'orders');
-        document.getElementById('refillsViewButton').classList.toggle('active', activeKdsView === 'refills');
+        document.getElementById('ordersViewButton')?.classList.toggle('active', activeKdsView === 'orders');
+        document.getElementById('refillsViewButton')?.classList.toggle('active', activeKdsView === 'refills');
+
+        if (activeKdsView === 'orders') {
+            silentRefreshOrders();
+        } else {
+            silentRefreshRefills();
+        }
     }
 
     switchKdsView(activeKdsView);
 
     function updateClock() {
-        const now = new Date();
-
-        document.getElementById('currentTime').textContent = new Intl.DateTimeFormat('en-PH', {
-            timeZone: 'Asia/Manila',
-            hour: 'numeric',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: true
-        }).format(now);
+        const clock = document.getElementById('currentTime');
+        if (clock) {
+            clock.textContent = clockFormatter.format(new Date());
+        }
     }
 
     updateClock();
     setInterval(updateClock, 1000);
 
+    function captureColumnScrollPositions() {
+        const positions = {};
+        columnIds.forEach((id) => {
+            const element = document.getElementById(id);
+            if (element) positions[id] = element.scrollTop;
+        });
+        return positions;
+    }
+
+    function restoreColumnScrollPositions(positions) {
+        requestAnimationFrame(() => {
+            Object.entries(positions).forEach(([id, scrollTop]) => {
+                const element = document.getElementById(id);
+                if (element) element.scrollTop = scrollTop;
+            });
+        });
+    }
+
+    function replaceHtmlOnlyWhenChanged(elementId, nextHtml) {
+        const element = document.getElementById(elementId);
+        if (!element || typeof nextHtml !== 'string') return false;
+
+        const normalizedCurrent = element.innerHTML.trim();
+        const normalizedNext = nextHtml.trim();
+
+        if (normalizedCurrent === normalizedNext) return false;
+
+        element.innerHTML = nextHtml;
+        return true;
+    }
+
     document.addEventListener('submit', async function (event) {
         const orderForm = event.target.closest('.kds-status-form');
         const refillForm = event.target.closest('.kds-refill-status-form');
 
-        if (!orderForm && !refillForm) {
-            return;
-        }
+        if (!orderForm && !refillForm) return;
 
         event.preventDefault();
 
         const form = orderForm || refillForm;
         const isRefill = Boolean(refillForm);
         const button = form.querySelector('button');
-        const nextStatus = form.dataset.nextStatus;
         const formData = new FormData(form);
         const originalText = button?.textContent || '';
 
-        if (isRefill) {
-            isUpdatingRefill = true;
-        } else {
-            isUpdatingOrder = true;
-        }
+        if (isRefill) isUpdatingRefill = true;
+        else isUpdatingOrder = true;
 
         if (button) {
             button.disabled = true;
@@ -621,11 +692,8 @@
                 throw new Error(data.message || 'Update failed.');
             }
 
-            if (isRefill) {
-                await silentRefreshRefills(true);
-            } else {
-                await silentRefreshOrders(true);
-            }
+            if (isRefill) await silentRefreshRefills(true);
+            else await silentRefreshOrders(true);
         } catch (error) {
             alert(error.message || 'Failed to update status.');
 
@@ -635,78 +703,80 @@
                 button.classList.remove('opacity-70', 'cursor-not-allowed');
             }
         } finally {
-            if (isRefill) {
-                isUpdatingRefill = false;
-            } else {
-                isUpdatingOrder = false;
-            }
+            if (isRefill) isUpdatingRefill = false;
+            else isUpdatingOrder = false;
         }
     });
 
     function setTextIfExists(id, value) {
         const element = document.getElementById(id);
-
-        if (element) {
-            element.textContent = value ?? 0;
-        }
+        if (element) element.textContent = value ?? 0;
     }
 
     async function silentRefreshOrders(force = false) {
-        if ((!force && isUpdatingOrder) || document.hidden) {
-            return;
-        }
+        if (isRefreshingOrders || (!force && isUpdatingOrder) || document.hidden) return;
+        if (!force && activeKdsView !== 'orders') return;
+
+        isRefreshingOrders = true;
+        const scrollPositions = captureColumnScrollPositions();
 
         try {
             const response = await fetch("{{ route('kitchen.orders.fetch') }}", {
+                cache: 'no-store',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 }
             });
 
-            if (!response.ok) {
-                return;
-            }
+            if (!response.ok) return;
 
             const data = await response.json();
+            let changed = false;
 
-            document.getElementById('pending-column').innerHTML = data.html.pending;
-            document.getElementById('preparing-column').innerHTML = data.html.preparing;
-            document.getElementById('ready-column').innerHTML = data.html.ready;
-            document.getElementById('served-column').innerHTML = data.html.served;
+            changed = replaceHtmlOnlyWhenChanged('pending-column', data.html.pending) || changed;
+            changed = replaceHtmlOnlyWhenChanged('preparing-column', data.html.preparing) || changed;
+            changed = replaceHtmlOnlyWhenChanged('ready-column', data.html.ready) || changed;
+            changed = replaceHtmlOnlyWhenChanged('served-column', data.html.served) || changed;
 
             setTextIfExists('pending-header-count', data.counts.pending);
             setTextIfExists('preparing-header-count', data.counts.preparing);
             setTextIfExists('ready-header-count', data.counts.ready);
             setTextIfExists('served-header-count', data.counts.served);
+
+            if (changed) restoreColumnScrollPositions(scrollPositions);
         } catch (error) {
             console.log('Order refresh failed.');
+        } finally {
+            isRefreshingOrders = false;
         }
     }
 
     async function silentRefreshRefills(force = false) {
-        if ((!force && isUpdatingRefill) || document.hidden) {
-            return;
-        }
+        if (isRefreshingRefills || (!force && isUpdatingRefill) || document.hidden) return;
+        if (!force && activeKdsView !== 'refills') return;
+
+        isRefreshingRefills = true;
+        const scrollPositions = captureColumnScrollPositions();
 
         try {
             const response = await fetch("{{ route('kitchen.refills.fetch') }}", {
+                cache: 'no-store',
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 }
             });
 
-            if (!response.ok) {
-                return;
-            }
+            if (!response.ok) return;
 
             const data = await response.json();
+            let changed = false;
 
-            document.getElementById('requested-refill-column').innerHTML = data.html.requested;
-            document.getElementById('preparing-refill-column').innerHTML = data.html.preparing;
-            document.getElementById('ready-refill-column').innerHTML = data.html.ready;
-            document.getElementById('served-refill-column').innerHTML = data.html.served;
+            changed = replaceHtmlOnlyWhenChanged('requested-refill-column', data.html.requested) || changed;
+            changed = replaceHtmlOnlyWhenChanged('preparing-refill-column', data.html.preparing) || changed;
+            changed = replaceHtmlOnlyWhenChanged('ready-refill-column', data.html.ready) || changed;
+            changed = replaceHtmlOnlyWhenChanged('served-refill-column', data.html.served) || changed;
 
             setTextIfExists('requested-refill-header-count', data.counts.requested);
             setTextIfExists('preparing-refill-header-count', data.counts.preparing);
@@ -719,25 +789,31 @@
                 + Number(data.counts.ready || 0);
 
             setTextIfExists('refill-total-badge', activeRefillCount);
+
+            if (changed) restoreColumnScrollPositions(scrollPositions);
         } catch (error) {
             console.log('Refill refresh failed.');
+        } finally {
+            isRefreshingRefills = false;
         }
     }
 
-    async function silentRefreshBoard() {
-        await Promise.all([
-            silentRefreshOrders(),
-            silentRefreshRefills(),
-        ]);
+    function refreshActiveBoard() {
+        if (document.hidden) return;
+
+        if (activeKdsView === 'orders') {
+            silentRefreshOrders();
+        } else {
+            silentRefreshRefills();
+        }
     }
 
     document.addEventListener('visibilitychange', function () {
-        if (!document.hidden) {
-            silentRefreshBoard();
-        }
+        if (!document.hidden) refreshActiveBoard();
     });
 
-    setInterval(silentRefreshBoard, 5000);
+    // Reduced from 5 seconds and refreshes only the visible board.
+    setInterval(refreshActiveBoard, 5000);
 </script>
 
 </body>

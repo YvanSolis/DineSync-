@@ -39,7 +39,7 @@
         background: rgba(255, 255, 255, 0.92);
         border: 1px solid rgba(226, 232, 240, 0.95);
         border-radius: 1.15rem;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04);
         padding: 1.1rem 1.25rem;
     }
 
@@ -47,7 +47,7 @@
         background: rgba(255, 255, 255, 0.94);
         border: 1px solid rgba(226, 232, 240, 0.95);
         border-radius: 1.4rem;
-        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.07);
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.045);
         overflow: hidden;
     }
 
@@ -84,7 +84,7 @@
     }
 
     .service-table tbody tr {
-        transition: background-color 0.2s ease;
+        transition: background-color 0.12s ease;
     }
 
     .service-table tbody tr:hover {
@@ -113,7 +113,7 @@
         padding: 0.55rem 0.85rem;
         font-size: 0.75rem;
         font-weight: 800;
-        transition: 0.2s ease;
+        transition: background-color 0.12s ease, border-color 0.12s ease;
         white-space: nowrap;
     }
 
@@ -133,7 +133,7 @@
         background: white;
         border: 1px solid #e5e7eb;
         border-radius: 1.25rem;
-        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04);
         overflow: hidden;
     }
 
@@ -149,6 +149,28 @@
         letter-spacing: 0.08em;
         color: #9ca3af;
         margin-bottom: 0.35rem;
+    }
+
+    .reservation-card,
+    .service-table tbody tr,
+    .reservation-stat-card,
+    .reservation-panel {
+        content-visibility: auto;
+        contain-intrinsic-size: 1px 170px;
+    }
+
+    .reservation-table-wrap {
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .service-reservations-shell *,
+        .service-reservations-shell *::before,
+        .service-reservations-shell *::after {
+            animation: none !important;
+            transition: none !important;
+        }
     }
 
     @media (max-width: 1280px) {
@@ -226,7 +248,7 @@
         background:
             radial-gradient(circle at top right, rgba(251, 146, 60, 0.18), transparent 30%),
             linear-gradient(135deg, rgba(255, 247, 237, 0.98), rgba(255, 255, 255, 0.98) 55%, rgba(255, 251, 235, 0.98));
-        box-shadow: 0 20px 50px rgba(249, 115, 22, 0.08);
+        box-shadow: 0 4px 14px rgba(249, 115, 22, 0.05);
     }
 
     .service-premium-stat {
@@ -235,7 +257,7 @@
         background: rgba(255, 255, 255, 0.97);
         border: 1px solid rgba(226, 232, 240, 0.95);
         border-radius: 1.2rem;
-        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.055);
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04);
         padding: 1rem 1.15rem;
         min-height: 96px;
         display: flex;
@@ -247,9 +269,10 @@
         background: rgba(255, 255, 255, 0.96);
         border: 1px solid rgba(226, 232, 240, 0.95);
         border-radius: 1.5rem;
-        box-shadow: 0 18px 46px rgba(15, 23, 42, 0.065);
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.045);
         overflow: hidden;
-        backdrop-filter: blur(14px);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
 
     .service-premium-shell table thead {
@@ -1114,28 +1137,6 @@ document.querySelectorAll('a[href]').forEach((link) => {
     });
 });
 
-setInterval(() => {
-    if (document.hidden) {
-        return;
-    }
-
-    const activeElement = document.activeElement;
-    const isInteracting =
-        activeElement &&
-        (
-            activeElement.tagName === 'INPUT' ||
-            activeElement.tagName === 'TEXTAREA' ||
-            activeElement.tagName === 'SELECT' ||
-            activeElement.tagName === 'BUTTON'
-        );
-
-    if (isInteracting) {
-        return;
-    }
-
-    saveReservationScrollPosition();
-    window.location.reload();
-}, 30000);
 </script>
 
 

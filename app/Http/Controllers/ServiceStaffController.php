@@ -785,6 +785,8 @@ class ServiceStaffController extends Controller
                     }
                 }
             })
+            ->orderByDesc('id')
+            ->limit(15)
             ->get();
 
         $this->syncPendingOrderPayments($pendingDigitalOrders);
@@ -850,52 +852,18 @@ class ServiceStaffController extends Controller
             $this->applyServicePaymentDateFilter($baseStatsQuery, $selectedDate);
         }
 
-        $allPaymentOrders = $baseStatsQuery->get();
-
-        $completedStatuses = [
-            'paid',
-            'verified',
-            'completed',
-            'success',
-            'successful',
-            'settled',
-        ];
+        $statsRow = $baseStatsQuery
+            ->selectRaw("SUM(CASE WHEN (LOWER(REPLACE(REPLACE(TRIM(payment_method), '_', ' '), '-', ' ')) LIKE '%counter%' OR LOWER(REPLACE(REPLACE(TRIM(payment_method), '_', ' '), '-', ' ')) LIKE '%cash%') AND COALESCE(LOWER(TRIM(payment_status)), 'pending') NOT IN ('paid','verified','completed','success','successful','settled') THEN 1 ELSE 0 END) AS awaiting_counter")
+            ->selectRaw("SUM(CASE WHEN LOWER(REPLACE(REPLACE(TRIM(payment_method), '_', ' '), '-', ' ')) LIKE '%later%' AND COALESCE(LOWER(TRIM(payment_status)), 'pending') NOT IN ('paid','verified','completed','success','successful','settled') THEN 1 ELSE 0 END) AS pay_later_unpaid")
+            ->selectRaw("SUM(CASE WHEN (LOWER(REPLACE(REPLACE(TRIM(payment_method), '_', ' '), '-', ' ')) LIKE '%digital%' OR LOWER(REPLACE(REPLACE(TRIM(payment_method), '_', ' '), '-', ' ')) LIKE '%qr%' OR LOWER(REPLACE(REPLACE(TRIM(payment_method), '_', ' '), '-', ' ')) LIKE '%xendit%') AND COALESCE(LOWER(TRIM(payment_status)), 'pending') NOT IN ('paid','verified','completed','success','successful','settled') THEN 1 ELSE 0 END) AS digital_pending")
+            ->selectRaw("SUM(CASE WHEN COALESCE(LOWER(TRIM(payment_status)), 'pending') IN ('paid','verified','completed','success','successful','settled') THEN 1 ELSE 0 END) AS paid")
+            ->first();
 
         $stats = [
-            'awaiting_counter' => $allPaymentOrders->filter(function ($order) use ($completedStatuses) {
-                $method = strtolower(str_replace(['_', '-'], ' ', trim($order->payment_method ?? '')));
-                $paymentStatus = strtolower(trim($order->payment_status ?? 'pending'));
-
-                return (
-                    str_contains($method, 'counter') ||
-                    str_contains($method, 'cash')
-                ) && !in_array($paymentStatus, $completedStatuses, true);
-            })->count(),
-
-            'pay_later_unpaid' => $allPaymentOrders->filter(function ($order) use ($completedStatuses) {
-                $method = strtolower(str_replace(['_', '-'], ' ', trim($order->payment_method ?? '')));
-                $paymentStatus = strtolower(trim($order->payment_status ?? 'pending'));
-
-                return str_contains($method, 'later')
-                    && !in_array($paymentStatus, $completedStatuses, true);
-            })->count(),
-
-            'digital_pending' => $allPaymentOrders->filter(function ($order) use ($completedStatuses) {
-                $method = strtolower(str_replace(['_', '-'], ' ', trim($order->payment_method ?? '')));
-                $paymentStatus = strtolower(trim($order->payment_status ?? 'pending'));
-
-                return (
-                    str_contains($method, 'digital') ||
-                    str_contains($method, 'qr') ||
-                    str_contains($method, 'xendit')
-                ) && !in_array($paymentStatus, $completedStatuses, true);
-            })->count(),
-
-            'paid' => $allPaymentOrders->filter(function ($order) use ($completedStatuses) {
-                $paymentStatus = strtolower(trim($order->payment_status ?? 'pending'));
-
-                return in_array($paymentStatus, $completedStatuses, true);
-            })->count(),
+            'awaiting_counter' => (int) ($statsRow->awaiting_counter ?? 0),
+            'pay_later_unpaid' => (int) ($statsRow->pay_later_unpaid ?? 0),
+            'digital_pending' => (int) ($statsRow->digital_pending ?? 0),
+            'paid' => (int) ($statsRow->paid ?? 0),
         ];
 
         $activeTables = RestaurantTable::where('status', 'occupied')
@@ -928,43 +896,9 @@ class ServiceStaffController extends Controller
     {
         [$start, $end] = $this->getServiceManilaDayUtcRange($selectedDate);
 
-        $completedStatuses = [
-            'paid',
-            'verified',
-            'completed',
-            'success',
-            'successful',
-            'settled',
-        ];
-
-        $pendingStatuses = [
-            'pending',
-            'processing',
-            'unpaid',
-        ];
-
-        $query->where(function ($query) use ($start, $end, $completedStatuses, $pendingStatuses) {
-            $query
-                ->where(function ($pendingQuery) use ($start, $end, $pendingStatuses) {
-                    $pendingQuery
-                        ->where(function ($statusQuery) use ($pendingStatuses) {
-                            $statusQuery->whereNull('payment_status')
-                                ->orWhereIn(DB::raw('LOWER(TRIM(payment_status))'), $pendingStatuses);
-                        })
-                        ->whereBetween('created_at', [$start, $end]);
-                })
-                ->orWhere(function ($completedQuery) use ($start, $end, $completedStatuses) {
-                    $completedQuery
-                        ->whereIn(DB::raw('LOWER(TRIM(payment_status))'), $completedStatuses)
-                        ->where(function ($dateQuery) use ($start, $end) {
-                            $dateQuery->whereBetween('paid_at', [$start, $end])
-                                ->orWhere(function ($fallbackQuery) use ($start, $end) {
-                                    $fallbackQuery->whereNull('paid_at')
-                                        ->whereBetween('created_at', [$start, $end]);
-                                });
-                        });
-                });
-        });
+        // Keep every order under its original order date, even after settlement.
+        // paid_at remains the actual payment timestamp and is only used for receipts/reports.
+        $query->whereBetween('created_at', [$start, $end]);
     }
 
     public function processOrderPayment(
@@ -1021,10 +955,11 @@ class ServiceStaffController extends Controller
             'successful',
             'settled',
         ], true)) {
-            return back()->with(
-                'error',
-                'This order is already paid.'
-            );
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'This order is already paid.'], 422);
+            }
+
+            return back()->with('error', 'This order is already paid.');
         }
 
         $discountType = strtolower(
@@ -1349,20 +1284,37 @@ class ServiceStaffController extends Controller
                     )
                 );
 
-            return back()->with(
-                'success',
-                $successMessage
-            );
+            if ($request->expectsJson()) {
+                $freshOrder = Order::with(['items.menuItem'])->findOrFail($order->id);
+
+                return response()->json([
+                    'message' => $successMessage,
+                    'order' => [
+                        'id' => $freshOrder->id,
+                        'order_number' => $freshOrder->order_number,
+                        'payment_status' => $freshOrder->payment_status,
+                        'payment_method' => $freshOrder->payment_method,
+                        'paid_at' => optional($freshOrder->paid_at)?->toIso8601String(),
+                        'final_amount' => (float) ($freshOrder->final_amount ?? $freshOrder->total_amount),
+                        'discount_type' => $freshOrder->discount_type,
+                    ],
+                ]);
+            }
+
+            return back()->with('success', $successMessage);
         } catch (ValidationException $exception) {
             throw $exception;
         } catch (\Throwable $exception) {
             report($exception);
 
-            return back()->with(
-                'error',
-                $exception->getMessage()
-                    ?: 'Unable to process the payment and discount.'
-            );
+            $message = $exception->getMessage()
+                ?: 'Unable to process the payment and discount.';
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 500);
+            }
+
+            return back()->with('error', $message);
         }
     }
 

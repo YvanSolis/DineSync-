@@ -11,70 +11,31 @@
         position: relative;
     }
 
+    .service-premium-panel,
+    .service-premium-stat,
+    .service-premium-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.045);
+    }
+
     .service-premium-panel {
-        background: rgba(255, 255, 255, 0.96);
-        border: 1px solid rgba(226, 232, 240, 0.94);
         border-radius: 1.5rem;
-        box-shadow: 0 18px 46px rgba(15, 23, 42, 0.065);
-        backdrop-filter: blur(14px);
     }
 
     .service-premium-hero {
         position: relative;
         overflow: hidden;
-        border: 1px solid rgba(254, 215, 170, 0.88);
+        border: 1px solid #fed7aa;
         border-radius: 1.75rem;
-        background:
-            radial-gradient(circle at top right, rgba(251, 146, 60, 0.18), transparent 30%),
-            linear-gradient(135deg, rgba(255, 247, 237, 0.98), rgba(255, 255, 255, 0.98) 55%, rgba(255, 251, 235, 0.98));
-        box-shadow: 0 20px 50px rgba(249, 115, 22, 0.08);
+        background: #fff7ed;
+        box-shadow: 0 4px 14px rgba(249, 115, 22, 0.045);
     }
 
-    .service-premium-stat {
-        position: relative;
-        overflow: hidden;
-        background: rgba(255, 255, 255, 0.97);
-        border: 1px solid rgba(226, 232, 240, 0.94);
-        border-radius: 1.35rem;
-        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.055);
-        transition:
-            transform 0.2s ease,
-            box-shadow 0.2s ease,
-            border-color 0.2s ease;
-    }
-
-    .service-premium-stat:hover {
-        transform: translateY(-2px);
-        border-color: rgba(251, 146, 60, 0.32);
-        box-shadow: 0 20px 42px rgba(15, 23, 42, 0.08);
-    }
-
+    .service-premium-stat,
     .service-premium-card {
-        border-radius: 1.35rem !important;
-        border-color: rgba(226, 232, 240, 0.92) !important;
-        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.05) !important;
-        transition:
-            transform 0.2s ease,
-            box-shadow 0.2s ease,
-            border-color 0.2s ease;
-    }
-
-    .service-premium-card:hover {
-        transform: translateY(-1px);
-        border-color: rgba(251, 146, 60, 0.28) !important;
-        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.075) !important;
-    }
-
-    .service-premium-shell table thead {
-        background: linear-gradient(to right, #fff7ed, #ffffff, #fffbeb) !important;
-    }
-
-    .service-premium-shell table tbody tr {
-        transition: background-color 0.18s ease;
-    }
-
-    .service-premium-shell table tbody tr:hover {
-        background: rgba(255, 247, 237, 0.66) !important;
+        border-radius: 1.35rem;
+        contain: layout paint;
     }
 
     .service-premium-shell input,
@@ -89,12 +50,14 @@
     .service-premium-shell select:focus,
     .service-premium-shell textarea:focus {
         border-color: #fb923c !important;
-        box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.12) !important;
+        box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.10) !important;
     }
 
     .service-premium-shell button,
     .service-premium-shell a {
         -webkit-tap-highlight-color: transparent;
+        transition-property: background-color, border-color, color;
+        transition-duration: 150ms;
     }
 
     .service-premium-shell .premium-section-heading {
@@ -103,17 +66,18 @@
         color: #0f172a;
     }
 
-    .service-premium-shell .premium-muted {
-        color: #64748b;
+    @media (max-width: 640px) {
+        .service-premium-hero { border-radius: 1.35rem; }
+        .service-premium-panel { border-radius: 1.25rem; }
     }
 
-    @media (max-width: 640px) {
-        .service-premium-hero {
-            border-radius: 1.35rem;
-        }
-
-        .service-premium-panel {
-            border-radius: 1.25rem;
+    @media (prefers-reduced-motion: reduce) {
+        .service-premium-shell *,
+        .service-premium-shell *::before,
+        .service-premium-shell *::after {
+            animation: none !important;
+            transition: none !important;
+            scroll-behavior: auto !important;
         }
     }
 </style>
@@ -532,43 +496,26 @@
 
 <script>
     const scrollStorageKey = 'serviceTableMonitoringScrollY';
+    let scrollSaveFrame = null;
 
     window.addEventListener('load', function () {
         const savedScrollY = sessionStorage.getItem(scrollStorageKey);
-
         if (savedScrollY !== null) {
-            setTimeout(() => {
-                window.scrollTo(0, parseInt(savedScrollY, 10));
-            }, 50);
+            window.requestAnimationFrame(function () {
+                window.scrollTo(0, Number(savedScrollY) || 0);
+            });
         }
-    });
+    }, { once: true });
 
-    function saveCurrentScrollPosition() {
-        sessionStorage.setItem(scrollStorageKey, window.scrollY.toString());
-    }
+    window.addEventListener('scroll', function () {
+        if (scrollSaveFrame) return;
+        scrollSaveFrame = window.requestAnimationFrame(function () {
+            sessionStorage.setItem(scrollStorageKey, String(window.scrollY));
+            scrollSaveFrame = null;
+        });
+    }, { passive: true });
 
-    window.addEventListener('beforeunload', saveCurrentScrollPosition);
-
-    setInterval(() => {
-        if (document.hidden) {
-            return;
-        }
-
-        const activeElement = document.activeElement;
-        const isTyping =
-            activeElement &&
-            (
-                activeElement.tagName === 'INPUT' ||
-                activeElement.tagName === 'TEXTAREA' ||
-                activeElement.tagName === 'SELECT'
-            );
-
-        if (isTyping) {
-            return;
-        }
-
-        saveCurrentScrollPosition();
-        window.location.reload();
-    }, 15000);
+    // Full-page auto reload was removed because it caused scroll stutter.
+    // Refresh manually after table actions; form submissions already reload with fresh data.
 </script>
 @endsection

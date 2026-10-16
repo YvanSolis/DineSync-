@@ -52,47 +52,39 @@
 @endphp
 
 <style>
-    .service-dashboard-shell { position: relative; }
-    .service-dashboard-shell::before {
-        content: '';
-        position: absolute;
-        inset: -24px -20px auto;
-        height: 250px;
-        border-radius: 34px;
-        background:
-            radial-gradient(circle at 10% 10%, rgba(251, 146, 60, .18), transparent 38%),
-            radial-gradient(circle at 88% 8%, rgba(250, 204, 21, .12), transparent 34%);
-        pointer-events: none;
-        z-index: 0;
+    .service-dashboard-shell,
+    .service-dashboard-content {
+        position: relative;
     }
-    .service-dashboard-content { position: relative; z-index: 1; }
+
     .premium-panel {
-        background: rgba(255, 255, 255, .94);
-        border: 1px solid rgba(226, 232, 240, .9);
-        box-shadow: 0 18px 45px rgba(15, 23, 42, .06);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.045);
+        contain: layout paint;
     }
+
     .metric-card {
         position: relative;
         overflow: hidden;
-        isolation: isolate;
     }
-    .metric-card::after {
-        content: '';
-        position: absolute;
-        right: -28px;
-        top: -28px;
-        width: 110px;
-        height: 110px;
-        border-radius: 999px;
-        background: currentColor;
-        opacity: .055;
-        z-index: -1;
+
+    .metric-card,
+    .premium-panel,
+    .service-dashboard-shell a,
+    .service-dashboard-shell button {
+        transition-property: background-color, border-color, color;
+        transition-duration: 150ms;
     }
-    .metric-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 22px 48px rgba(15, 23, 42, .09);
+
+    @media (prefers-reduced-motion: reduce) {
+        .service-dashboard-shell *,
+        .service-dashboard-shell *::before,
+        .service-dashboard-shell *::after {
+            scroll-behavior: auto !important;
+            animation: none !important;
+            transition: none !important;
+        }
     }
 </style>
 
@@ -100,10 +92,7 @@
     <div class="service-dashboard-content space-y-6">
 
         <section class="premium-panel overflow-hidden rounded-[30px]">
-            <div class="relative px-5 py-6 sm:px-7 sm:py-7">
-                <div class="absolute inset-0 bg-gradient-to-r from-orange-50 via-white to-amber-50"></div>
-                <div class="absolute -right-12 -top-16 h-48 w-48 rounded-full bg-orange-100/60"></div>
-                <div class="absolute -bottom-20 left-1/3 h-44 w-44 rounded-full bg-amber-100/40"></div>
+            <div class="relative bg-orange-50/70 px-5 py-6 sm:px-7 sm:py-7">
 
                 <div class="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
                     <div class="min-w-0">
@@ -128,12 +117,12 @@
 
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <a href="{{ route('service.active-orders') }}"
-                           class="inline-flex min-h-[46px] items-center justify-center rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-orange-200 transition hover:bg-orange-600">
+                           class="inline-flex min-h-[46px] items-center justify-center rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white hover:bg-orange-600">
                             View Active Orders
                         </a>
 
                         <a href="{{ route('service.table-monitoring') }}"
-                           class="inline-flex min-h-[46px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:border-orange-200 hover:text-orange-600">
+                           class="inline-flex min-h-[46px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 shadow-sm hover:border-orange-200 hover:text-orange-600">
                             Monitor Tables
                         </a>
                     </div>
@@ -143,7 +132,7 @@
 
         <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
             <a href="{{ route('service.reservations') }}"
-               class="metric-card premium-panel rounded-[26px] p-5 text-violet-600 transition duration-200">
+               class="metric-card premium-panel rounded-[26px] p-5 text-violet-600">
                 <div class="flex items-start justify-between gap-4">
                     <div>
                         <p class="text-xs font-black uppercase tracking-[.14em] text-slate-400">Pending Reservations</p>
@@ -159,7 +148,7 @@
             </a>
 
             <a href="{{ route('service.active-orders') }}"
-               class="metric-card premium-panel rounded-[26px] p-5 text-emerald-600 transition duration-200">
+               class="metric-card premium-panel rounded-[26px] p-5 text-emerald-600">
                 <div class="flex items-start justify-between gap-4">
                     <div>
                         <p class="text-xs font-black uppercase tracking-[.14em] text-slate-400">Ready to Serve</p>
@@ -179,7 +168,7 @@
             </a>
 
             <a href="{{ route('service.table-monitoring') }}"
-               class="metric-card premium-panel rounded-[26px] p-5 text-blue-600 transition duration-200 sm:col-span-2 2xl:col-span-1">
+               class="metric-card premium-panel rounded-[26px] p-5 text-blue-600 sm:col-span-2 2xl:col-span-1">
                 <div class="flex items-start justify-between gap-4">
                     <div>
                         <p class="text-xs font-black uppercase tracking-[.14em] text-slate-400">Seated Customers</p>
@@ -207,7 +196,7 @@
                     </div>
 
                     <a href="{{ route('service.active-orders') }}"
-                       class="inline-flex min-h-[42px] items-center justify-center rounded-2xl border border-orange-100 bg-orange-50 px-4 py-2 text-sm font-black text-orange-600 transition hover:bg-orange-100">
+                       class="inline-flex min-h-[42px] items-center justify-center rounded-2xl border border-orange-100 bg-orange-50 px-4 py-2 text-sm font-black text-orange-600 hover:bg-orange-100">
                         View all orders
                     </a>
                 </header>
@@ -224,7 +213,7 @@
                                 ?? null;
                         @endphp
 
-                        <div class="p-5 transition hover:bg-slate-50/70 sm:p-6">
+                        <div class="p-5 hover:bg-slate-50/70 sm:p-6">
                             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                 <div class="min-w-0">
                                     <div class="flex flex-wrap items-center gap-2">
@@ -297,7 +286,7 @@
                     </div>
 
                     <a href="{{ route('service.reservations') }}"
-                       class="inline-flex min-h-[42px] items-center justify-center rounded-2xl border border-violet-100 bg-violet-50 px-4 py-2 text-sm font-black text-violet-600 transition hover:bg-violet-100">
+                       class="inline-flex min-h-[42px] items-center justify-center rounded-2xl border border-violet-100 bg-violet-50 px-4 py-2 text-sm font-black text-violet-600 hover:bg-violet-100">
                         View all reservations
                     </a>
                 </header>
@@ -320,7 +309,7 @@
                             $statusClass = $reservationStatusClass($reservationStatus);
                         @endphp
 
-                        <div class="p-5 transition hover:bg-slate-50/70 sm:p-6">
+                        <div class="p-5 hover:bg-slate-50/70 sm:p-6">
                             <div class="flex items-start justify-between gap-4">
                                 <div class="min-w-0">
                                     <p class="truncate font-black text-slate-950">{{ $reservation->customer_name }}</p>
@@ -373,7 +362,7 @@
 
         const toast = document.createElement('div');
         toast.id = 'ready-order-toast';
-        toast.className = 'fixed right-4 top-5 z-[100] w-[calc(100vw-2rem)] max-w-sm overflow-hidden rounded-[22px] border border-emerald-200 bg-white shadow-2xl sm:right-5';
+        toast.className = 'fixed right-4 top-5 z-[100] w-[calc(100vw-2rem)] max-w-sm overflow-hidden rounded-[22px] border border-emerald-200 bg-white shadow-lg sm:right-5';
 
         toast.innerHTML = `
             <div class="flex items-start gap-3 bg-gradient-to-r from-emerald-50 to-white p-4">
@@ -441,7 +430,28 @@
         Notification.requestPermission();
     }
 
-    checkReadyOrders();
-    setInterval(checkReadyOrders, 10000);
+    let readyOrderTimer = null;
+
+    function startReadyOrderPolling() {
+        if (readyOrderTimer || document.hidden) return;
+        checkReadyOrders();
+        readyOrderTimer = window.setInterval(checkReadyOrders, 30000);
+    }
+
+    function stopReadyOrderPolling() {
+        if (!readyOrderTimer) return;
+        window.clearInterval(readyOrderTimer);
+        readyOrderTimer = null;
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) {
+            stopReadyOrderPolling();
+        } else {
+            startReadyOrderPolling();
+        }
+    });
+
+    startReadyOrderPolling();
 </script>
 @endsection
